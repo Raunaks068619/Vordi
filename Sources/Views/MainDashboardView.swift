@@ -1009,27 +1009,59 @@ struct MainDashboardView: View {
 
     /// Output styles available given the current tier.
     ///
-    /// Groq-tier users (free tier, no OpenAI key) only see **Original**.
-    /// **English** and **Hinglish** both require OpenAI's multilingual
-    /// Whisper — Groq's English-only STT can't transcribe Hindi for
-    /// translation OR for bilingual preservation, so showing those
-    /// options would just silently produce broken output. The OpenAI
-    /// upsell card on the dashboard explains how to unlock them.
+    /// **Groq tier** (free tier, no OpenAI key): **Original** + **English**.
+    /// English on Groq tier is an English-only cleanup path (Groq STT +
+    /// Groq llama polish) — no translation. Fixes filler words, grammar,
+    /// and the "every pause becomes a period" problem that pure-Whisper
+    /// output exhibits. **Hinglish** is hidden because Groq's Whisper is
+    /// English-only in practice — Hindi audio comes back garbled there.
+    ///
+    /// **OpenAI tier**: all three styles. English becomes a translation
+    /// path (any input → English output), Hinglish does bilingual preserve.
     private var visibleOutputModes: [(id: String, label: String)] {
         if isOnGroqTier {
             return outputModes.filter {
                 $0.id == TranscriptOutputStyle.verbatim.rawValue
+                    || $0.id == TranscriptOutputStyle.clean.rawValue
             }
         }
         return outputModes
     }
 
+    /// Dictation vs. Rewrite — the two-mode toggle that controls how
+    /// aggressively the polish LLM transforms your spoken input.
+    ///
+    ///   - **Dictation** (default): keeps wording close to what you said.
+    ///     Removes obvious fillers ("um", "uh"), fixes punctuation,
+    ///     normalizes pauses-as-fullstops. Doesn't paraphrase or
+    ///     restructure. Use when you want your VOICE in the output.
+    ///
+    ///   - **Rewrite**: lets the LLM tighten phrasing, fix grammar,
+    ///     restructure sentences for clarity, format lists/headers
+    ///     when appropriate. Use when you want your INTENT in the
+    ///     output, polished. Slower (the LLM does more work), worth
+    ///     it for emails / docs / Slack messages where you'd reach
+    ///     for Grammarly otherwise.
+    ///
+    /// Has no effect on Verbatim style — that path skips the polish
+    /// LLM entirely so neither mode applies.
     private var transcriptionModeCard: some View {
         cardContainer {
             VStack(alignment: .leading, spacing: 12) {
-                Text("Transcription Mode")
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundColor(Theme.textPrimary)
+                HStack {
+                    Text("Polish Mode")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(Theme.textPrimary)
+                    Spacer()
+                    if outputMode == TranscriptOutputStyle.verbatim.rawValue {
+                        Text("No effect on Original")
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundColor(Theme.textTertiary)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(Capsule().fill(Theme.divider))
+                    }
+                }
                 ThemedPillTabs(
                     options: processingModes.map { (id: $0.id, label: $0.label) },
                     selection: $processingMode
@@ -1037,11 +1069,22 @@ struct MainDashboardView: View {
                 .onChange(of: processingMode) { newValue in
                     UserDefaults.standard.set(newValue, forKey: "processing_mode")
                 }
-                Text("Dictation keeps your spoken phrasing. Rewrite converts a spoken draft into cleaner final intent text.")
+                Text(transcriptionModeHelperText)
                     .font(.system(size: 11))
                     .foregroundColor(Theme.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
+        }
+    }
+
+    /// Mode-specific helper text. Different copy per selected mode so
+    /// the user understands the tradeoff before choosing.
+    private var transcriptionModeHelperText: String {
+        switch TranscriptProcessingMode(rawValue: processingMode) ?? .dictation {
+        case .dictation:
+            return "Keeps your spoken phrasing. Removes fillers, fixes punctuation, normalizes pauses. Doesn't restructure. Fast — what you'd want for chat / quick capture."
+        case .rewrite:
+            return "Lets the polish LLM tighten phrasing, fix grammar, restructure for clarity, and add list / header formatting when appropriate. Slower (more LLM work), worth it for emails, docs, and anywhere you'd otherwise paste into Grammarly."
         }
     }
 
@@ -1265,6 +1308,11 @@ struct MainDashboardView: View {
                 realtimeStreamingCard
                 polishModelCard
                 outputStyleCard
+                // Polish Mode (Dictation vs Rewrite) — controls how
+                // aggressively the LLM transforms the polished output.
+                // No effect on Verbatim style; the help text inside
+                // the card surfaces a chip that says so when relevant.
+                transcriptionModeCard
                 // Language picker is only meaningful for Original mode —
                 // English / Hinglish resolve their language hint inside
                 // WhisperService.route() based on the output contract.
@@ -1906,7 +1954,7 @@ struct MainDashboardView: View {
                         .foregroundColor(Theme.textPrimary)
                     Spacer()
                     if isOnGroqTier {
-                        Text("English / Hinglish need OpenAI")
+                        Text("Hinglish needs OpenAI")
                             .font(.system(size: 10, weight: .semibold))
                             .foregroundColor(Theme.textTertiary)
                             .padding(.horizontal, 6)
@@ -1914,8 +1962,9 @@ struct MainDashboardView: View {
                             .background(Capsule().fill(Theme.divider))
                     }
                 }
-                // Groq tier shows only Original. English + Hinglish both
-                // require OpenAI's multilingual STT (Groq is English-only).
+                // Groq tier shows Original + English (English-only cleanup,
+                // no translation). Hinglish is gated behind an OpenAI key
+                // because Groq's Whisper can't transcribe Hindi audio.
                 ThemedPillTabs(
                     options: visibleOutputModes.map { (id: $0.id, label: $0.label) },
                     selection: $outputMode
@@ -1950,14 +1999,18 @@ struct MainDashboardView: View {
     }
 
     /// Mode-specific helper text — single source of truth for what each
-    /// output contract delivers. Stored language picker is intentionally
-    /// NOT mentioned here (it only affects Original now).
+    /// output contract delivers. The `.clean` description is tier-aware:
+    /// without an OpenAI key it's English cleanup; with a key it adds
+    /// translation. The user sees the right contract for their setup.
     private var outputStyleHelperText: String {
         switch TranscriptOutputStyle(rawValue: outputMode) ?? .cleanHinglish {
         case .verbatim:
-            return "Raw transcript with no cleanup. Preserves exact wording, fillers, and source language. The Language picker controls Whisper's language hint in this mode."
+            return "Raw transcript with no cleanup. Preserves exact wording, fillers, and source language. Whisper's natural punctuation guesses come through (pauses can show up as full stops). The Language picker controls Whisper's language hint in this mode."
         case .clean:
-            return "Output is always English. If you speak Hindi (or any other language), it gets translated. If you speak English, it just gets fillers + grammar cleaned."
+            if isOnGroqTier {
+                return "English cleanup — removes fillers, fixes grammar, and normalizes punctuation so natural pauses don't become full stops. Speak English; Hindi will come through garbled on the free tier (add an OpenAI key in Settings → Provider for translation + Hinglish)."
+            }
+            return "Output is always English. If you speak Hindi (or any other language), it gets translated. If you speak English, it just gets fillers + grammar cleaned + punctuation normalized."
         case .cleanHinglish:
             return "Bilingual transcripts preserved as-spoken — English stays English, Hindi gets transliterated to Latin script (\u{201C}mera naam Raunak hai\u{201D}). Nothing translated."
         case .translateEnglish:
