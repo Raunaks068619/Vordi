@@ -1,4 +1,5 @@
 import Foundation
+import AppKit
 
 /// Picks the right TransformerProfile for a given transcript + context.
 ///
@@ -8,9 +9,10 @@ import Foundation
 /// 2. Trigger words — "voiceflow create" → DeveloperModeProfile,
 ///    "voiceflow prompt" → PromptEngineerProfile, etc.
 /// 3. Magic word match — registry hit takes precedence over standard cleanup.
-/// 4. Surface + dev-mode toggle — IDE/terminal users with dev mode ON get
+/// 4. System action phrases — "open Claude", "open Claude and type ..."
+/// 5. Surface + dev-mode toggle — IDE/terminal users with dev mode ON get
 ///    VariableRecognitionProfile wrapped around StandardCleanupProfile.
-/// 5. Fallback — StandardCleanupProfile.
+/// 6. Fallback — StandardCleanupProfile.
 ///
 /// **Why deterministic over LLM-driven**: the routing decision affects
 /// EVERY dictation. We can't afford a 200ms classifier API call to decide
@@ -165,9 +167,18 @@ final class TransformerRouter {
                     trace.append("Magic word: no match")
                 }
             }
+
+            if let action = SystemActionResolver().resolve(transcript: transcript) {
+                trace.append(action.traceSummary)
+                return RouterDecision(
+                    profile: SystemActionProfile(action: action),
+                    trace: trace,
+                    isInstantPath: true
+                )
+            }
         }
 
-        // 4. Surface-based wrap — IDE + dev mode + var recog → wrap standard
+        // 5. Surface-based wrap — IDE + dev mode + var recog → wrap standard
         // cleanup with VariableRecognitionProfile.
         let standard = StandardCleanupProfile(whisper: whisper)
         if isDevModeEnabled
@@ -181,12 +192,418 @@ final class TransformerRouter {
             )
         }
 
-        // 5. Fallback.
+        // 6. Fallback.
         trace.append("Fallback: StandardCleanupProfile")
         return RouterDecision(
             profile: standard,
             trace: trace,
             isInstantPath: false
         )
+    }
+}
+
+// MARK: - System Actions
+
+struct SystemAction {
+    let requestedAppName: String
+    let appURL: URL
+    let appDisplayName: String
+    let insertionText: String?
+
+    var traceSummary: String {
+        if let insertionText, !insertionText.isEmpty {
+            return "System action: open \(appDisplayName) + paste \(insertionText.count) chars"
+        }
+        return "System action: open \(appDisplayName)"
+    }
+
+    var completionSummary: String {
+        if let insertionText, !insertionText.isEmpty {
+            return "Opened \(appDisplayName) and inserted text"
+        }
+        return "Opened \(appDisplayName)"
+    }
+}
+
+final class SystemActionProfile: TransformerProfile {
+    let kind: ProfileKind = .systemAction
+    let displayLabel = ProfileKind.systemAction.displayLabel
+
+    private let action: SystemAction
+    private let executor: SystemActionExecutor
+
+    init(action: SystemAction, executor: SystemActionExecutor = SystemActionExecutor()) {
+        self.action = action
+        self.executor = executor
+    }
+
+    func transform(
+        _ input: TransformerInput,
+        completion: @escaping (Result<TransformerOutput, Error>) -> Void
+    ) {
+        executor.execute(action) { result in
+            switch result {
+            case .success(let summary):
+                completion(.success(TransformerOutput(
+                    finalText: summary,
+                    summary: summary,
+                    modelUsed: nil,
+                    costUSD: 0,
+                    llmLatencyMs: 0,
+                    usedAgentic: false,
+                    trace: [
+                        "Profile: system action",
+                        "Requested app: \(self.action.requestedAppName)",
+                        "Resolved app: \(self.action.appDisplayName)",
+                        self.action.insertionText?.isEmpty == false
+                            ? "Inserted text: yes"
+                            : "Inserted text: no",
+                    ],
+                    shouldInject: false
+                )))
+            case .failure(let error):
+                completion(.failure(error))
+            }
+        }
+    }
+}
+
+struct SystemActionResolver {
+    private let parser = SystemActionPhraseParser()
+    private let appResolver = InstalledApplicationResolver()
+
+    func resolve(transcript: String) -> SystemAction? {
+        guard let phrase = parser.parse(transcript) else { return nil }
+        guard let app = appResolver.resolve(spokenName: phrase.appName) else { return nil }
+        return SystemAction(
+            requestedAppName: phrase.appName,
+            appURL: app.url,
+            appDisplayName: app.displayName,
+            insertionText: phrase.insertionText
+        )
+    }
+}
+
+private struct ParsedSystemAction {
+    let appName: String
+    let insertionText: String?
+}
+
+private struct SystemActionPhraseParser {
+    private let launchPrefixes = ["open ", "launch ", "start "]
+    private let insertionSeparators = [
+        " and type ",
+        " and paste ",
+        " and write ",
+        " and enter ",
+        " and ask ",
+        ", type ",
+        ", paste ",
+        ", write ",
+        ", enter ",
+        ", ask ",
+    ]
+
+    func parse(_ transcript: String) -> ParsedSystemAction? {
+        let trimmed = Self.trimEdges(transcript)
+        guard !trimmed.isEmpty else { return nil }
+
+        let lowercased = trimmed.lowercased()
+        guard let prefix = launchPrefixes.first(where: { lowercased.hasPrefix($0) }) else {
+            return nil
+        }
+
+        let command = String(trimmed.dropFirst(prefix.count))
+        guard !command.isEmpty else { return nil }
+
+        let parts = splitCommand(command)
+        let appName = cleanAppName(parts.app)
+        guard appName.count >= 2, appName.count <= 60 else { return nil }
+
+        let insertionText = parts.insertion.map(Self.trimEdges).flatMap {
+            $0.isEmpty ? nil : $0
+        }
+
+        return ParsedSystemAction(appName: appName, insertionText: insertionText)
+    }
+
+    private func splitCommand(_ command: String) -> (app: String, insertion: String?) {
+        for separator in insertionSeparators {
+            if let range = command.range(of: separator, options: [.caseInsensitive]) {
+                let app = String(command[..<range.lowerBound])
+                let insertion = String(command[range.upperBound...])
+                return (app, insertion)
+            }
+        }
+        return (command, nil)
+    }
+
+    private func cleanAppName(_ raw: String) -> String {
+        var value = Self.trimEdges(raw)
+        value = Self.stripPrefix("the ", from: value)
+        value = Self.stripSuffix(" app", from: value)
+        value = Self.stripSuffix(" application", from: value)
+        value = Self.stripSuffix(" desktop", from: value)
+        return Self.trimEdges(value)
+    }
+
+    private static func stripPrefix(_ prefix: String, from value: String) -> String {
+        let lowercased = value.lowercased()
+        guard lowercased.hasPrefix(prefix) else { return value }
+        return String(value.dropFirst(prefix.count))
+    }
+
+    private static func stripSuffix(_ suffix: String, from value: String) -> String {
+        let lowercased = value.lowercased()
+        guard lowercased.hasSuffix(suffix) else { return value }
+        return String(value.dropLast(suffix.count))
+    }
+
+    private static func trimEdges(_ value: String) -> String {
+        var trimSet = CharacterSet.whitespacesAndNewlines
+        trimSet.insert(charactersIn: "\"'.,:;!?")
+        return value.trimmingCharacters(in: trimSet)
+    }
+}
+
+private struct ResolvedApplication {
+    let url: URL
+    let displayName: String
+}
+
+private struct InstalledApplication {
+    let url: URL
+    let displayName: String
+    let normalizedName: String
+}
+
+private struct InstalledApplicationResolver {
+    private static var cachedApps: [InstalledApplication]?
+
+    private let nameAliases: [String: [String]] = [
+        "claude": ["Claude", "Claude Desktop"],
+        "cloud": ["Claude", "Claude Desktop"],
+        "codex": ["Codex"],
+        "chat gpt": ["ChatGPT"],
+        "chatgpt": ["ChatGPT"],
+        "chrome": ["Google Chrome"],
+        "google chrome": ["Google Chrome"],
+        "cursor": ["Cursor"],
+        "vs code": ["Visual Studio Code"],
+        "vscode": ["Visual Studio Code"],
+        "visual studio code": ["Visual Studio Code"],
+        "terminal": ["Terminal"],
+        "iterm": ["iTerm", "iTerm2"],
+        "notes": ["Notes"],
+        "slack": ["Slack"],
+    ]
+
+    private let bundleAliases: [String: [String]] = [
+        "safari": ["com.apple.Safari"],
+        "terminal": ["com.apple.Terminal"],
+        "notes": ["com.apple.Notes"],
+        "claude": ["com.anthropic.claude", "com.anthropic.claudefordesktop"],
+        "cloud": ["com.anthropic.claude", "com.anthropic.claudefordesktop"],
+        "chatgpt": ["com.openai.chat"],
+        "chat gpt": ["com.openai.chat"],
+        "cursor": ["com.todesktop.230313mzl4w4u92"],
+        "visual studio code": ["com.microsoft.VSCode"],
+        "vs code": ["com.microsoft.VSCode"],
+        "vscode": ["com.microsoft.VSCode"],
+        "chrome": ["com.google.Chrome"],
+        "google chrome": ["com.google.Chrome"],
+        "slack": ["com.tinyspeck.slackmacgap"],
+    ]
+
+    func resolve(spokenName: String) -> ResolvedApplication? {
+        let query = Self.normalizeName(spokenName)
+        guard query.count >= 2 else { return nil }
+
+        if let app = resolveBundleAlias(query: query) {
+            return app
+        }
+
+        for candidateName in candidateNames(for: spokenName, normalized: query) {
+            if let app = resolveLaunchServicesName(candidateName) {
+                return app
+            }
+        }
+
+        return resolveInstalledApp(query: query, aliases: candidateNames(for: spokenName, normalized: query))
+    }
+
+    private func resolveBundleAlias(query: String) -> ResolvedApplication? {
+        guard let bundleIDs = bundleAliases[query] else { return nil }
+        for bundleID in bundleIDs {
+            if let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID) {
+                return ResolvedApplication(url: url, displayName: Self.displayName(for: url))
+            }
+        }
+        return nil
+    }
+
+    private func resolveLaunchServicesName(_ name: String) -> ResolvedApplication? {
+        guard let path = NSWorkspace.shared.fullPath(forApplication: name) else { return nil }
+        let url = URL(fileURLWithPath: path)
+        return ResolvedApplication(url: url, displayName: Self.displayName(for: url))
+    }
+
+    private func resolveInstalledApp(query: String, aliases: [String]) -> ResolvedApplication? {
+        let normalizedQueries = ([query] + aliases.map(Self.normalizeName))
+            .filter { $0.count >= 2 }
+
+        let matches = Self.installedApps().compactMap { app -> (app: InstalledApplication, score: Int)? in
+            let matchScore = normalizedQueries.map { scoreApp(app, query: $0) }.max() ?? 0
+            return matchScore >= 80 ? (app, matchScore) : nil
+        }
+
+        guard let best = matches.sorted(by: sortMatches).first?.app else { return nil }
+        return ResolvedApplication(url: best.url, displayName: best.displayName)
+    }
+
+    private func candidateNames(for spokenName: String, normalized: String) -> [String] {
+        var names = [spokenName]
+        names.append(contentsOf: nameAliases[normalized] ?? [])
+        var seen = Set<String>()
+        return names.filter { seen.insert($0).inserted }
+    }
+
+    private func scoreApp(_ app: InstalledApplication, query: String) -> Int {
+        let name = app.normalizedName
+        guard query.count >= 2, name.count >= 2 else { return 0 }
+
+        if name == query { return 100 }
+        if name.hasPrefix(query + " ") { return 90 }
+        if name.hasSuffix(" " + query) { return 88 }
+        if query.hasPrefix(name + " "), name.count >= 4 { return 84 }
+
+        let queryTokens = Set(query.split(separator: " ").map(String.init))
+        let nameTokens = Set(name.split(separator: " ").map(String.init))
+        if !queryTokens.isEmpty, queryTokens.isSubset(of: nameTokens) { return 82 }
+
+        if query.count >= 4, name.contains(query) { return 80 }
+        return 0
+    }
+
+    private func sortMatches(
+        _ lhs: (app: InstalledApplication, score: Int),
+        _ rhs: (app: InstalledApplication, score: Int)
+    ) -> Bool {
+        if lhs.score != rhs.score { return lhs.score > rhs.score }
+
+        let lhsPreferred = lhs.app.url.path.hasPrefix("/Applications/")
+        let rhsPreferred = rhs.app.url.path.hasPrefix("/Applications/")
+        if lhsPreferred != rhsPreferred { return lhsPreferred }
+
+        return lhs.app.displayName.count < rhs.app.displayName.count
+    }
+
+    private static func installedApps() -> [InstalledApplication] {
+        if let cachedApps { return cachedApps }
+
+        let fileManager = FileManager.default
+        let roots = [
+            "/Applications",
+            NSHomeDirectory() + "/Applications",
+            "/System/Applications",
+        ]
+
+        var apps: [InstalledApplication] = []
+        for root in roots {
+            let rootURL = URL(fileURLWithPath: root, isDirectory: true)
+            guard fileManager.fileExists(atPath: rootURL.path) else { continue }
+
+            let enumerator = fileManager.enumerator(
+                at: rootURL,
+                includingPropertiesForKeys: nil,
+                options: [.skipsHiddenFiles, .skipsPackageDescendants]
+            )
+
+            while let url = enumerator?.nextObject() as? URL {
+                guard url.pathExtension.lowercased() == "app" else { continue }
+                let displayName = displayName(for: url)
+                apps.append(InstalledApplication(
+                    url: url,
+                    displayName: displayName,
+                    normalizedName: normalizeName(displayName)
+                ))
+            }
+        }
+
+        cachedApps = apps
+        return apps
+    }
+
+    private static func displayName(for url: URL) -> String {
+        if let bundle = Bundle(url: url) {
+            if let display = bundle.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String,
+               !display.isEmpty {
+                return display
+            }
+            if let name = bundle.object(forInfoDictionaryKey: "CFBundleName") as? String,
+               !name.isEmpty {
+                return name
+            }
+        }
+        return url.deletingPathExtension().lastPathComponent
+    }
+
+    private static func normalizeName(_ value: String) -> String {
+        let lowercased = value.lowercased()
+        let scalars = lowercased.unicodeScalars.map { scalar -> UnicodeScalar in
+            CharacterSet.alphanumerics.contains(scalar) ? scalar : UnicodeScalar(" ")
+        }
+        let collapsed = String(String.UnicodeScalarView(scalars))
+            .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        return ["application", "desktop", "app"].reduce(collapsed) { current, suffix in
+            current.hasSuffix(" " + suffix)
+                ? String(current.dropLast(suffix.count + 1))
+                : current
+        }
+    }
+}
+
+private enum SystemActionError: LocalizedError {
+    case launchFailed(String)
+
+    var errorDescription: String? {
+        switch self {
+        case .launchFailed(let message):
+            return message
+        }
+    }
+}
+
+final class SystemActionExecutor {
+    func execute(_ action: SystemAction, completion: @escaping (Result<String, Error>) -> Void) {
+        DispatchQueue.main.async {
+            let configuration = NSWorkspace.OpenConfiguration()
+            configuration.activates = true
+
+            NSWorkspace.shared.openApplication(at: action.appURL, configuration: configuration) { runningApp, error in
+                DispatchQueue.main.async {
+                    if let error {
+                        completion(.failure(SystemActionError.launchFailed(error.localizedDescription)))
+                        return
+                    }
+
+                    runningApp?.activate(options: [.activateAllWindows, .activateIgnoringOtherApps])
+
+                    guard let insertionText = action.insertionText,
+                          !insertionText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                        completion(.success(action.completionSummary))
+                        return
+                    }
+
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.85) {
+                        runningApp?.activate(options: [.activateAllWindows, .activateIgnoringOtherApps])
+                        TextInjector.pasteTextIntoFrontmostApp(insertionText, restoreDelay: 0.25)
+                        completion(.success(action.completionSummary))
+                    }
+                }
+            }
+        }
     }
 }

@@ -214,6 +214,20 @@ class TextInjector {
     }
 
     private func injectViaPasteboard(_ text: String) {
+        Self.pasteTextIntoFrontmostApp(text)
+    }
+
+    /// Paste text into whichever app is currently frontmost, bypassing
+    /// VoiceFlow/focused-role guards. Used by explicit action commands after
+    /// they have already launched and activated their target app.
+    static func pasteTextIntoFrontmostApp(_ text: String, restoreDelay: TimeInterval = 0.1) {
+        if !Thread.isMainThread {
+            DispatchQueue.main.async {
+                Self.pasteTextIntoFrontmostApp(text, restoreDelay: restoreDelay)
+            }
+            return
+        }
+
         let pasteboard = NSPasteboard.general
         let currentContent = pasteboard.string(forType: .string)
         pasteboard.clearContents()
@@ -238,7 +252,7 @@ class TextInjector {
             //
             // Was 500ms — overly cautious. Empirically the paste consumes
             // within ~20ms in every app we've tested.
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            DispatchQueue.main.asyncAfter(deadline: .now() + restoreDelay) {
                 pasteboard.clearContents()
                 if let oldContent = currentContent {
                     pasteboard.setString(oldContent, forType: .string)

@@ -1327,7 +1327,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
                 switch result {
                 case .success(let output):
                     session.recordLLMCost(output.costUSD)
-                    self.persistAndInject(text: output.finalText, session: session)
+                    session.overrideFinalText(output.finalText)
+                    if output.shouldInject {
+                        self.persistAndInject(text: output.finalText, session: session)
+                    } else {
+                        self.persistWithoutInjection(session: session)
+                    }
                 case .failure(let err):
                     // Profile failed — fall back to polished text rather
                     // than dropping the dictation on the floor.
@@ -1349,6 +1354,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
             return
         }
         self.textInjector?.injectText(trimmed)
+    }
+
+    private func persistWithoutInjection(session: RunSession) {
+        session.finish()
     }
 
     // MARK: - Realtime streaming wiring

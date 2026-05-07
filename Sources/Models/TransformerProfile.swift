@@ -38,6 +38,7 @@ enum ProfileKind: String, Codable, CaseIterable {
     case promptEngineer     = "prompt_engineer"
     case variableRecognition = "variable_recognition"
     case magicWordExpansion = "magic_word_expansion"
+    case systemAction       = "system_action"
     case agentic            = "agentic"
     case rewrite            = "rewrite"
 
@@ -48,6 +49,7 @@ enum ProfileKind: String, Codable, CaseIterable {
         case .promptEngineer:      return "Prompt Engineer"
         case .variableRecognition: return "Variable"
         case .magicWordExpansion:  return "Magic Word"
+        case .systemAction:        return "Action"
         case .agentic:             return "Agentic"
         case .rewrite:             return "Rewrite"
         }
@@ -90,6 +92,30 @@ struct TransformerOutput {
     /// Internal trail of what the profile decided. Surfaced in the detail
     /// view for debugging trigger false-positives.
     let trace: [String]
+    /// Most profiles produce text that should be pasted into the original
+    /// target. Action profiles may instead perform their own side effect
+    /// (launch app, paste there) and mark the downstream injection as done.
+    let shouldInject: Bool
+
+    init(
+        finalText: String,
+        summary: String,
+        modelUsed: String?,
+        costUSD: Double,
+        llmLatencyMs: Int,
+        usedAgentic: Bool,
+        trace: [String],
+        shouldInject: Bool = true
+    ) {
+        self.finalText = finalText
+        self.summary = summary
+        self.modelUsed = modelUsed
+        self.costUSD = costUSD
+        self.llmLatencyMs = llmLatencyMs
+        self.usedAgentic = usedAgentic
+        self.trace = trace
+        self.shouldInject = shouldInject
+    }
 }
 
 // MARK: - Trigger words

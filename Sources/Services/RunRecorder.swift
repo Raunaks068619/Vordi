@@ -110,6 +110,13 @@ final class RunSession {
         self.languageGuardTriggered = languageGuardTriggered
     }
 
+    /// Profile overrides run after the legacy post-process stage. Keep the
+    /// same mode/style/model metadata, but replace the visible final text so
+    /// Run Log shows what the profile actually produced or did.
+    func overrideFinalText(_ text: String) {
+        self.finalText = text
+    }
+
     /// Flush a successful run to disk.
     func finish() {
         // durationSeconds == AUDIO duration (how long the user spoke), not
