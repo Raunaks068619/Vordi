@@ -10,6 +10,12 @@ class AudioRecorder: NSObject {
     private var noiseGateThreshold: Float = 0.015
     private var firstVoicedIndex: Int?
     private var lastVoicedIndex: Int?
+    /// Total number of buffers whose RMS exceeded the noise gate. Used
+    /// in `stopRecording` to enforce a *minimum voiced duration* — not
+    /// just a single voiced buffer. Hard-gates the "user pressed Fn,
+    /// brushed the mic for 30ms, released" pattern that produces tiny
+    /// blips that Whisper hallucinates over.
+    private var voicedBufferCount: Int = 0
 
     // MARK: - Realtime streaming hook
     //
@@ -59,6 +65,23 @@ class AudioRecorder: NSObject {
     // report was about cut-off words at the end.
     private let stopGraceMilliseconds: Int = 350
 
+    /// Minimum number of voiced buffers required to dispatch the
+    /// recording to STT. Below this, we treat the recording as
+    /// silence + transient noise and drop it without ever hitting
+    /// Whisper.
+    ///
+    /// Math: at 48kHz with 1024-frame buffers, each buffer is ~21.3ms.
+    /// 6 buffers ≈ 128ms — below the duration of even short words
+    /// like "yes" or "no" (typically 200–300ms with leading/trailing
+    /// transients). Real dictations always cross this; phantom-mic
+    /// triggers (Fn brushed accidentally, knuckle on the mic, single
+    /// burst of fan noise) don't.
+    ///
+    /// Combined with `firstVoicedIndex != nil` from the existing gate,
+    /// we now require: SOMETHING voiced was captured AND the voiced
+    /// content lasted at least ~128ms. Both conditions must hold.
+    private let minimumVoicedBuffers: Int = 6
+
     override init() {
         super.init()
         setupAudioEngine()
@@ -75,6 +98,7 @@ class AudioRecorder: NSObject {
         rawAudioBuffer.removeAll()
         firstVoicedIndex = nil
         lastVoicedIndex = nil
+        voicedBufferCount = 0
         noiseGateThreshold = max(0.001, min(0.08, UserDefaults.standard.float(forKey: "noise_gate_threshold")))
         // Reset converter — input format can change between sessions if
         // user switches mic (different sample rate / channel count).
@@ -111,6 +135,7 @@ class AudioRecorder: NSObject {
             if rms >= self.noiseGateThreshold {
                 if self.firstVoicedIndex == nil { self.firstVoicedIndex = index }
                 self.lastVoicedIndex = index
+                self.voicedBufferCount += 1
             }
             // Push live amplitude to any UI meter subscriber. Normalize and
             // mild non-linear curve so quiet speech still moves the bars
@@ -162,30 +187,39 @@ class AudioRecorder: NSObject {
             self.isRecording = false
 
             let selectedBuffers: [AVAudioPCMBuffer]
-            if let first = self.firstVoicedIndex, let last = self.lastVoicedIndex {
+            // TWO conditions must both hold to proceed to STT:
+            //   1. At least one buffer crossed the RMS noise gate
+            //      (firstVoicedIndex / lastVoicedIndex set)
+            //   2. At least `minimumVoicedBuffers` total voiced
+            //      buffers were captured (≈128ms of voiced audio)
+            //
+            // The combination kills three failure modes:
+            //   • User holds Fn but doesn't speak → no voiced buffers
+            //   • User taps mic accidentally → 1-2 voiced buffers
+            //     (transient), below threshold
+            //   • Single fan burst, knuckle bump → same
+            //
+            // Real dictations — even single-word "yes"/"no" — comfortably
+            // cross 6 voiced buffers. We've never seen a legit dictation
+            // come in under 100ms of voiced content.
+            if let first = self.firstVoicedIndex, let last = self.lastVoicedIndex,
+               self.voicedBufferCount >= self.minimumVoicedBuffers {
                 // Trim leading/trailing silence with padding on both sides.
                 // Interior silence is preserved — a 3s mid-sentence pause stays
                 // a 3s pause so Whisper's segmenter has a chance.
                 let start = max(0, first - self.leadingPaddingBufferCount)
                 let end = min(self.rawAudioBuffer.count - 1, last + self.trailingPaddingBufferCount)
                 selectedBuffers = Array(self.rawAudioBuffer[start...end])
-                print("Recording stopped (voiced range \(first)...\(last) of \(self.rawAudioBuffer.count), trimmed to \(start)...\(end), grace=\(self.stopGraceMilliseconds)ms)")
+                print("Recording stopped (voiced range \(first)...\(last), \(self.voicedBufferCount) voiced of \(self.rawAudioBuffer.count) total, trimmed to \(start)...\(end), grace=\(self.stopGraceMilliseconds)ms)")
             } else {
-                // Hard gate: no buffer crossed the noise threshold during the
-                // entire recording window. Sending raw silence to Whisper is
-                // worse than useless — it reliably produces a hallucination
-                // (e.g. "Transliterate Hindi, Marathi, Marathi, Marathi...")
-                // because Whisper falls back to echoing fragments of its own
-                // prompt when it hears nothing. Returning nil short-circuits
-                // the batch pipeline cleanly: the caller already handles
-                // nil-audio as a no-op (see VoiceFlowApp.stopRecording, the
-                // `audioData == nil` branch).
-                //
-                // The realtime stream path is independent — if streaming was
-                // active during this attempt, it produced its own (likely
-                // hallucinated) output and is gated separately by the
-                // hallucination filter in WhisperService.
-                print("Recording stopped (no voice detected — dropping recording, no STT call)")
+                // Hard gate failure. Either no voiced audio at all, or
+                // not enough voiced audio to be a real word. Sending
+                // this to Whisper would just produce a phantom phrase
+                // ("Thanks for watching!", "Plain text only.", etc.).
+                // Drop silently — caller treats nil as a no-op.
+                let voicedCount = self.voicedBufferCount
+                let totalCount = self.rawAudioBuffer.count
+                print("Recording stopped (insufficient voiced audio: \(voicedCount) voiced buffers of \(totalCount), need ≥\(self.minimumVoicedBuffers) — dropping, no STT call)")
                 completion(nil)
                 return
             }
