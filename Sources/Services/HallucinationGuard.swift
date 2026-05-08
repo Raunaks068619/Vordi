@@ -76,12 +76,18 @@ enum HallucinationGuard {
     ///   - hadVoicedAudio: whether the upstream RMS gate detected any
     ///     voiced buffers. When false, ANY non-empty output is by
     ///     definition a hallucination — kill it.
+    ///   - polishWillRun: when true, the polish LLM will transliterate
+    ///     non-Latin output downstream — so we shouldn't drop on the
+    ///     "unsupported script" signal here. Used by `.cleanHinglish`
+    ///     and `.clean` paths where the bilingual normalizer / translator
+    ///     can repair Arabic-script Hindi or other STT mis-script output.
     /// - Returns: a Decision; if `shouldDrop`, the caller MUST replace
     ///   the transcript with empty before any injection or display.
     static func evaluate(
         text: String,
         confidence: Confidence = .empty,
-        hadVoicedAudio: Bool = true
+        hadVoicedAudio: Bool = true,
+        polishWillRun: Bool = false
     ) -> Decision {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         // An already-empty transcript is the trivial "good" case — we
@@ -99,27 +105,46 @@ enum HallucinationGuard {
             return Decision(shouldDrop: true, reason: "no voiced audio reached STT")
         }
 
-        // Layer 1: phantom phrase blocklist.
+        // Layer 1: phantom phrase blocklist. These are exact matches
+        // against known training-set artifacts — high-confidence drops.
         if let phrase = phantomMatch(trimmed) {
             return Decision(shouldDrop: true, reason: "phantom phrase: \(phrase)")
         }
 
         // Layer 2: Whisper confidence signals.
-        if let np = confidence.noSpeechProb, np > Thresholds.noSpeechProb {
-            return Decision(shouldDrop: true,
-                            reason: "no_speech_prob=\(String(format: "%.2f", np)) > \(Thresholds.noSpeechProb)")
-        }
-        if let lp = confidence.avgLogprob, lp < Thresholds.avgLogprob {
-            return Decision(shouldDrop: true,
-                            reason: "avg_logprob=\(String(format: "%.2f", lp)) < \(Thresholds.avgLogprob)")
+        //
+        // CRITICAL: drop only when MULTIPLE signals agree. Earlier
+        // versions dropped on any single signal — that killed legitimate
+        // short utterances (e.g. "hello mic check" sometimes scores
+        // no_speech_prob=0.77 because Whisper is uncertain about a 1-2s
+        // clip even when the words are perfectly recognized). OpenAI's
+        // own decoder algorithm uses AND between no_speech_prob and
+        // avg_logprob — neither alone is enough.
+        //
+        // Compression ratio (looping detection) IS standalone-actionable
+        // because Whisper looping ("the the the the") is unambiguous.
+        let highNoSpeech = (confidence.noSpeechProb ?? 0) > Thresholds.noSpeechProb
+        let lowLogprob = (confidence.avgLogprob ?? 0) < Thresholds.avgLogprob
+        if highNoSpeech && lowLogprob {
+            return Decision(
+                shouldDrop: true,
+                reason: "no_speech_prob=\(String(format: "%.2f", confidence.noSpeechProb ?? 0)) AND avg_logprob=\(String(format: "%.2f", confidence.avgLogprob ?? 0)) (both bad)"
+            )
         }
         if let cr = confidence.compressionRatio, cr > Thresholds.compressionRatio {
-            return Decision(shouldDrop: true,
-                            reason: "compression_ratio=\(String(format: "%.2f", cr)) > \(Thresholds.compressionRatio)  (likely looping)")
+            return Decision(
+                shouldDrop: true,
+                reason: "compression_ratio=\(String(format: "%.2f", cr)) > \(Thresholds.compressionRatio) (likely looping)"
+            )
         }
 
-        // Layer 3: structural heuristics.
-        if let reason = structuralIssue(trimmed) {
+        // Layer 3: structural heuristics. Skip the "unsupported script"
+        // sub-check when the polish step will run — for `.cleanHinglish`
+        // and `.clean` paths, the LLM can transliterate any script to
+        // Latin / English. We only catch raw-non-Latin output as a
+        // hallucination signal on the verbatim path where there's no
+        // polish to repair it.
+        if let reason = structuralIssue(trimmed, allowNonLatin: polishWillRun) {
             return Decision(shouldDrop: true, reason: "structural: \(reason)")
         }
 
@@ -242,15 +267,28 @@ enum HallucinationGuard {
 
     /// Returns a non-nil reason string when the output looks structurally
     /// broken. nil = passes the structural gate.
-    private static func structuralIssue(_ trimmed: String) -> String? {
-        // Count alphanumeric chars (ASCII letters/digits + Devanagari).
-        // Punctuation-only output is junk regardless.
-        let alphaNumCount = trimmed.unicodeScalars.filter { s in
-            let v = s.value
-            return (0x30...0x39).contains(v)        // 0-9
-                || (0x41...0x5A).contains(v)        // A-Z
-                || (0x61...0x7A).contains(v)        // a-z
-                || (0x0900...0x097F).contains(v)    // Devanagari
+    ///
+    /// `allowNonLatin` skips the unsupported-script check when the polish
+    /// step downstream can transliterate (e.g. on .cleanHinglish path,
+    /// the bilingual normalizer LLM transliterates Arabic-script Hindi
+    /// → Latin Hinglish). Verbatim path passes false — there's no polish
+    /// to repair non-Latin output.
+    private static func structuralIssue(_ trimmed: String, allowNonLatin: Bool) -> String? {
+        // Count letter/digit characters from any Unicode script — earlier
+        // versions only counted Latin + Devanagari, which dropped Arabic-
+        // script Hindi (Whisper sometimes outputs Urdu script for
+        // ambiguous Hindi audio) as "0 alphanumeric chars" even though
+        // it's perfectly valid speech the polish step can transliterate.
+        let alphaNumCount = trimmed.unicodeScalars.filter { scalar in
+            // Unicode general categories: L (any letter) + N (any number).
+            switch scalar.properties.generalCategory {
+            case .uppercaseLetter, .lowercaseLetter, .titlecaseLetter,
+                 .modifierLetter, .otherLetter,
+                 .decimalNumber, .letterNumber, .otherNumber:
+                return true
+            default:
+                return false
+            }
         }.count
         if alphaNumCount < Thresholds.minAlphaNumChars {
             return "only \(alphaNumCount) alphanumeric chars"
@@ -262,11 +300,8 @@ enum HallucinationGuard {
             return "n-gram looping detected"
         }
 
-        // Heavy non-Latin script that wasn't transliterated. Devanagari
-        // is acceptable in cleanHinglish path (downstream gate handles
-        // it); other scripts (Vietnamese, CJK, Arabic) are guaranteed
-        // hallucinations on an English/Hindi pipeline.
-        if hasUnsupportedScript(trimmed) {
+        // Heavy non-Latin script. Skip when polish can transliterate.
+        if !allowNonLatin && hasUnsupportedScript(trimmed) {
             return "non-supported script in output"
         }
 

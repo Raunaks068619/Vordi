@@ -1820,7 +1820,13 @@ struct MainDashboardView: View {
                         help: "Get a key at platform.openai.com/api-keys",
                         text: $openAIKey,
                         onCommit: {
-                            UserDefaults.standard.set(openAIKey, forKey: "openai_api_key")
+                            // Trim defensively. Pasting from the OpenAI
+                            // dashboard often picks up trailing newlines
+                            // that the API rejects with "Incorrect API
+                            // key" even on otherwise-valid keys.
+                            let trimmed = openAIKey.trimmingCharacters(in: .whitespacesAndNewlines)
+                            openAIKey = trimmed
+                            UserDefaults.standard.set(trimmed, forKey: "openai_api_key")
                             flashSaved()
                         }
                     )
