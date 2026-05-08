@@ -1378,6 +1378,19 @@ class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
 
         guard UserDefaults.standard.bool(forKey: Self.realtimeStreamingKey) else { return }
 
+        // Force the BATCH path for the Hinglish style. The OpenAI Realtime
+        // API doesn't honor `language=hi` as reliably as the batch endpoint
+        // — for ambiguous Hindi/Urdu speech it sometimes returns Arabic-
+        // script Urdu instead of Devanagari Hindi or Latin Hinglish, which
+        // breaks the bilingual normalizer's transliteration assumptions.
+        // The batch transcribeWithProvider call respects language=hi
+        // consistently, so we fall back to it for Hinglish dictations.
+        let outputModeRaw = UserDefaults.standard.string(forKey: "output_mode") ?? ""
+        if outputModeRaw == TranscriptOutputStyle.cleanHinglish.rawValue {
+            print("Realtime stream disabled for Hinglish style — using batch path for reliable lang=hi")
+            return
+        }
+
         // Both OpenAI and Groq expose the OpenAI-Realtime WebSocket
         // protocol — same message shape, same intent=transcription, same
         // input_audio_buffer events. Different host + different model.
