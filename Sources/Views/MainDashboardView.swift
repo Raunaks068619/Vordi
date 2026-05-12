@@ -1,6 +1,24 @@
 import SwiftUI
 import AppKit
 
+// MARK: - Version helper
+
+/// Single source of truth for the app version string surfaced in UI.
+/// Reads from `Info.plist` (CFBundleShortVersionString), which the Xcode
+/// build pipeline populates from `MARKETING_VERSION`. Avoids the bug we
+/// kept hitting where the sidebar showed "v1.0.0" forever because someone
+/// shipped a release without bumping the literal string.
+enum VoiceFlowVersion {
+    static var marketing: String {
+        (Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String) ?? "0.0.0"
+    }
+    static var build: String {
+        (Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String) ?? "0"
+    }
+    /// "v0.5.0" form — what we render in chrome.
+    static var userFacing: String { "v\(marketing)" }
+}
+
 // MARK: - Theme
 
 /// Design tokens. Single source of truth for colors, typography, radii,
@@ -360,6 +378,7 @@ struct MainDashboardView: View {
         case home       = "Home"
         case scratchpad = "Scratchpad"
         case insights   = "Insights"
+        case memory     = "Memory"
         case magicWords = "Magic Words"
         case runLog     = "Run Log"
         case devMode    = "Dev Mode"
@@ -370,6 +389,7 @@ struct MainDashboardView: View {
             case .home:       return "house"
             case .scratchpad: return "note.text"
             case .insights:   return "chart.bar.fill"
+            case .memory:     return "brain.head.profile"
             case .magicWords: return "wand.and.stars"
             case .runLog:     return "clock.arrow.circlepath"
             case .devMode:    return "hammer"
@@ -384,7 +404,7 @@ struct MainDashboardView: View {
         var isVisibleInSidebar: Bool {
             switch self {
             case .devMode: return false
-            case .home, .scratchpad, .insights, .magicWords, .runLog, .settings: return true
+            case .home, .scratchpad, .insights, .memory, .magicWords, .runLog, .settings: return true
             }
         }
     }
@@ -403,10 +423,11 @@ struct MainDashboardView: View {
         if UserDefaults.standard.object(forKey: "run_log_enabled") == nil { return true }
         return UserDefaults.standard.bool(forKey: "run_log_enabled")
     }()
-    /// Whether the run log is bounded. Default ON — first-time users get
-    /// safe disk usage. Toggle OFF for unlimited history (user pays disk).
+    /// Whether the run log is bounded. Default OFF — unlimited history
+    /// feeds Insights + the Memory tab. Toggle ON in Settings for users
+    /// who want bounded disk usage. Stays in sync with `RunStore.isCapEnabled`.
     @State private var runLogCapped: Bool = {
-        if UserDefaults.standard.object(forKey: "run_log_cap_enabled") == nil { return true }
+        if UserDefaults.standard.object(forKey: "run_log_cap_enabled") == nil { return false }
         return UserDefaults.standard.bool(forKey: "run_log_cap_enabled")
     }()
     @State private var noiseGateThreshold: Double = {
@@ -549,7 +570,7 @@ struct MainDashboardView: View {
                 // Footer — subtle, no upsell garbage (aligned with our
                 // open-source positioning).
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("v1.0.0")
+                    Text(VoiceFlowVersion.userFacing)
                         .font(.system(size: 11))
                         .foregroundColor(Theme.textTertiary)
                     Text("Local-first · Open source")
@@ -573,6 +594,7 @@ struct MainDashboardView: View {
                 case .home:       homeContent
                 case .scratchpad: ScratchpadView(runStore: runStore)
                 case .insights:   InsightsView(runStore: runStore)
+                case .memory:     KnowledgeGraphView()
                 case .magicWords: MagicWordsSettingsView()
                 case .runLog:     RunLogView(runStore: runStore)
                 case .devMode:    DevModeSettingsView()
@@ -604,6 +626,7 @@ struct MainDashboardView: View {
             case "home":       selectedTab = .home
             case "scratchpad": selectedTab = .scratchpad
             case "insights":   selectedTab = .insights
+            case "memory":     selectedTab = .memory
             case "magicWords": selectedTab = .magicWords
             case "runLog":     selectedTab = .runLog
             case "devMode":    selectedTab = .devMode
@@ -909,7 +932,7 @@ struct MainDashboardView: View {
             VStack(alignment: .leading, spacing: 6) {
                 Text("About")
                     .font(.headline)
-                Text("VoiceFlow v1.0.0")
+                Text("VoiceFlow \(VoiceFlowVersion.userFacing)")
                     .font(.subheadline.bold())
                 Text("Voice typing for macOS — powered by OpenAI Whisper with optional local LLM post-processing.")
                     .font(.caption)
@@ -2275,15 +2298,89 @@ final class FocusDetector {
 /// Hover behavior: in `.idle`, hovering reveals a small gear button on the
 /// right. Click → opens Settings. Other states ignore hover.
 final class FloatingChipModel: ObservableObject {
-    enum ChipState: Equatable { case idle, recording, processing, noInputWarning, permissionsMissing, noAudioWarning, noOutputWarning }
+    enum ChipState: Equatable { case idle, recording, processing, noInputWarning, permissionsMissing, noAudioWarning, noOutputWarning, handsFree }
 
     @Published var state: ChipState = .idle
-    /// Live mic amplitude during `.recording`. 0...1, normalized.
+    /// Live mic amplitude during `.recording` / `.handsFree`. 0...1, normalized.
     @Published var audioLevel: Float = 0
     /// Drives the passive orange-dot indicator on the idle chip. AppDelegate
     /// sets this from PermissionService state and refreshes on every TCC
     /// state change. False = at least one required permission is missing.
     @Published var hasAllPermissions: Bool = true
+
+    /// Rect of the **visible chip pill** in the window's content-view
+    /// coordinate space (top-left origin, isFlipped == true).
+    ///
+    /// **Why this exists**: the NSPanel is sized to fit the widest chip
+    /// state (~420×40), but the visible pill is much smaller in idle /
+    /// recording (~60-130px). Without a hit-test filter the empty
+    /// transparent padding either catches drags (`isMovableByWindowBackground`)
+    /// or worse — silently swallows clicks meant for the app underneath.
+    ///
+    /// The SwiftUI body publishes this rect via `ChipHitBoundsKey`; the
+    /// hosting `NSView` reads it in `hitTest(_:)` to return `nil` outside
+    /// the rect, which lets clicks fall through to the window below.
+    @Published var chipHitBounds: CGRect = .zero
+}
+
+/// Preference key that ferries the chip pill's visible bounds from the
+/// SwiftUI body up to the hosting `NSView`. Defined at file scope (not
+/// nested) so both the SwiftUI view and the hosting view can reference it.
+private struct ChipHitBoundsKey: PreferenceKey {
+    static var defaultValue: CGRect = .zero
+    static func reduce(value: inout CGRect, nextValue: () -> CGRect) {
+        value = nextValue()
+    }
+}
+
+/// `NSHostingView` subclass that scopes hit-testing to the chip's
+/// **visible** bounds and forwards background drags to the window.
+///
+/// **Design**:
+/// - `hitTest(_:)` returns `nil` outside `model.chipHitBounds`, which
+///   makes the transparent panel padding click-through (events fall to
+///   the app underneath). Inside the bounds, the default SwiftUI hit-test
+///   runs, so Buttons inside the chip still work.
+/// - `mouseDown(with:)` only fires when no SwiftUI subview consumed the
+///   event (i.e. the user clicked on the chip's transparent background,
+///   not a button). At that point we initiate a window drag, replacing
+///   the heavier-handed `isMovableByWindowBackground`.
+///
+/// **Coordinate gotcha** — we can't override `isFlipped` because
+/// SwiftUI declares it `final` on NSHostingView. So the `point` we
+/// receive in `hitTest` is in the window's coordinate system (bottom-left
+/// origin), while `model.chipHitBounds` was published from SwiftUI's
+/// geometry reader using top-left origin. We flip Y manually.
+fileprivate final class ChipHostingView: NSHostingView<FloatingChipView> {
+    weak var model: FloatingChipModel?
+
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        guard let model else { return super.hitTest(point) }
+        let bounds = model.chipHitBounds
+        // Bootstrap: before SwiftUI publishes the chip rect (first frame),
+        // accept clicks anywhere so the user isn't locked out. The
+        // pass-through behavior activates on the next layout pass.
+        if bounds == .zero { return super.hitTest(point) }
+
+        // `point` arrives in the SUPERVIEW's coord system. For an NSPanel
+        // contentView, that's the window's bottom-left coord system.
+        // SwiftUI published the bounds in top-left origin space — flip
+        // Y around our height to compare.
+        let viewLocal = self.convert(point, from: self.superview)
+        let flippedY = self.bounds.height - viewLocal.y
+        let swiftUIPoint = CGPoint(x: viewLocal.x, y: flippedY)
+        if !bounds.contains(swiftUIPoint) {
+            return nil
+        }
+        return super.hitTest(point)
+    }
+
+    override func mouseDown(with event: NSEvent) {
+        // Reaches here only if hitTest returned `self` AND no descendant
+        // SwiftUI view consumed the click. That's the "click on the
+        // empty chip background" case — start a window drag.
+        self.window?.performDrag(with: event)
+    }
 }
 
 final class FloatingChipWindow: NSPanel {
@@ -2318,15 +2415,25 @@ final class FloatingChipWindow: NSPanel {
         self.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary, .ignoresCycle]
         self.isReleasedWhenClosed = false
 
-        // Drag-to-reposition. `isMovableByWindowBackground` lets the user
-        // grab the chip's transparent area and drag — buttons inside still
-        // receive their click events normally because AppKit hit-tests
-        // interactive subviews first. The drag handle is everything that
-        // ISN'T a button.
+        // Drag-to-reposition. Previously we used
+        // `isMovableByWindowBackground = true`, which made the ENTIRE
+        // 420×40 panel a drag handle — including the ~140-180pt of
+        // invisible padding around the pill. That swallowed clicks meant
+        // for whatever app sat underneath the chip's transparent area.
+        //
+        // New approach: hit-test is scoped to `model.chipHitBounds` (the
+        // visible pill rect, published by SwiftUI). Outside that rect,
+        // `ChipHostingView.hitTest` returns `nil` and clicks fall through
+        // to the app below. Drags inside the rect — but not on a button —
+        // call `performDrag(with:)` manually. `isMovable` stays true so
+        // performDrag works; isMovableByWindowBackground is OFF so the
+        // window's default "drag anywhere" behavior doesn't reintroduce
+        // the click-swallowing bug.
         self.isMovable = true
-        self.isMovableByWindowBackground = true
+        self.isMovableByWindowBackground = false
 
-        let host = NSHostingView(rootView: FloatingChipView(model: model))
+        let host = ChipHostingView(rootView: FloatingChipView(model: model))
+        host.model = model
         host.sizingOptions = []
         host.frame = NSRect(origin: .zero, size: Self.windowSize)
         host.autoresizingMask = [.width, .height]
@@ -2390,6 +2497,29 @@ final class FloatingChipWindow: NSPanel {
             withAnimation(.easeInOut(duration: 0.15)) {
                 self?.model.state = .idle
                 self?.model.audioLevel = 0
+            }
+        }
+    }
+
+    /// Switch chip to hands-free mode. Distinct from `setRecording`
+    /// so the chip stays in this state until explicitly exited — the
+    /// regular `setRecording` is paired with `setProcessing` and
+    /// `setIdle` on every hold-release cycle.
+    func setHandsFree() {
+        DispatchQueue.main.async { [weak self] in
+            withAnimation(.easeInOut(duration: 0.18)) {
+                self?.model.state = .handsFree
+            }
+        }
+    }
+
+    /// Animate out of hands-free into processing (which transitions to
+    /// idle when the result lands). Lets the user see a smooth handoff
+    /// instead of the chip snapping to "processing" out of nowhere.
+    func setHandsFreeExitedAnimating() {
+        DispatchQueue.main.async { [weak self] in
+            withAnimation(.easeInOut(duration: 0.18)) {
+                self?.model.state = .processing
             }
         }
     }
@@ -2627,14 +2757,29 @@ struct FloatingChipView: View {
                 // chipShape boundary (NOT the outer HStack) so the cursor
                 // only changes when the mouse is over the visible chip
                 // pill, not over the invisible window padding around it.
-                // Works for every state — idle, recording, processing,
-                // warnings — since AppKit's `isMovableByWindowBackground`
-                // makes the whole window draggable regardless.
                 .cursorOnHover(.openHand)
                 .animation(.easeInOut(duration: 0.18), value: model.state)
+                // Publish the chip's actual rect so the hosting NSView
+                // can scope its hit-testing. Without this filter, every
+                // pixel of the 420×40 panel (most of which is invisible
+                // padding) would swallow clicks meant for the app
+                // underneath the chip. See `ChipHostingView.hitTest`.
+                .background(
+                    GeometryReader { geo in
+                        Color.clear
+                            .preference(
+                                key: ChipHitBoundsKey.self,
+                                value: geo.frame(in: .named("chipHost"))
+                            )
+                    }
+                )
             Spacer()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .coordinateSpace(name: "chipHost")
+        .onPreferenceChange(ChipHitBoundsKey.self) { rect in
+            model.chipHitBounds = rect
+        }
     }
 
     @ViewBuilder
@@ -2654,6 +2799,8 @@ struct FloatingChipView: View {
             noAudioWarningChip
         case .noOutputWarning:
             noOutputWarningChip
+        case .handsFree:
+            handsFreeChip
         }
     }
 
@@ -2872,11 +3019,14 @@ struct FloatingChipView: View {
             .offset(x: hovering ? 0 : -8)
             .allowsHitTesting(hovering)
         }
-        // Fixed hit area — bigger than ANY visible state so the cursor
-        // can find the slim 4px chip easily. Also stabilizes hover
-        // detection: bounds don't change as the chip morphs between
-        // slim and full, so hover doesn't flicker on/off mid-transition.
-        .frame(width: 180, height: 30)
+        // Hit area — height is fixed at 30pt so hover still works on the
+        // slim 4pt chip; width is the natural HStack content width
+        // (~88pt slim, ~136pt hovered) so the surrounding panel padding
+        // stays click-through. Used to be `width: 180` to give the
+        // cursor a wider runway, but that artificially extended the
+        // window's draggable area past the visible pill — confusingly
+        // swallowing clicks meant for whatever was behind it.
+        .frame(height: 30)
         .contentShape(Rectangle())
         .onHover { hovering = $0 }
         .animation(.spring(response: 0.28, dampingFraction: 0.78), value: hovering)
@@ -2888,6 +3038,38 @@ struct FloatingChipView: View {
         ChipWaveform(audioLevel: model.audioLevel)
             .frame(width: 100, height: 24)
             .chipGlass()
+    }
+
+    // MARK: Hands-free — continuous-listening mode
+
+    /// Distinct visual from `recordingChip` so the user can tell at a
+    /// glance which mode they're in. Same live waveform driver, plus:
+    ///   - A pulsing accent-colored dot on the left edge (unmistakable
+    ///     "live" signal — same affordance broadcasting apps use).
+    ///   - "HANDS FREE" pill copy on the right so first-time users
+    ///     understand they're in a non-modal state.
+    ///   - Wider footprint (140pt) to accommodate the label.
+    ///
+    /// Tap behavior: AppKit handles clicks on the chip via the
+    /// `ChipHostingView` drag path; the actual exit interaction is the
+    /// next Fn press OR Escape, wired in AppDelegate.
+    private var handsFreeChip: some View {
+        HStack(spacing: 8) {
+            PulsingDot(color: Theme.accent)
+                .frame(width: 8, height: 8)
+
+            ChipWaveform(audioLevel: model.audioLevel)
+                .frame(width: 56, height: 18)
+
+            Text("HANDS FREE")
+                .font(.system(size: 9, weight: .bold, design: .rounded))
+                .tracking(0.6)
+                .foregroundColor(.white.opacity(0.85))
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 6)
+        .chipGlass()
+        .help("Hands-free mode — press Fn or Escape to stop")
     }
 
     // MARK: Processing — pill with shimmer
@@ -3031,6 +3213,32 @@ private struct ChipWaveform: View {
         let maxH: CGFloat = 14
         let amp = min(level * Self.multipliers[index], 1.0)
         return minH + (maxH - minH) * amp
+    }
+}
+
+/// Pulsing filled dot — used as the "live" indicator in hands-free
+/// mode. Same affordance broadcast tools use to communicate "you are
+/// being recorded right now." Pulse is driven by TimelineView so it
+/// runs without external state and stays in sync across redraws.
+private struct PulsingDot: View {
+    let color: Color
+
+    var body: some View {
+        TimelineView(.animation(minimumInterval: 1.0 / 30.0, paused: false)) { ctx in
+            let t = ctx.date.timeIntervalSinceReferenceDate
+            // 1.2 Hz pulse — slow enough to read as "alive," fast enough
+            // to not feel inert. Opacity oscillates between 0.55 and 1.0
+            // around a halo that scales 0.85 → 1.15.
+            let phase = 0.5 + 0.5 * sin(t * 2.4)
+            ZStack {
+                Circle()
+                    .fill(color.opacity(0.32))
+                    .scaleEffect(0.85 + CGFloat(phase) * 0.7)
+                Circle()
+                    .fill(color)
+                    .opacity(0.55 + phase * 0.45)
+            }
+        }
     }
 }
 

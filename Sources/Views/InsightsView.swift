@@ -19,6 +19,7 @@ import SwiftUI
 /// blocks until the next dictation populates them.
 struct InsightsView: View {
     @ObservedObject var runStore: RunStore
+    @StateObject private var classifier = UserTypeClassifier.shared
 
     var body: some View {
         ScrollView {
@@ -28,6 +29,7 @@ struct InsightsView: View {
                 if runStore.summaries.isEmpty {
                     emptyStateCard
                 } else {
+                    userTypeCard
                     heroStatsCard
                     todayCard
                     activityCard
@@ -37,6 +39,15 @@ struct InsightsView: View {
             }
             .padding(Theme.Space.xl)
             .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .task {
+            // Auto-trigger classification when eligible + no cache.
+            // Idempotent — the service guards against re-running while
+            // a classification is in flight.
+            let eligibility = classifier.eligibility()
+            if eligibility.isUnlocked && classifier.classification == nil {
+                await classifier.classify()
+            }
         }
     }
 
@@ -51,6 +62,209 @@ struct InsightsView: View {
                 .font(.system(size: 13))
                 .foregroundColor(Theme.textSecondary)
         }
+    }
+
+    // MARK: - User type (AI-classified)
+
+    /// Adaptive card with three visual states:
+    ///   - Locked   → progress bar + "X / 20 transcripts" copy
+    ///   - Loading  → spinner + "Analyzing your patterns…"
+    ///   - Unlocked → role badge, headline, signal chips, refresh button
+    @ViewBuilder
+    private var userTypeCard: some View {
+        let eligibility = classifier.eligibility()
+        if !eligibility.isUnlocked {
+            lockedUserTypeCard(eligibility: eligibility)
+        } else if let classification = classifier.classification {
+            unlockedUserTypeCard(classification)
+        } else {
+            loadingUserTypeCard()
+        }
+    }
+
+    private func lockedUserTypeCard(eligibility: UserTypeEligibility) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 8) {
+                Image(systemName: "lock.fill")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundColor(Theme.textSecondary)
+                Text("Your User Type")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(Theme.textPrimary)
+                Spacer()
+                Text("Locked")
+                    .font(.system(size: 10, weight: .semibold))
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 3)
+                    .foregroundColor(Theme.textSecondary)
+                    .background(
+                        Capsule().fill(Theme.surfaceElevated)
+                    )
+                    .overlay(
+                        Capsule().strokeBorder(Theme.divider, lineWidth: 1)
+                    )
+            }
+
+            Text("Dictate \(eligibility.requiredRuns) substantive transcriptions (≥\(eligibility.requiredWordsPerRun) words each) and VoiceFlow will analyze your patterns to identify how you work.")
+                .font(.system(size: 12))
+                .foregroundColor(Theme.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            VStack(alignment: .leading, spacing: 6) {
+                HStack {
+                    Text("\(eligibility.qualifyingRuns) / \(eligibility.requiredRuns) qualifying")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundColor(Theme.textPrimary)
+                    Spacer()
+                    Text("\(Int(eligibility.progress * 100))%")
+                        .font(.system(size: 11, weight: .semibold).monospacedDigit())
+                        .foregroundColor(Theme.textSecondary)
+                }
+                GeometryReader { geo in
+                    ZStack(alignment: .leading) {
+                        RoundedRectangle(cornerRadius: 4)
+                            .fill(Theme.textTertiary.opacity(0.18))
+                            .frame(height: 8)
+                        RoundedRectangle(cornerRadius: 4)
+                            .fill(Theme.accent)
+                            .frame(
+                                width: max(2, geo.size.width * eligibility.progress),
+                                height: 8
+                            )
+                    }
+                }
+                .frame(height: 8)
+            }
+        }
+        .themedCard()
+    }
+
+    private func loadingUserTypeCard() -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 8) {
+                Image(systemName: "sparkles")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(Theme.accent)
+                Text("Your User Type")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(Theme.textPrimary)
+                Spacer()
+                ProgressView().controlSize(.small)
+            }
+            Text("Analyzing your transcription patterns…")
+                .font(.system(size: 12))
+                .foregroundColor(Theme.textSecondary)
+            if let err = classifier.lastError {
+                Text(err)
+                    .font(.system(size: 11))
+                    .foregroundColor(Theme.warning)
+            }
+        }
+        .themedCard()
+    }
+
+    private func unlockedUserTypeCard(_ c: UserTypeClassification) -> some View {
+        let (tr, tg, tb) = c.role.tintRGB
+        let tint = Color(red: tr, green: tg, blue: tb)
+        return VStack(alignment: .leading, spacing: 14) {
+            // Header
+            HStack(alignment: .center, spacing: 10) {
+                Image(systemName: c.role.icon)
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(.white)
+                    .frame(width: 32, height: 32)
+                    .background(Circle().fill(tint))
+                VStack(alignment: .leading, spacing: 2) {
+                    HStack(spacing: 6) {
+                        Text(c.role.displayLabel)
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundColor(Theme.textPrimary)
+                        Text("AI-inferred")
+                            .font(.system(size: 9, weight: .semibold))
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .foregroundColor(tint)
+                            .background(Capsule().fill(tint.opacity(0.14)))
+                    }
+                    Text(c.headline)
+                        .font(.system(size: 12))
+                        .foregroundColor(Theme.textSecondary)
+                }
+                Spacer()
+                Button {
+                    Task { await classifier.classify(force: true) }
+                } label: {
+                    Image(systemName: classifier.isClassifying
+                          ? "arrow.triangle.2.circlepath"
+                          : "arrow.clockwise")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundColor(Theme.textSecondary)
+                        .frame(width: 24, height: 24)
+                        .background(Circle().fill(Theme.surfaceElevated))
+                        .overlay(Circle().strokeBorder(Theme.divider, lineWidth: 1))
+                }
+                .buttonStyle(.plain)
+                .disabled(classifier.isClassifying)
+                .help("Re-analyze with latest transcripts")
+            }
+
+            // Signals
+            if !c.signals.isEmpty {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("WHY")
+                        .font(.system(size: 9, weight: .bold))
+                        .tracking(0.6)
+                        .foregroundColor(Theme.textTertiary)
+                    FlowLayout(spacing: 6) {
+                        ForEach(c.signals, id: \.self) { signal in
+                            HStack(spacing: 4) {
+                                Circle()
+                                    .fill(tint)
+                                    .frame(width: 4, height: 4)
+                                Text(signal)
+                                    .font(.system(size: 11))
+                                    .foregroundColor(Theme.textPrimary)
+                            }
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(
+                                Capsule().fill(Theme.surfaceElevated)
+                            )
+                            .overlay(
+                                Capsule().strokeBorder(Theme.divider, lineWidth: 1)
+                            )
+                        }
+                    }
+                }
+            }
+
+            // Footer — analysis context
+            HStack(spacing: 12) {
+                miniMetadata(icon: "doc.text", label: "\(c.runsAnalyzed) transcripts")
+                miniMetadata(icon: "gauge.medium",
+                             label: "\(Int(c.confidence * 100))% confidence")
+                miniMetadata(icon: "clock",
+                             label: relativeTime(c.computedAt))
+                Spacer()
+            }
+        }
+        .themedCard()
+    }
+
+    private func miniMetadata(icon: String, label: String) -> some View {
+        HStack(spacing: 4) {
+            Image(systemName: icon)
+                .font(.system(size: 9, weight: .medium))
+            Text(label)
+                .font(.system(size: 10))
+        }
+        .foregroundColor(Theme.textTertiary)
+    }
+
+    private func relativeTime(_ date: Date) -> String {
+        let f = RelativeDateTimeFormatter()
+        f.unitsStyle = .abbreviated
+        return f.localizedString(for: date, relativeTo: Date())
     }
 
     // MARK: - Empty state
@@ -408,5 +622,75 @@ struct ComputedStats {
             topApps: Array(topApps),
             topProfiles: Array(topProfiles)
         )
+    }
+}
+
+// MARK: - FlowLayout
+
+/// Wrapping horizontal layout — children flow left-to-right and wrap to
+/// the next row when they'd overflow the proposal width. Built on the
+/// macOS 13 Layout protocol so we don't have to ship a third-party
+/// dependency for one card.
+///
+/// SwiftUI doesn't ship a FlowLayout. Pre-Layout-protocol workarounds
+/// fight intrinsic sizing; this ~60-line Layout impl integrates cleanly.
+fileprivate struct FlowLayout: Layout {
+    var spacing: CGFloat = 6
+
+    func sizeThatFits(
+        proposal: ProposedViewSize,
+        subviews: Subviews,
+        cache: inout ()
+    ) -> CGSize {
+        let maxWidth = proposal.width ?? .infinity
+        let (size, _) = computeLayout(maxWidth: maxWidth, subviews: subviews)
+        return size
+    }
+
+    func placeSubviews(
+        in bounds: CGRect,
+        proposal: ProposedViewSize,
+        subviews: Subviews,
+        cache: inout ()
+    ) {
+        let maxWidth = bounds.width
+        let (_, placements) = computeLayout(maxWidth: maxWidth, subviews: subviews)
+        for (idx, point) in placements.enumerated() {
+            subviews[idx].place(
+                at: CGPoint(x: bounds.minX + point.x, y: bounds.minY + point.y),
+                proposal: .unspecified
+            )
+        }
+    }
+
+    /// Returns the bounding size and per-subview top-left positions.
+    /// Single pass — O(n) in subview count.
+    private func computeLayout(
+        maxWidth: CGFloat,
+        subviews: Subviews
+    ) -> (CGSize, [CGPoint]) {
+        var rowWidth: CGFloat = 0
+        var rowHeight: CGFloat = 0
+        var totalHeight: CGFloat = 0
+        var widest: CGFloat = 0
+        var placements: [CGPoint] = []
+
+        for sub in subviews {
+            let size = sub.sizeThatFits(.unspecified)
+            // If this subview would overflow the current row, wrap.
+            if rowWidth > 0 && rowWidth + spacing + size.width > maxWidth {
+                totalHeight += rowHeight + spacing
+                widest = max(widest, rowWidth)
+                rowWidth = 0
+                rowHeight = 0
+            }
+            let x = rowWidth == 0 ? 0 : rowWidth + spacing
+            placements.append(CGPoint(x: x, y: totalHeight))
+            rowWidth = x + size.width
+            rowHeight = max(rowHeight, size.height)
+        }
+        widest = max(widest, rowWidth)
+        let finalHeight = totalHeight + rowHeight
+        return (CGSize(width: widest, height: finalHeight), placements)
     }
 }

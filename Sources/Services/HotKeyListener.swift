@@ -13,7 +13,11 @@ enum HotKeyStartResult: Equatable {
 class HotKeyListener {
     var onKeyDown: (() -> Void)?
     var onKeyUp: (() -> Void)?
-    
+    /// Fired on Escape (keyCode 53) keydown. AppDelegate uses this to
+    /// exit hands-free mode without requiring a second Fn double-tap.
+    /// No-op when not in hands-free mode.
+    var onEscape: (() -> Void)?
+
     private var eventTap: CFMachPort?
     private var runLoopSource: CFRunLoopSource?
     private var flagsMonitor: Any?
@@ -21,7 +25,8 @@ class HotKeyListener {
     private var lastRawFnEventTime: TimeInterval = 0
     private let fnKeyCode: Int64 = 63
     private let rightOptionKeyCode: Int64 = 61
-    
+    private let escapeKeyCode: Int64 = 53
+
     func start() -> HotKeyStartResult {
         stop()
         if !AXIsProcessTrusted() {
@@ -31,7 +36,10 @@ class HotKeyListener {
             return .failedMissingInputMonitoring
         }
 
+        // Listen for flagsChanged (Fn) AND keyDown (Escape). Combining
+        // both into one tap is cheaper than running two taps.
         let eventMask = (1 << CGEventType.flagsChanged.rawValue)
+                      | (1 << CGEventType.keyDown.rawValue)
         
         guard let tap = CGEvent.tapCreate(
             tap: .cgSessionEventTap,
@@ -89,15 +97,25 @@ class HotKeyListener {
             return Unmanaged.passRetained(event)
         }
 
+        let keyCode = event.getIntegerValueField(.keyboardEventKeycode)
+
+        // Escape: used to exit hands-free mode. AppDelegate decides
+        // whether the press is meaningful (no-op if not in hands-free).
+        if type == .keyDown && keyCode == escapeKeyCode {
+            DispatchQueue.main.async { [weak self] in
+                self?.onEscape?()
+            }
+            return Unmanaged.passRetained(event)
+        }
+
         guard type == .flagsChanged else {
             return Unmanaged.passRetained(event)
         }
 
-        let keyCode = event.getIntegerValueField(.keyboardEventKeycode)
         let hasFnFlag = event.flags.contains(.maskSecondaryFn)
         let hasOptionFlag = event.flags.contains(.maskAlternate)
         handleFlagsChanged(keyCode: keyCode, hasFnFlag: hasFnFlag, hasOptionFlag: hasOptionFlag)
-        
+
         return Unmanaged.passRetained(event)
     }
 

@@ -383,6 +383,50 @@ class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
     @Published var hotKeyStartStatus: HotKeyStartResult = .failedUnknown
     var allowTermination = false
 
+    // MARK: - Hands-free state machine
+    //
+    // The Fn key has two interaction modes:
+    //   1. Hold-to-dictate (legacy): press → record, release → transcribe.
+    //   2. Double-tap → hands-free: continuous listening until next Fn
+    //      press OR Escape.
+    //
+    // Detection happens HERE (not in HotKeyListener) so we can coordinate
+    // with the recording pipeline — specifically, the "phantom" first-tap
+    // recording needs to be discarded when a double-tap promotes to
+    // hands-free, otherwise the user would see a useless transcription
+    // pop in.
+    //
+    // State transitions:
+    //   .off → (Fn down + recent release was a short tap) → .on (hands-free)
+    //   .on  → (Fn down OR Escape) → .off (stop & transcribe normally)
+
+    private enum HandsFreeState: Equatable { case off, on }
+    private var handsFreeState: HandsFreeState = .off
+    /// Absolute time the current Fn press began. Used to measure the
+    /// duration of the previous press when classifying a new press as
+    /// "second tap of a double-tap."
+    private var lastFnPressAt: TimeInterval = 0
+    /// Absolute time the most recent Fn release happened. The
+    /// double-tap window (~400ms) is measured from this.
+    private var lastFnReleaseAt: TimeInterval = 0
+    /// Duration of the previous Fn hold. Only counts as a "tap" (i.e.
+    /// double-tap eligible) when ≤ `tapMaxDuration`.
+    private var lastFnPressDuration: TimeInterval = 0
+
+    /// Set when the in-flight transcription pipeline should drop its
+    /// result instead of injecting + persisting. Used when the phantom
+    /// recording from the first tap of a double-tap needs to be
+    /// suppressed. Auto-clears in `handleResult`.
+    private var discardNextResult: Bool = false
+
+    /// Max press duration that counts as a "tap" for double-tap purposes.
+    /// Anything longer is a hold and we don't arm hands-free detection.
+    private let tapMaxDuration: TimeInterval = 0.25
+    /// Max time between first release and second press for the pair to
+    /// register as a double-tap. Matches macOS's default double-click
+    /// interval closely enough that the gesture feels native.
+    private let doubleTapWindow: TimeInterval = 0.4
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Regular activation: full app with Dock icon + proper window.
         // Menu bar extra still registered for quick access.
@@ -424,6 +468,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
         }
         hotKeyListener?.onKeyUp = { [weak self] in
             self?.handleHotKeyUp()
+        }
+        hotKeyListener?.onEscape = { [weak self] in
+            self?.handleEscapeKey()
         }
 
         // Microphone is essential — request it on launch so VoiceFlow
@@ -947,15 +994,98 @@ class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
     }
 
     private func handleHotKeyDown() {
+        let now = Date().timeIntervalSinceReferenceDate
+
+        // If we're already in hands-free mode, this press is the
+        // "exit" gesture. Stop the recording and let it transcribe
+        // normally — same path as a manual hold-release.
+        if handsFreeState == .on {
+            handsFreeState = .off
+            floatingChip?.setHandsFreeExitedAnimating()
+            if isRecording {
+                isRecording = false
+                stopRecording()
+            }
+            return
+        }
+
+        // Detect double-tap: a second press within `doubleTapWindow` of
+        // the previous release, where the previous press was short
+        // enough to count as a tap (not a hold).
+        //
+        // We're called on the SECOND press. At this moment:
+        //   - The first press's handleHotKeyUp already fired
+        //     stopRecording (transcription pipeline in flight).
+        //   - We mark `discardNextResult` so that in-flight result
+        //     gets dropped instead of injected.
+        //   - We enter hands-free mode and start a fresh recording.
+        let gap = now - lastFnReleaseAt
+        let prevWasTap = lastFnPressDuration > 0 && lastFnPressDuration <= tapMaxDuration
+        if prevWasTap && gap <= doubleTapWindow {
+            print("Fn double-tap detected → entering hands-free mode")
+            handsFreeState = .on
+            discardNextResult = true
+            // Reset bookkeeping so a third tap doesn't re-trigger.
+            lastFnPressDuration = 0
+            lastFnReleaseAt = 0
+
+            // If the previous (phantom) recording is still mid-pipeline,
+            // we just let it finish and discard via `discardNextResult`.
+            // Start a fresh recording for hands-free. The guard on
+            // `isRecording` is for safety — by now AppDelegate has
+            // already set isRecording=false in handleHotKeyUp.
+            if !isRecording {
+                isRecording = true
+                floatingChip?.setHandsFree()
+                startRecording()
+            } else {
+                // Edge: pipeline lingered. Just push the chip into
+                // hands-free state; isRecording is already true.
+                floatingChip?.setHandsFree()
+            }
+            lastFnPressAt = now
+            return
+        }
+
+        // Normal press path — start hold-record.
+        lastFnPressAt = now
         guard !isRecording else { return }
         isRecording = true
         startRecording()
     }
 
     private func handleHotKeyUp() {
+        let now = Date().timeIntervalSinceReferenceDate
+
+        // In hands-free mode, key-up events are no-ops. We exit only
+        // on the next key-down or Escape, NOT on release.
+        if handsFreeState == .on {
+            return
+        }
+
+        // Bookkeeping for double-tap detection on the next press.
+        let pressDuration = now - lastFnPressAt
+        lastFnPressDuration = pressDuration
+        lastFnReleaseAt = now
+
         guard isRecording else { return }
         isRecording = false
         stopRecording()
+    }
+
+    /// Escape — used to exit hands-free mode without requiring a second
+    /// Fn double-tap. No-op otherwise (the regular Escape key behavior
+    /// in other apps is unaffected because HotKeyListener doesn't
+    /// consume the event).
+    private func handleEscapeKey() {
+        guard handsFreeState == .on else { return }
+        print("Escape pressed → exiting hands-free mode")
+        handsFreeState = .off
+        floatingChip?.setHandsFreeExitedAnimating()
+        if isRecording {
+            isRecording = false
+            stopRecording()
+        }
     }
 
     private func toggleRecording() {
@@ -1121,6 +1251,18 @@ class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
                         self.realtimeStream?.close()
                         self.realtimeStream = nil
                         self.realtimeStreamFailed = false
+
+                        // Phantom first-tap of a double-tap. Don't show
+                        // a "no audio" warning — the user knows what they
+                        // did and showing a warning chip here would
+                        // immediately get squashed by the hands-free
+                        // chip state on the very next frame, causing a
+                        // flicker.
+                        if self.discardNextResult {
+                            self.discardNextResult = false
+                            return
+                        }
+
                         self.hideRecordingOverlay()
                         self.floatingChip?.flashNoAudioWarning(durationSeconds: 3.0)
                     }
@@ -1170,6 +1312,28 @@ class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
                 let handleResult: (Result<TranscriptionMetadata, Error>) -> Void = { [weak self] result in
                     DispatchQueue.main.async {
                         guard let self = self else { return }
+
+                        // Hands-free first-tap discard. When the user
+                        // double-tapped Fn, the FIRST tap fired a normal
+                        // record→stop cycle. That phantom recording's
+                        // pipeline is hitting us right now. Drop it on
+                        // the floor — injecting a half-second snippet
+                        // mid-hands-free would be jarring.
+                        //
+                        // NB: we don't tear down the run-log session
+                        // here. fail()'ing the session would clutter
+                        // the run log with discarded phantoms; instead
+                        // we just don't `attachResult` and let the
+                        // session expire naturally without an entry.
+                        if self.discardNextResult {
+                            self.discardNextResult = false
+                            print("Discarding phantom first-tap result (hands-free entered)")
+                            // Don't call hideRecordingOverlay — chip is
+                            // already in .handsFree state, owned by the
+                            // new recording cycle.
+                            return
+                        }
+
                         self.hideRecordingOverlay()
                         switch result {
                         case .success(let metadata):
@@ -1472,7 +1636,15 @@ class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
     let focusDetector = FocusDetector()
 
     private func showRecordingOverlay() {
-        floatingChip?.setRecording()
+        // Hands-free mode owns the chip state — `setHandsFree()` was
+        // already called when entering the mode, and the recording-state
+        // visual should persist until the user explicitly exits. The
+        // standard "setRecording" call would overwrite that.
+        if handsFreeState == .on {
+            floatingChip?.setHandsFree()
+        } else {
+            floatingChip?.setRecording()
+        }
         audioRecorder?.onAmplitude = { [weak chip = floatingChip] level in
             chip?.updateAudioLevel(level)
         }
@@ -1482,6 +1654,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
         audioRecorder?.onAmplitude = nil
         // Pipeline complete → back to idle. setProcessing() is called
         // separately at the moment fn is released (stopRecording).
+        // If hands-free mode is still on we'd be ending it incorrectly
+        // — but by the time hideRecordingOverlay runs, handsFreeState
+        // has already been flipped to .off by handleHotKeyDown /
+        // handleEscapeKey, so this is safe.
         floatingChip?.setIdle()
     }
 }

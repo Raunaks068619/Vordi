@@ -47,6 +47,9 @@
 		11AA00000000000000000012 /* MicrophoneProbe.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11BB00000000000000000012 /* MicrophoneProbe.swift */; };
 		11AA00000000000000000013 /* UserVocabulary.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11BB00000000000000000013 /* UserVocabulary.swift */; };
 		11AA00000000000000000014 /* HallucinationGuard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11BB00000000000000000014 /* HallucinationGuard.swift */; };
+		22AA00000000000000000001 /* KnowledgeGraphService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 22BB00000000000000000001 /* KnowledgeGraphService.swift */; };
+		22AA00000000000000000002 /* UserTypeClassifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = 22BB00000000000000000002 /* UserTypeClassifier.swift */; };
+		22AA00000000000000000003 /* KnowledgeGraphView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 22BB00000000000000000003 /* KnowledgeGraphView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -93,6 +96,9 @@
 		11BB00000000000000000012 /* MicrophoneProbe.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MicrophoneProbe.swift; sourceTree = "<group>"; };
 		11BB00000000000000000013 /* UserVocabulary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserVocabulary.swift; sourceTree = "<group>"; };
 		11BB00000000000000000014 /* HallucinationGuard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HallucinationGuard.swift; sourceTree = "<group>"; };
+		22BB00000000000000000001 /* KnowledgeGraphService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnowledgeGraphService.swift; sourceTree = "<group>"; };
+		22BB00000000000000000002 /* UserTypeClassifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserTypeClassifier.swift; sourceTree = "<group>"; };
+		22BB00000000000000000003 /* KnowledgeGraphView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnowledgeGraphView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -120,6 +126,7 @@
 				11BB00000000000000000004 /* ContextProvider.swift */,
 				FF55555555555555FFFFFFFF /* GitHubService.swift */,
 				FC498E736D1087FB9B14187C /* HotKeyListener.swift */,
+				22BB00000000000000000001 /* KnowledgeGraphService.swift */,
 				11BB00000000000000000005 /* LLMService.swift */,
 				FF22222222222222FFFFFFFF /* LocalModelDetector.swift */,
 				11BB00000000000000000007 /* MagicWordResolver.swift */,
@@ -132,6 +139,7 @@
 				BB22222222222222BBBBBBBB /* RunStore.swift */,
 				16A5AE6AF5A3ECD86B1C2456 /* TextInjector.swift */,
 				11BB00000000000000000008 /* TransformerRouter.swift */,
+				22BB00000000000000000002 /* UserTypeClassifier.swift */,
 				87966BCEB2D8E8154D5CAA5A /* WhisperService.swift */,
 				11CC00000000000000000001 /* Profiles */,
 			);
@@ -167,6 +175,7 @@
 				11BB00000000000000000011 /* DevModeSettingsView.swift */,
 				545269499F1DC1CA34A9BCD1 /* InputMonitoringGuideView.swift */,
 				11BB0000000000000000000F /* InsightsView.swift */,
+				22BB00000000000000000003 /* KnowledgeGraphView.swift */,
 				C52A4B39FDE4068BB6AF34AD /* MainDashboardView.swift */,
 				11BB00000000000000000010 /* MagicWordsSettingsView.swift */,
 				707DE76A41F81D64547A4653 /* MenuBarView.swift */,
@@ -321,6 +330,9 @@
 				11AA00000000000000000012 /* MicrophoneProbe.swift in Sources */,
 				11AA00000000000000000013 /* UserVocabulary.swift in Sources */,
 				11AA00000000000000000014 /* HallucinationGuard.swift in Sources */,
+				22AA00000000000000000001 /* KnowledgeGraphService.swift in Sources */,
+				22AA00000000000000000002 /* UserTypeClassifier.swift in Sources */,
+				22AA00000000000000000003 /* KnowledgeGraphView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -401,7 +413,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 15;
+				CURRENT_PROJECT_VERSION = 16;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
@@ -414,7 +426,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 13.0;
-				MARKETING_VERSION = 0.4.10;
+				MARKETING_VERSION = 0.5.0;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -459,7 +471,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 15;
+				CURRENT_PROJECT_VERSION = 16;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
@@ -478,7 +490,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 13.0;
-				MARKETING_VERSION = 0.4.10;
+				MARKETING_VERSION = 0.5.0;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;

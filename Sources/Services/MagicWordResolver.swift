@@ -35,6 +35,20 @@ struct MagicWordResolver {
         let normalized = MagicWord.normalize(transcript)
         guard !normalized.isEmpty else { return .none }
 
+        // Spaceless variant of the transcript. We collapse all internal
+        // whitespace so a user who registered "get pods" still matches
+        // when Whisper transcribed the utterance as one token "getpods"
+        // (or vice-versa).
+        //
+        // **Why this exists**: STT is inconsistent about word boundaries
+        // for short technical phrases. Users say "GETPODS" as a single
+        // chunk and Whisper sometimes splits, sometimes doesn't. Without
+        // this path, the fuzz check fails because the edit distance
+        // between "getpods" and "get pods" already eats the entire
+        // fuzzDistance=1 budget on the missing space — leaving nothing
+        // for actual Whisper noise.
+        let normalizedNoSpace = normalized.replacingOccurrences(of: " ", with: "")
+
         let candidates = entries
             .filter { $0.enabled }
             .filter { $0.surfaceScope == nil || $0.surfaceScope == surface }
@@ -51,6 +65,35 @@ struct MagicWordResolver {
             if normalized.hasPrefix(phrase + " ") {
                 let remainder = String(normalized.dropFirst(phrase.count + 1))
                 return .prefix(entry, remainder: remainder)
+            }
+
+            // Spaceless equality / prefix. Cheaper than fuzz and handles
+            // the dominant failure mode (missing-space tokenization).
+            //
+            // Prefix carries remainder only when the spaceless phrase is
+            // a strict prefix of the spaceless transcript AND the next
+            // char in the original normalized transcript is a space —
+            // otherwise we can't tell where the trigger ended (e.g.
+            // "getpods" matching phrase "get" with remainder "pods"
+            // would be a false positive). Length-DESC sort handles
+            // multi-word ambiguity ("get pods all" beats "get").
+            let phraseNoSpace = phrase.replacingOccurrences(of: " ", with: "")
+            if !phraseNoSpace.isEmpty {
+                if normalizedNoSpace == phraseNoSpace {
+                    return .exact(entry)
+                }
+                if normalizedNoSpace.hasPrefix(phraseNoSpace) {
+                    // Find the original-space split point so the remainder
+                    // is recoverable. Walk the original transcript chars
+                    // consuming non-space chars until we've eaten
+                    // `phraseNoSpace.count` of them.
+                    if let remainder = Self.remainderAfterSpacelessPrefix(
+                        in: normalized,
+                        consuming: phraseNoSpace.count
+                    ) {
+                        return remainder.isEmpty ? .exact(entry) : .prefix(entry, remainder: remainder)
+                    }
+                }
             }
 
             // Fuzzy prefix match — only when fuzzDistance > 0 AND the
@@ -72,6 +115,36 @@ struct MagicWordResolver {
         }
 
         return .none
+    }
+
+    /// Given a space-aware normalized transcript and a count of
+    /// non-space chars consumed by a spaceless-phrase prefix match,
+    /// return the remainder of the transcript after the consumed chars
+    /// (skipping the following whitespace if present).
+    ///
+    /// Returns nil if the prefix length exceeds the available non-space
+    /// chars — shouldn't happen if the caller already confirmed the
+    /// spaceless-prefix relation, but the guard makes the function safe
+    /// in isolation.
+    private static func remainderAfterSpacelessPrefix(
+        in normalized: String,
+        consuming targetCount: Int
+    ) -> String? {
+        var consumed = 0
+        var idx = normalized.startIndex
+        while idx < normalized.endIndex && consumed < targetCount {
+            if normalized[idx] != " " {
+                consumed += 1
+            }
+            idx = normalized.index(after: idx)
+        }
+        guard consumed == targetCount else { return nil }
+        // Skip a single trailing space — that's the natural break after
+        // the trigger. Anything after that is the user's remainder.
+        if idx < normalized.endIndex && normalized[idx] == " " {
+            idx = normalized.index(after: idx)
+        }
+        return String(normalized[idx...])
     }
 
     /// Standard Levenshtein edit distance. Implemented inline to avoid
