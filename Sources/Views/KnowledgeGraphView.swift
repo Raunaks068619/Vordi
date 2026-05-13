@@ -63,7 +63,11 @@ struct KnowledgeGraphView: View {
         }
         .background(Theme.mainContent)
         .task {
-            await service.refresh()
+            // The indexer is started at app launch by AppDelegate so by
+            // the time the user opens this tab the heavy lifting is
+            // usually done. We just sync the simulation with the
+            // current snapshot.
+            service.reload()
             simulation.sync(with: service.graph)
         }
         .onChange(of: service.graph.nodes.count) { _ in
@@ -80,16 +84,63 @@ struct KnowledgeGraphView: View {
                 .padding(.top, Theme.Space.xl)
                 .padding(.bottom, Theme.Space.lg)
 
-            ZStack {
+            ZStack(alignment: .topLeading) {
                 if service.graph.nodes.isEmpty {
                     emptyGraph
                 } else {
                     graphCanvas
+                    legendOverlay
+                        .padding(Theme.Space.md)
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .padding(.horizontal, Theme.Space.xl)
             .padding(.bottom, Theme.Space.xl)
+        }
+    }
+
+    /// Floating legend over the graph canvas. Lists only the entity
+    /// types that actually appear in the current graph, so we don't
+    /// confuse the user with "place" when no places are present.
+    private var legendOverlay: some View {
+        let typesPresent = Set(service.graph.nodes.map { $0.type })
+        let ordered = KnowledgeEntityType.allCases.filter { typesPresent.contains($0) }
+        return VStack(alignment: .leading, spacing: 5) {
+            ForEach(ordered, id: \.self) { type in
+                HStack(spacing: 6) {
+                    Circle()
+                        .fill(Color(red: type.rgb.0, green: type.rgb.1, blue: type.rgb.2))
+                        .frame(width: 8, height: 8)
+                    Text(legendLabel(for: type))
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundColor(Theme.textSecondary)
+                }
+            }
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 6)
+        .background(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(Theme.surface.opacity(0.92))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .strokeBorder(Theme.divider, lineWidth: 0.5)
+        )
+        // Don't intercept gestures — purely decorative. Without this
+        // the legend would steal pan-gesture events from the canvas.
+        .allowsHitTesting(false)
+    }
+
+    private func legendLabel(for type: KnowledgeEntityType) -> String {
+        switch type {
+        case .person:   return "People"
+        case .project:  return "Projects"
+        case .tool:     return "Tools"
+        case .concept:  return "Concepts"
+        case .command:  return "Commands"
+        case .place:    return "Places"
+        case .other:    return "Other"
         }
     }
 
@@ -104,32 +155,38 @@ struct KnowledgeGraphView: View {
                     .foregroundColor(Theme.textSecondary)
             }
             Spacer()
-            if service.isIndexing {
-                ProgressView()
-                    .controlSize(.small)
-                    .padding(.trailing, 6)
-                Text("Indexing…")
+            indexerStatusBadge
+        }
+    }
+
+    /// Compact status badge — replaces the v0.5.x "Refresh" button.
+    /// Indexing is now continuous + background; the only signal worth
+    /// surfacing is "we're still working" vs "everything's caught up."
+    @ViewBuilder
+    private var indexerStatusBadge: some View {
+        switch service.indexerStatus {
+        case .idle:
+            EmptyView()
+        case .migrating(let progress):
+            HStack(spacing: 6) {
+                ProgressView().controlSize(.small)
+                Text("Migrating \(Int(progress * 100))%")
                     .font(.system(size: 11))
                     .foregroundColor(Theme.textSecondary)
             }
-            Button {
-                Task { await service.refresh() }
-            } label: {
-                Image(systemName: "arrow.clockwise")
-                    .font(.system(size: 11, weight: .semibold))
-                Text("Refresh")
-                    .font(.system(size: 11, weight: .medium))
+        case .indexing(let done, let total):
+            HStack(spacing: 6) {
+                ProgressView().controlSize(.small)
+                Text("Indexing \(done)/\(total)")
+                    .font(.system(size: 11))
+                    .foregroundColor(Theme.textSecondary)
             }
-            .buttonStyle(.plain)
-            .padding(.horizontal, 10)
-            .padding(.vertical, 6)
-            .background(
-                Capsule().fill(Theme.surface)
-            )
-            .overlay(
-                Capsule().strokeBorder(Theme.divider, lineWidth: 1)
-            )
-            .foregroundColor(Theme.textPrimary)
+        case .error(let message):
+            Text("⚠ \(message)")
+                .font(.system(size: 11))
+                .foregroundColor(Theme.warning)
+                .lineLimit(1)
+                .help(message)
         }
     }
 
@@ -143,13 +200,13 @@ struct KnowledgeGraphView: View {
                 .foregroundColor(Theme.textPrimary)
             Text(service.isIndexing
                  ? "Extracting entities from your transcripts."
-                 : "Dictate a few sentences and tap Refresh — your knowledge graph appears here.")
+                 : "Dictate a few sentences — your knowledge graph builds automatically in the background.")
                 .font(.system(size: 12))
                 .foregroundColor(Theme.textSecondary)
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
-            if let err = service.lastIndexError {
-                Text("Last error: \(err)")
+            if case .error(let msg) = service.indexerStatus {
+                Text("Last error: \(msg)")
                     .font(.system(size: 10))
                     .foregroundColor(Theme.warning)
                     .padding(.top, 4)

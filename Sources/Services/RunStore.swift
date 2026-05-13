@@ -132,10 +132,49 @@ final class RunStore: ObservableObject {
                 }
 
                 print("RunStore: saved run \(run.id) (\(run.previewText))")
+
+                // Dual-write into MemoryStore. RunStore stays the system of
+                // record (one JSON per run, easy to debug); MemoryStore is
+                // the searchable index. Doing the write inline here keeps
+                // both stores consistent without a separate sync pass.
+                //
+                // If MemoryStore is offline or this call fails, we don't
+                // raise — MemoryStore is recoverable from RunStore via
+                // IndexerService on next launch.
+                MemoryStore.shared.upsertRun(
+                    id: run.id.uuidString,
+                    createdAt: run.createdAt,
+                    appName: run.context?.frontmostAppName,
+                    bundleID: run.context?.frontmostBundleID,
+                    profile: run.profileUsed,
+                    wordCount: wordCount,
+                    durationSeconds: run.durationSeconds,
+                    status: run.status.rawValue,
+                    llmCostUSD: run.llmCostUSD,
+                    transcriptText: Self.transcriptText(for: run)
+                )
+
+                // Kick the indexer so embeddings + entities are computed
+                // for this run on the background queue. Cheap; debounced
+                // inside IndexerService.
+                IndexerService.shared.enqueue(runID: run.id.uuidString)
             } catch {
                 print("RunStore: failed to save run — \(error)")
             }
         }
+    }
+
+    /// Extract the most-useful transcript text for indexing. Prefers the
+    /// polished output over raw STT (polished is what the user actually
+    /// saw); falls back to raw if polish failed, then to the legacy
+    /// previewText. Trimmed at the edges so leading/trailing whitespace
+    /// doesn't poison FTS tokenization.
+    static func transcriptText(for run: Run) -> String {
+        let primary = run.postProcessing?.finalText.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let primary, !primary.isEmpty { return primary }
+        let raw = run.transcription?.rawText.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let raw, !raw.isEmpty { return raw }
+        return run.previewText.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     /// Load the full Run record for detail view.
@@ -166,6 +205,11 @@ final class RunStore: ObservableObject {
             DispatchQueue.main.async {
                 self.summaries = current
             }
+            // Cascade the delete into MemoryStore. We don't gate on a
+            // success/failure result — MemoryStore is derivable from
+            // RunStore, so the worst case is a stale index entry that
+            // IndexerService can sweep on next launch.
+            MemoryStore.shared.deleteRun(id: id.uuidString)
         }
     }
 

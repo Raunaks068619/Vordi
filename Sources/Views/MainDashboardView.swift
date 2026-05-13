@@ -1307,6 +1307,7 @@ struct MainDashboardView: View {
             VStack(alignment: .leading, spacing: 20) {
                 settingsHeader
                 providerCard
+                memoryProviderCard
                 realtimeStreamingCard
                 polishModelCard
                 outputStyleCard
@@ -1739,6 +1740,32 @@ struct MainDashboardView: View {
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
+            }
+        }
+    }
+
+    /// Provider picker for the Memory chat + knowledge-graph entity
+    /// extraction pipeline. Polish path is intentionally NOT included
+    /// — that stays on whatever the user picked in `polishModelCard`
+    /// so dictation latency doesn't pick up subprocess spawn overhead.
+    ///
+    /// Auto-detects installed CLIs (Claude Code, Codex, Gemini) at
+    /// app launch via `LLMRouter.start` → `CLIRunner.probe`. Each row
+    /// shows a status badge (Ready / Not authed / Not installed / Error)
+    /// and a Probe button that runs a "say OK" call against the CLI.
+    private var memoryProviderCard: some View {
+        cardContainer {
+            VStack(alignment: .leading, spacing: 14) {
+                HStack(alignment: .firstTextBaseline) {
+                    Text("Memory & Chat AI")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(Theme.textPrimary)
+                    Spacer()
+                    Text("Used by Memory chat and entity extraction")
+                        .font(.system(size: 10))
+                        .foregroundColor(Theme.textTertiary)
+                }
+                MemoryProviderPicker()
             }
         }
     }
@@ -2262,6 +2289,182 @@ final class FocusDetector {
         var role: AnyObject?
         AXUIElementCopyAttributeValue(element, kAXRoleAttribute as CFString, &role)
         return role as? String
+    }
+}
+
+// MARK: - MemoryProviderPicker
+
+/// Settings widget: lets the user pick which AI answers Memory chat
+/// questions + extracts knowledge-graph entities. Each option shows a
+/// live status badge ("Ready", "Not authed", "Not installed") and a
+/// per-CLI Probe button that runs a smoke test.
+///
+/// **Why a dedicated component** (not inline in the settings card):
+/// owns its own `@StateObject` on LLMRouter + CLIRunner state, has
+/// per-row async state (probing → response), and re-rendering it
+/// shouldn't force the whole settings page to recompute.
+struct MemoryProviderPicker: View {
+    @ObservedObject private var router = LLMRouter.shared
+
+    /// Per-CLI auto-probe state. We trigger probes on appearance so the
+    /// user sees real status (not "unknown") without having to click.
+    @State private var didInitialProbe: Bool = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            providerRow(
+                title: "Built-in",
+                subtitle: "Routes through whatever you picked for the polish backend (OpenAI / Groq / local). Always available.",
+                isSelected: router.activeProvider == .builtIn,
+                statusBadge: { builtInStatusBadge },
+                trailingAction: { EmptyView() }
+            ) {
+                router.setProvider(.builtIn)
+            }
+
+            ForEach(CLIIdentifier.allCases, id: \.self) { cli in
+                cliRow(cli)
+            }
+        }
+        .task {
+            guard !didInitialProbe else { return }
+            didInitialProbe = true
+            for cli in CLIIdentifier.allCases {
+                // Only probe CLIs we've detected on disk — there's no
+                // point spending 30s of timeout waiting for a missing
+                // binary.
+                if router.detectedCLIs.contains(cli) {
+                    _ = await router.probe(cli)
+                }
+            }
+        }
+    }
+
+    // MARK: Row builders
+
+    private func cliRow(_ cli: CLIIdentifier) -> some View {
+        let isDetected = router.detectedCLIs.contains(cli)
+        let isSelected = router.activeProvider == .cli(cli)
+        return providerRow(
+            title: cli.displayName,
+            subtitle: cli.settingsCopy,
+            isSelected: isSelected,
+            statusBadge: { cliStatusBadge(cli) },
+            trailingAction: {
+                Button {
+                    Task { _ = await router.probe(cli) }
+                } label: {
+                    Image(systemName: "arrow.clockwise")
+                        .font(.system(size: 10, weight: .semibold))
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 3)
+                        .foregroundColor(Theme.textSecondary)
+                        .background(Capsule().fill(Theme.surfaceElevated))
+                        .overlay(Capsule().strokeBorder(Theme.divider, lineWidth: 1))
+                }
+                .buttonStyle(.plain)
+                .help("Probe \(cli.displayName)")
+                .disabled(!isDetected)
+            }
+        ) {
+            guard isDetected else { return }
+            router.setProvider(.cli(cli))
+        }
+        .opacity(isDetected ? 1.0 : 0.55)
+    }
+
+    private func providerRow<Badge: View, Trailing: View>(
+        title: String,
+        subtitle: String,
+        isSelected: Bool,
+        @ViewBuilder statusBadge: () -> Badge,
+        @ViewBuilder trailingAction: () -> Trailing,
+        onTap: @escaping () -> Void
+    ) -> some View {
+        Button(action: onTap) {
+            HStack(alignment: .top, spacing: 10) {
+                // Radio indicator
+                ZStack {
+                    Circle()
+                        .strokeBorder(
+                            isSelected ? Theme.accent : Theme.divider,
+                            lineWidth: isSelected ? 5 : 1
+                        )
+                        .frame(width: 14, height: 14)
+                }
+                .padding(.top, 2)
+
+                VStack(alignment: .leading, spacing: 3) {
+                    HStack(spacing: 8) {
+                        Text(title)
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundColor(Theme.textPrimary)
+                        statusBadge()
+                    }
+                    Text(subtitle)
+                        .font(.system(size: 11))
+                        .foregroundColor(Theme.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                Spacer()
+                trailingAction()
+            }
+            .padding(10)
+            .background(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(isSelected ? Theme.accent.opacity(0.07) : Theme.surfaceElevated.opacity(0.3))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .strokeBorder(isSelected ? Theme.accent.opacity(0.6) : Theme.divider, lineWidth: 1)
+            )
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+
+    // MARK: Status badges
+
+    private var builtInStatusBadge: some View {
+        statusPill(text: "Ready", color: Theme.success)
+    }
+
+    @ViewBuilder
+    private func cliStatusBadge(_ cli: CLIIdentifier) -> some View {
+        if !router.detectedCLIs.contains(cli) {
+            statusPill(text: "Not installed", color: Theme.textTertiary)
+        } else if let state = router.probeStates[cli] {
+            switch state {
+            case .unknown:
+                statusPill(text: "Click probe", color: Theme.textTertiary)
+            case .probing:
+                HStack(spacing: 4) {
+                    ProgressView().controlSize(.mini)
+                    Text("Probing…")
+                        .font(.system(size: 9, weight: .semibold))
+                        .foregroundColor(Theme.textSecondary)
+                }
+            case .ready:
+                statusPill(text: "Ready", color: Theme.success)
+            case .authNeeded:
+                statusPill(text: "Not authed", color: Theme.warning)
+            case .error:
+                statusPill(text: "Error", color: Theme.danger)
+            }
+        } else {
+            statusPill(text: "Checking…", color: Theme.textTertiary)
+        }
+    }
+
+    private func statusPill(text: String, color: Color) -> some View {
+        Text(text)
+            .font(.system(size: 9, weight: .bold))
+            .tracking(0.4)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 2)
+            .foregroundColor(color)
+            .background(Capsule().fill(color.opacity(0.14)))
     }
 }
 

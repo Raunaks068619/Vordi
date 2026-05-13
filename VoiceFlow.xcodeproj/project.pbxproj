@@ -50,6 +50,13 @@
 		22AA00000000000000000001 /* KnowledgeGraphService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 22BB00000000000000000001 /* KnowledgeGraphService.swift */; };
 		22AA00000000000000000002 /* UserTypeClassifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = 22BB00000000000000000002 /* UserTypeClassifier.swift */; };
 		22AA00000000000000000003 /* KnowledgeGraphView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 22BB00000000000000000003 /* KnowledgeGraphView.swift */; };
+		33AA00000000000000000001 /* MemoryStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 33BB00000000000000000001 /* MemoryStore.swift */; };
+		33AA00000000000000000002 /* EmbeddingService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 33BB00000000000000000002 /* EmbeddingService.swift */; };
+		33AA00000000000000000003 /* IndexerService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 33BB00000000000000000003 /* IndexerService.swift */; };
+		33AA00000000000000000004 /* MemoryChatService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 33BB00000000000000000004 /* MemoryChatService.swift */; };
+		33AA00000000000000000005 /* CLIRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 33BB00000000000000000005 /* CLIRunner.swift */; };
+		33AA00000000000000000006 /* CLIBackend.swift in Sources */ = {isa = PBXBuildFile; fileRef = 33BB00000000000000000006 /* CLIBackend.swift */; };
+		33AA00000000000000000007 /* LLMRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 33BB00000000000000000007 /* LLMRouter.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -99,6 +106,13 @@
 		22BB00000000000000000001 /* KnowledgeGraphService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnowledgeGraphService.swift; sourceTree = "<group>"; };
 		22BB00000000000000000002 /* UserTypeClassifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserTypeClassifier.swift; sourceTree = "<group>"; };
 		22BB00000000000000000003 /* KnowledgeGraphView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnowledgeGraphView.swift; sourceTree = "<group>"; };
+		33BB00000000000000000001 /* MemoryStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemoryStore.swift; sourceTree = "<group>"; };
+		33BB00000000000000000002 /* EmbeddingService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmbeddingService.swift; sourceTree = "<group>"; };
+		33BB00000000000000000003 /* IndexerService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IndexerService.swift; sourceTree = "<group>"; };
+		33BB00000000000000000004 /* MemoryChatService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemoryChatService.swift; sourceTree = "<group>"; };
+		33BB00000000000000000005 /* CLIRunner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CLIRunner.swift; sourceTree = "<group>"; };
+		33BB00000000000000000006 /* CLIBackend.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CLIBackend.swift; sourceTree = "<group>"; };
+		33BB00000000000000000007 /* LLMRouter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LLMRouter.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -142,6 +156,7 @@
 				22BB00000000000000000002 /* UserTypeClassifier.swift */,
 				87966BCEB2D8E8154D5CAA5A /* WhisperService.swift */,
 				11CC00000000000000000001 /* Profiles */,
+				33CC00000000000000000001 /* Memory */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -157,6 +172,20 @@
 				11BB0000000000000000000D /* VariableRecognitionProfile.swift */,
 			);
 			path = Profiles;
+			sourceTree = "<group>";
+		};
+		33CC00000000000000000001 /* Memory */ = {
+			isa = PBXGroup;
+			children = (
+				33BB00000000000000000006 /* CLIBackend.swift */,
+				33BB00000000000000000005 /* CLIRunner.swift */,
+				33BB00000000000000000002 /* EmbeddingService.swift */,
+				33BB00000000000000000003 /* IndexerService.swift */,
+				33BB00000000000000000007 /* LLMRouter.swift */,
+				33BB00000000000000000004 /* MemoryChatService.swift */,
+				33BB00000000000000000001 /* MemoryStore.swift */,
+			);
+			path = Memory;
 			sourceTree = "<group>";
 		};
 		AA66666666666666AABBAABB /* Components */ = {
@@ -333,6 +362,13 @@
 				22AA00000000000000000001 /* KnowledgeGraphService.swift in Sources */,
 				22AA00000000000000000002 /* UserTypeClassifier.swift in Sources */,
 				22AA00000000000000000003 /* KnowledgeGraphView.swift in Sources */,
+				33AA00000000000000000001 /* MemoryStore.swift in Sources */,
+				33AA00000000000000000002 /* EmbeddingService.swift in Sources */,
+				33AA00000000000000000003 /* IndexerService.swift in Sources */,
+				33AA00000000000000000004 /* MemoryChatService.swift in Sources */,
+				33AA00000000000000000005 /* CLIRunner.swift in Sources */,
+				33AA00000000000000000006 /* CLIBackend.swift in Sources */,
+				33AA00000000000000000007 /* LLMRouter.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -413,7 +449,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 17;
+				CURRENT_PROJECT_VERSION = 18;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
@@ -426,7 +462,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 13.0;
-				MARKETING_VERSION = 0.5.1;
+				MARKETING_VERSION = 0.6.0;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -471,7 +507,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 17;
+				CURRENT_PROJECT_VERSION = 18;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
@@ -490,7 +526,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 13.0;
-				MARKETING_VERSION = 0.5.1;
+				MARKETING_VERSION = 0.6.0;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;

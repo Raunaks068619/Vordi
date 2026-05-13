@@ -545,6 +545,19 @@ class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
         // we received an explicit transition event.
         startPermissionPolling()
 
+        // Memory subsystem — boots the indexer (migrates JSON history
+        // → SQLite + FTS5, computes embeddings, extracts entities) AND
+        // probes installed CLIs so the Memory tab is ready when the
+        // user opens it. Both run on background queues — zero impact
+        // on launch responsiveness.
+        Task { @MainActor in
+            // LLMRouter goes first so MemoryChatService is wired to
+            // the right provider before IndexerService starts running
+            // entity-extraction calls.
+            LLMRouter.shared.start()
+            IndexerService.shared.start()
+        }
+
         // Notification routing for chip side-buttons. SwiftUI views post
         // names when their buttons are tapped; AppDelegate is the
         // single place that knows how to open windows.
