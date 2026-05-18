@@ -15,6 +15,10 @@
 > graph that turns past transcripts into searchable context.
 
 <p align="center">
+  <img src="docs/assets/readme/voiceflow-hero-dark.png" alt="VoiceFlow dark mode home dashboard" width="100%" />
+</p>
+
+<p align="center">
   <a href="https://github.com/Raunaks068619/VoiceFlow/stargazers"><img alt="Stars" src="https://img.shields.io/github/stars/Raunaks068619/VoiceFlow?style=for-the-badge&labelColor=0d1117&color=ffd700&logo=github&logoColor=white" /></a>
   <a href="https://github.com/Raunaks068619/VoiceFlow/network/members"><img alt="Forks" src="https://img.shields.io/github/forks/Raunaks068619/VoiceFlow?style=for-the-badge&labelColor=0d1117&color=2ecc71&logo=github&logoColor=white" /></a>
   <a href="https://github.com/Raunaks068619/VoiceFlow/issues"><img alt="Issues" src="https://img.shields.io/github/issues/Raunaks068619/VoiceFlow?style=for-the-badge&labelColor=0d1117&color=ff6b6b&logo=github&logoColor=white" /></a>
@@ -69,37 +73,47 @@ VoiceFlow is built for that gap:
 | **Packaging** | Homebrew cask, unsigned DMG, and signed/notarized release script support. |
 | **Platform** | macOS 13+, SwiftUI + AppKit, menu-bar app with no Dock icon by design. |
 
-## 🖼️ Demo
+## 🖼️ Product tour
 
 <table>
 <tr>
 <td width="50%" valign="top">
-<img width="299" alt="VoiceFlow menu bar popover" src="https://github.com/user-attachments/assets/ebc1b997-a68b-48a8-947c-ec3a7d0255bd" /><br/>
-<sub><b>Menu bar popover</b> — lightweight control surface for recording and status.</sub>
+<img src="docs/assets/readme/voiceflow-insights.png" alt="VoiceFlow Insights dashboard" /><br/>
+<sub><b>Insights</b> — lifetime dictation stats, streaks, app usage, and AI-inferred work profile.</sub>
 </td>
 <td width="50%" valign="top">
-<img width="471" alt="VoiceFlow settings" src="https://github.com/user-attachments/assets/b404a794-d1c3-42d9-a53b-af5d75ef8db9" /><br/>
-<sub><b>Settings</b> — provider keys, language, output style, and permission health.</sub>
-</td>
-</tr>
-<tr>
-<td width="50%" valign="top">
-<img width="472" alt="VoiceFlow advanced settings" src="https://github.com/user-attachments/assets/d4e89312-a0c6-4f2b-a536-d4c1a18a1296" /><br/>
-<sub><b>Advanced settings</b> — tune mic filtering and local workflow details.</sub>
-</td>
-<td width="50%" valign="top">
-<img width="521" alt="VoiceFlow onboarding flow" src="https://github.com/user-attachments/assets/b87bebd1-1d53-4f86-a7ca-bf342eeacdda" /><br/>
-<sub><b>Onboarding</b> — permission setup stays visible until the app is actually usable.</sub>
+<img src="docs/assets/readme/voiceflow-memory.png" alt="VoiceFlow Memory graph" /><br/>
+<sub><b>Memory</b> — past transcripts become a searchable graph with chat over your own history.</sub>
 </td>
 </tr>
 <tr>
 <td width="50%" valign="top">
-<img width="764" alt="English transcription example" src="https://github.com/user-attachments/assets/41bb65bd-d3f4-45d5-9410-030d93679b4b" /><br/>
-<sub><b>English dictation</b> — clean transcript output with paste-based insertion.</sub>
+<img src="docs/assets/readme/voiceflow-magic-words.png" alt="VoiceFlow Magic Words command center" /><br/>
+<sub><b>Magic Words</b> — discoverable voice shortcuts for app actions and reusable snippets.</sub>
 </td>
 <td width="50%" valign="top">
-<img width="700" alt="Hindi English Hinglish example" src="https://github.com/user-attachments/assets/9da697fd-1575-49cc-b339-2396dfd0c1f4" /><br/>
-<sub><b>Hinglish mode</b> — Hindi + English speech normalized into readable Latin script.</sub>
+<img src="docs/assets/readme/voiceflow-run-log.png" alt="VoiceFlow Run Log list" /><br/>
+<sub><b>Run Log</b> — local history for every dictation, with duration and quick inspection.</sub>
+</td>
+</tr>
+<tr>
+<td width="50%" valign="top">
+<img src="docs/assets/readme/voiceflow-run-log-detail.png" alt="VoiceFlow Run Log detail with audio transcription and post-processing steps" /><br/>
+<sub><b>Pipeline detail</b> — inspect audio capture, STT model, raw transcript, prompt, final text, and latency.</sub>
+</td>
+<td width="50%" valign="top">
+<img src="docs/assets/readme/voiceflow-settings-provider.png" alt="VoiceFlow provider settings" /><br/>
+<sub><b>Provider control</b> — pick Groq, OpenAI, Claude Code, Codex CLI, Gemini CLI, or local models where available.</sub>
+</td>
+</tr>
+<tr>
+<td width="50%" valign="top">
+<img src="docs/assets/readme/voiceflow-settings-output.png" alt="VoiceFlow output style and microphone settings" /><br/>
+<sub><b>Output tuning</b> — choose Original vs English, Dictation vs Rewrite, sensitivity, and vocabulary hints.</sub>
+</td>
+<td width="50%" valign="top">
+<img src="docs/assets/readme/voiceflow-home-dark.png" alt="VoiceFlow dark mode home dashboard" /><br/>
+<sub><b>Dark mode</b> — the same command surface in a focused low-light workspace.</sub>
 </td>
 </tr>
 </table>
