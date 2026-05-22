@@ -159,9 +159,12 @@ final class CLIRunner {
                 let stdinPipe = Pipe()
                 process.standardOutput = stdoutPipe
                 process.standardError = stderrPipe
-                if stdin != nil {
-                    process.standardInput = stdinPipe
-                }
+                // Always attach stdin and close it after launch. Several AI
+                // CLIs append piped stdin to the prompt when stdin appears
+                // open; inheriting Codex/VoiceFlow's own stdin can make a
+                // headless probe wait for EOF. An empty pipe gives the child
+                // a deterministic EOF in both Terminal and GUI launches.
+                process.standardInput = stdinPipe
 
                 // Accumulate stdout/stderr in background. Doing this
                 // via readabilityHandlers avoids the classic deadlock
@@ -191,11 +194,12 @@ final class CLIRunner {
                     return
                 }
 
-                // Feed stdin if provided.
+                // Feed stdin if provided, otherwise close immediately so
+                // CLIs do not block while trying to read extra input.
                 if let stdin {
                     stdinPipe.fileHandleForWriting.write(stdin.data(using: .utf8) ?? Data())
-                    try? stdinPipe.fileHandleForWriting.close()
                 }
+                try? stdinPipe.fileHandleForWriting.close()
 
                 // Timeout watchdog. Schedules a SIGTERM after the
                 // configured deadline; if the process hasn't exited

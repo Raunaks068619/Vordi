@@ -35,6 +35,8 @@ struct KnowledgeGraphView: View {
     /// most recent assistant turn. Lets the user see "these are the
     /// memories I used to answer" in the graph.
     @State private var highlightedRunIDs: Set<String> = []
+    @State private var selectedNodeID: String?
+    @State private var sourcePopoverTurnID: UUID?
 
     /// Pan offset for the graph canvas. Reset on double-click.
     @State private var pan: CGSize = .zero
@@ -63,10 +65,6 @@ struct KnowledgeGraphView: View {
         }
         .background(Theme.mainContent)
         .task {
-            // The indexer is started at app launch by AppDelegate so by
-            // the time the user opens this tab the heavy lifting is
-            // usually done. We just sync the simulation with the
-            // current snapshot.
             service.reload()
             simulation.sync(with: service.graph)
         }
@@ -155,38 +153,51 @@ struct KnowledgeGraphView: View {
                     .foregroundColor(Theme.textSecondary)
             }
             Spacer()
-            indexerStatusBadge
+            syncControl
         }
     }
 
-    /// Compact status badge — replaces the v0.5.x "Refresh" button.
-    /// Indexing is now continuous + background; the only signal worth
-    /// surfacing is "we're still working" vs "everything's caught up."
+    /// Manual sync keeps expensive Memory work out of launch and dictation.
     @ViewBuilder
-    private var indexerStatusBadge: some View {
-        switch service.indexerStatus {
-        case .idle:
-            EmptyView()
-        case .migrating(let progress):
-            HStack(spacing: 6) {
+    private var syncControl: some View {
+        HStack(spacing: 10) {
+            switch service.indexerStatus {
+            case .idle:
+                if service.pendingSyncCount > 0 {
+                    Text("\(service.pendingSyncCount) unsynced")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundColor(Theme.textSecondary)
+                }
+            case .migrating(let progress):
                 ProgressView().controlSize(.small)
                 Text("Migrating \(Int(progress * 100))%")
                     .font(.system(size: 11))
                     .foregroundColor(Theme.textSecondary)
-            }
-        case .indexing(let done, let total):
-            HStack(spacing: 6) {
+            case .indexing(let done, let total):
                 ProgressView().controlSize(.small)
                 Text("Indexing \(done)/\(total)")
                     .font(.system(size: 11))
                     .foregroundColor(Theme.textSecondary)
+            case .error(let message):
+                Text("⚠ \(message)")
+                    .font(.system(size: 11))
+                    .foregroundColor(Theme.warning)
+                    .lineLimit(1)
+                    .help(message)
             }
-        case .error(let message):
-            Text("⚠ \(message)")
-                .font(.system(size: 11))
-                .foregroundColor(Theme.warning)
-                .lineLimit(1)
-                .help(message)
+
+            Button {
+                Task {
+                    await service.syncNow()
+                    simulation.sync(with: service.graph)
+                }
+            } label: {
+                Label("SYNC", systemImage: "arrow.triangle.2.circlepath")
+                    .font(.system(size: 11, weight: .bold))
+            }
+            .buttonStyle(.borderedProminent)
+            .disabled(service.isIndexing)
+            .help("Update Memory from saved transcriptions")
         }
     }
 
@@ -200,7 +211,7 @@ struct KnowledgeGraphView: View {
                 .foregroundColor(Theme.textPrimary)
             Text(service.isIndexing
                  ? "Extracting entities from your transcripts."
-                 : "Dictate a few sentences — your knowledge graph builds automatically in the background.")
+                 : "Click SYNC after dictating to build Memory on demand.")
                 .font(.system(size: 12))
                 .foregroundColor(Theme.textSecondary)
                 .multilineTextAlignment(.center)
@@ -277,11 +288,26 @@ struct KnowledgeGraphView: View {
                                     )
                                     simulation.dragTo(body.id, point: target)
                                 }
-                                .onEnded { _ in
+                                .onEnded { v in
+                                    let moved = hypot(v.translation.width, v.translation.height)
                                     simulation.endDrag(body.id)
                                     activeDragNodeID = nil
+                                    if moved < 4 {
+                                        selectedNodeID = body.id
+                                    }
                                 }
                         )
+                        .popover(
+                            isPresented: Binding(
+                                get: { selectedNodeID == body.id },
+                                set: { isPresented in
+                                    if !isPresented { selectedNodeID = nil }
+                                }
+                            ),
+                            arrowEdge: .top
+                        ) {
+                            nodeSummaryPopover(nodeID: body.id)
+                        }
                         .help(tooltipFor(body.id))
                 }
             }
@@ -566,19 +592,35 @@ struct KnowledgeGraphView: View {
             }
 
             VStack(alignment: .leading, spacing: 4) {
-                Text(turn.text)
-                    .font(.system(size: 13))
-                    .foregroundColor(Theme.textPrimary)
-                    .textSelection(.enabled)
-                    .fixedSize(horizontal: false, vertical: true)
+                MemoryMarkdownText(text: turn.text)
                 if turn.role == .assistant && !turn.sourceRunIDs.isEmpty {
-                    HStack(spacing: 4) {
-                        Image(systemName: "link")
-                            .font(.system(size: 9, weight: .semibold))
-                        Text("\(turn.sourceRunIDs.count) source\(turn.sourceRunIDs.count == 1 ? "" : "s")")
-                            .font(.system(size: 10))
+                    Button {
+                        sourcePopoverTurnID = turn.id
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: "link")
+                                .font(.system(size: 9, weight: .semibold))
+                            Text("\(turn.sourceRunIDs.count) source\(turn.sourceRunIDs.count == 1 ? "" : "s")")
+                                .font(.system(size: 10, weight: .medium))
+                        }
                     }
+                    .buttonStyle(.plain)
                     .foregroundColor(Theme.textSecondary)
+                    .help("Show transcripts used for this answer")
+                    .popover(
+                        isPresented: Binding(
+                            get: { sourcePopoverTurnID == turn.id },
+                            set: { isPresented in
+                                if !isPresented { sourcePopoverTurnID = nil }
+                            }
+                        ),
+                        arrowEdge: .bottom
+                    ) {
+                        KnowledgeSourcesPopover(
+                            title: "\(turn.sourceRunIDs.count) source\(turn.sourceRunIDs.count == 1 ? "" : "s")",
+                            sources: service.sourcePreviews(for: turn.sourceRunIDs)
+                        )
+                    }
                 }
             }
             .padding(10)
@@ -601,12 +643,25 @@ struct KnowledgeGraphView: View {
         .padding(.horizontal, Theme.Space.lg)
     }
 
+    @ViewBuilder
+    private func nodeSummaryPopover(nodeID: String) -> some View {
+        if let summary = service.nodeSummary(for: nodeID) {
+            KnowledgeNodeSummaryPopover(summary: summary)
+        } else {
+            Text("No details available.")
+                .font(.system(size: 12))
+                .foregroundColor(Theme.textSecondary)
+                .padding(14)
+        }
+    }
+
     // MARK: - Chat actions
 
     private func submitChat() {
         let trimmed = chatInput.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty, !isAsking else { return }
 
+        let priorConversation = chatHistory
         let userTurn = KnowledgeChatTurn(role: .user, text: trimmed)
         chatHistory.append(userTurn)
         chatInput = ""
@@ -615,7 +670,7 @@ struct KnowledgeGraphView: View {
 
         Task {
             do {
-                let answer = try await service.ask(trimmed)
+                let answer = try await service.ask(trimmed, conversation: priorConversation)
                 await MainActor.run {
                     chatHistory.append(answer)
                     highlightedRunIDs = Set(answer.sourceRunIDs)
@@ -629,6 +684,219 @@ struct KnowledgeGraphView: View {
                 }
             }
         }
+    }
+}
+
+// MARK: - Memory popovers + Markdown
+
+private struct MemoryMarkdownText: View {
+    let text: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 7) {
+            ForEach(Array(lines.enumerated()), id: \.offset) { _, rawLine in
+                let line = rawLine.trimmingCharacters(in: .whitespaces)
+                if line.isEmpty {
+                    Spacer(minLength: 4)
+                } else if let heading = headingText(from: line) {
+                    Text(Self.attributed(heading))
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundColor(Theme.textPrimary)
+                        .fixedSize(horizontal: false, vertical: true)
+                } else {
+                    Text(Self.attributed(line))
+                        .font(.system(size: 13))
+                        .foregroundColor(Theme.textPrimary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+        }
+        .textSelection(.enabled)
+    }
+
+    private var lines: [String] {
+        text.components(separatedBy: .newlines)
+    }
+
+    private func headingText(from line: String) -> String? {
+        guard line.hasPrefix("#") else { return nil }
+        let stripped = line.drop { $0 == "#" || $0 == " " }
+        return stripped.isEmpty ? nil : String(stripped)
+    }
+
+    private static func attributed(_ raw: String) -> AttributedString {
+        if let parsed = try? AttributedString(
+            markdown: raw,
+            options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace)
+        ) {
+            return parsed
+        }
+        return AttributedString(raw)
+    }
+}
+
+private struct KnowledgeNodeSummaryPopover: View {
+    let summary: KnowledgeNodeSummary
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .center, spacing: 8) {
+                Circle()
+                    .fill(Color(red: summary.type.rgb.0, green: summary.type.rgb.1, blue: summary.type.rgb.2))
+                    .frame(width: 10, height: 10)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(summary.label)
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundColor(Theme.textPrimary)
+                    Text("\(typeLabel(summary.type)) · \(summary.mentions) mention\(summary.mentions == 1 ? "" : "s")")
+                        .font(.system(size: 11))
+                        .foregroundColor(Theme.textSecondary)
+                }
+                Spacer()
+            }
+
+            if !summary.connectedLabels.isEmpty {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Connected to")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundColor(Theme.textSecondary)
+                    ConnectedChipList(items: summary.connectedLabels)
+                }
+            }
+
+            Divider().background(Theme.divider)
+
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Recent transcripts")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundColor(Theme.textSecondary)
+                if summary.sources.isEmpty {
+                    Text("No transcript preview available.")
+                        .font(.system(size: 12))
+                        .foregroundColor(Theme.textTertiary)
+                } else {
+                    ForEach(summary.sources) { source in
+                        KnowledgeSourcePreviewRow(source: source)
+                    }
+                }
+            }
+        }
+        .padding(14)
+        .frame(width: 340)
+        .background(Theme.canvas)
+    }
+}
+
+private struct KnowledgeSourcesPopover: View {
+    let title: String
+    let sources: [KnowledgeSourcePreview]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text(title)
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundColor(Theme.textPrimary)
+                Spacer()
+                Text("Transcripts used")
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundColor(Theme.textTertiary)
+            }
+
+            if sources.isEmpty {
+                Text("No source transcripts found for this answer.")
+                    .font(.system(size: 12))
+                    .foregroundColor(Theme.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            } else {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 10) {
+                        ForEach(sources) { source in
+                            KnowledgeSourcePreviewRow(source: source)
+                        }
+                    }
+                    .padding(.trailing, 2)
+                }
+                .frame(maxHeight: 360)
+            }
+        }
+        .padding(14)
+        .frame(width: 380)
+        .background(Theme.canvas)
+    }
+}
+
+private struct KnowledgeSourcePreviewRow: View {
+    let source: KnowledgeSourcePreview
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 6) {
+                Text(Self.dateFormatter.string(from: source.createdAt))
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundColor(Theme.textSecondary)
+                if let app = source.appName, !app.isEmpty {
+                    Text(app)
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundColor(Theme.textTertiary)
+                }
+                Spacer()
+                Text("\(source.wordCount)w")
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundColor(Theme.textTertiary)
+            }
+            Text(source.text)
+                .font(.system(size: 12))
+                .foregroundColor(Theme.textPrimary)
+                .lineLimit(4)
+                .fixedSize(horizontal: false, vertical: true)
+                .textSelection(.enabled)
+        }
+        .padding(10)
+        .background(
+            RoundedRectangle(cornerRadius: 9, style: .continuous)
+                .fill(Theme.surface)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 9, style: .continuous)
+                .strokeBorder(Theme.divider, lineWidth: 1)
+        )
+    }
+
+    private static let dateFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "MMM d, h:mm a"
+        return f
+    }()
+}
+
+private struct ConnectedChipList: View {
+    let items: [String]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            ForEach(items, id: \.self) { item in
+                Text(item)
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundColor(Theme.textPrimary)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(Capsule().fill(Theme.surfaceElevated))
+                    .overlay(Capsule().strokeBorder(Theme.divider, lineWidth: 1))
+            }
+        }
+    }
+}
+
+private func typeLabel(_ type: KnowledgeEntityType) -> String {
+    switch type {
+    case .person: return "Person"
+    case .project: return "Project"
+    case .tool: return "Tool"
+    case .concept: return "Concept"
+    case .command: return "Command"
+    case .place: return "Place"
+    case .other: return "Entity"
     }
 }
 

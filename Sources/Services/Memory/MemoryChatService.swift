@@ -94,7 +94,7 @@ final class MemoryChatService: ObservableObject {
 
     /// Answer a question. Returns the assistant turn (text + source
     /// run IDs) so the UI can render citations.
-    func ask(_ question: String) async throws -> AssistantTurn {
+    func ask(_ question: String, conversation: [ConversationTurn] = []) async throws -> AssistantTurn {
         let q = question.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !q.isEmpty else {
             return AssistantTurn(
@@ -113,36 +113,55 @@ final class MemoryChatService: ObservableObject {
             )
         }
 
-        // 1. Semantic candidates.
-        let semantic = await semanticCandidates(for: q)
-        // 2. Lexical candidates.
-        let lexical = memory.searchFTS(query: q, limit: topKPerChannel)
-        // 3. Merge.
-        var merged = mergeScores(semantic: semantic, lexical: lexical)
-        // 4. Entity boost.
-        applyEntityBoost(question: q, scores: &merged)
-        // 5. Recency decay.
-        applyRecencyDecay(scores: &merged)
+        let recentConversation = Array(conversation.suffix(6))
+        let contextualFollowUp = Self.isContextualFollowUp(q, conversation: recentConversation)
+        let previousSourceIDs = Self.latestAssistantSourceIDs(in: recentConversation)
+        let retrievalQuery = contextualFollowUp
+            ? Self.contextualRetrievalQuery(question: q, conversation: recentConversation)
+            : q
 
         // 6. Take top-K with positive score; fall back to recency if
         //    nothing scored.
         let usedRecencyFallback: Bool
         let topHits: [(runID: String, score: Double)]
-        if merged.isEmpty {
-            usedRecencyFallback = true
-            topHits = memory.recentRuns(limit: finalK).map { (runID: $0.id, score: 0.0) }
-        } else {
-            let positive = merged
-                .filter { $0.value > 0.001 }
-                .sorted { $0.value > $1.value }
+        if contextualFollowUp, !previousSourceIDs.isEmpty {
+            // For replies like "yes" or "tell me more", the retrieval
+            // target is the previous answer's evidence, not the literal
+            // one-word follow-up. This preserves conversational context
+            // without polluting unrelated fresh questions.
+            usedRecencyFallback = false
+            topHits = previousSourceIDs
                 .prefix(finalK)
-                .map { (runID: $0.key, score: $0.value) }
-            if positive.isEmpty {
+                .enumerated()
+                .map { idx, runID in (runID: runID, score: 1.0 - Double(idx) * 0.01) }
+        } else {
+            // 1. Semantic candidates.
+            let semantic = await semanticCandidates(for: retrievalQuery)
+            // 2. Lexical candidates.
+            let lexical = memory.searchFTS(query: retrievalQuery, limit: topKPerChannel)
+            // 3. Merge.
+            var merged = mergeScores(semantic: semantic, lexical: lexical)
+            // 4. Entity boost.
+            applyEntityBoost(question: retrievalQuery, scores: &merged)
+            // 5. Recency decay.
+            applyRecencyDecay(scores: &merged)
+
+            if merged.isEmpty {
                 usedRecencyFallback = true
                 topHits = memory.recentRuns(limit: finalK).map { (runID: $0.id, score: 0.0) }
             } else {
-                usedRecencyFallback = false
-                topHits = Array(positive)
+                let positive = merged
+                    .filter { $0.value > 0.001 }
+                    .sorted { $0.value > $1.value }
+                    .prefix(finalK)
+                    .map { (runID: $0.key, score: $0.value) }
+                if positive.isEmpty {
+                    usedRecencyFallback = true
+                    topHits = memory.recentRuns(limit: finalK).map { (runID: $0.id, score: 0.0) }
+                } else {
+                    usedRecencyFallback = false
+                    topHits = Array(positive)
+                }
             }
         }
 
@@ -156,7 +175,12 @@ final class MemoryChatService: ObservableObject {
             )
         }
 
-        let answer = try await callLLM(question: q, sources: sources, usedRecencyFallback: usedRecencyFallback)
+        let answer = try await callLLM(
+            question: q,
+            conversation: recentConversation,
+            sources: sources,
+            usedRecencyFallback: usedRecencyFallback
+        )
         return AssistantTurn(
             text: answer,
             sourceRunIDs: sources.map { $0.runID },
@@ -282,6 +306,7 @@ final class MemoryChatService: ObservableObject {
 
     private func callLLM(
         question: String,
+        conversation: [ConversationTurn],
         sources: [HydratedSource],
         usedRecencyFallback: Bool
     ) async throws -> String {
@@ -298,11 +323,19 @@ final class MemoryChatService: ObservableObject {
             ? "The user's question didn't strongly match any specific transcript. The sources below are simply their most recent dictations. Give a brief, honest summary of what they appear to be about — don't pretend to directly answer the question."
             : "Answer the user's question using ONLY the transcripts. Be specific. Cite sources inline as [1], [2], etc."
 
+        let conversationBlock = Self.conversationPromptBlock(conversation)
+
         let system = """
         You are VoiceFlow's memory assistant. You help the user recall \
         what they've dictated.
 
         \(retrievalNote)
+
+        Use the recent conversation to interpret short follow-ups like \
+        "yes", "tell me more", "group them", or "why". If the latest \
+        user message is a reply to your previous question, answer that \
+        implied request instead of treating the latest words as a fresh \
+        standalone search.
 
         If the transcripts don't contain enough to answer, say so honestly \
         — never invent details. Keep responses to 2-4 sentences unless the \
@@ -310,6 +343,8 @@ final class MemoryChatService: ObservableObject {
         """
 
         let userBlock = """
+        \(conversationBlock)
+
         Sources:
         \(context)
 
@@ -323,9 +358,63 @@ final class MemoryChatService: ObservableObject {
 
     // MARK: - Types
 
+    struct ConversationTurn: Equatable {
+        let role: Role
+        let text: String
+        let sourceRunIDs: [String]
+
+        enum Role: String {
+            case user
+            case assistant
+        }
+    }
+
     struct AssistantTurn {
         let text: String
         let sourceRunIDs: [String]
         let usedRecencyFallback: Bool
+    }
+
+    // MARK: - Conversation helpers
+
+    private static func isContextualFollowUp(_ question: String, conversation: [ConversationTurn]) -> Bool {
+        guard !conversation.isEmpty else { return false }
+        let lower = question
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        let followUpMarkers = [
+            "yes", "yeah", "yep", "sure", "ok", "okay",
+            "no", "nope",
+            "do it", "go ahead", "tell me more", "more", "expand",
+            "why", "how", "that", "this", "these", "those", "them",
+            "it", "same", "group", "group them", "break it down"
+        ]
+        return followUpMarkers.contains { lower == $0 || lower.hasPrefix($0 + " ") }
+    }
+
+    private static func latestAssistantSourceIDs(in conversation: [ConversationTurn]) -> [String] {
+        conversation
+            .reversed()
+            .first { $0.role == .assistant && !$0.sourceRunIDs.isEmpty }?
+            .sourceRunIDs ?? []
+    }
+
+    private static func contextualRetrievalQuery(question: String, conversation: [ConversationTurn]) -> String {
+        let context = conversation.suffix(4).map { turn in
+            "\(turn.role.rawValue): \(turn.text.prefix(500))"
+        }.joined(separator: "\n")
+        return "\(context)\nuser follow-up: \(question)"
+    }
+
+    private static func conversationPromptBlock(_ conversation: [ConversationTurn]) -> String {
+        guard !conversation.isEmpty else { return "" }
+        let rendered = conversation.map { turn in
+            let role = turn.role == .user ? "User" : "Assistant"
+            return "\(role): \(turn.text.prefix(900))"
+        }.joined(separator: "\n\n")
+        return """
+        Recent conversation:
+        \(rendered)
+        """
     }
 }

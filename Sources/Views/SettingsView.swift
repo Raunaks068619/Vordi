@@ -22,7 +22,8 @@ struct SettingsView: View {
     /// than `gpt-4.1-mini`, at the cost of slightly worse Hinglish.
     private let cloudPolishOptions: [(id: String, label: String)] = [
         ("openai::gpt-4.1-mini", "OpenAI · gpt-4.1-mini (default)"),
-        ("openai::gpt-4.1-nano", "OpenAI · gpt-4.1-nano (cheaper, stronger role adherence)")
+        ("openai::gpt-4.1-nano", "OpenAI · gpt-4.1-nano (cheaper, stronger role adherence)"),
+        (PolishBackend.defaultIdGroq, "Groq · Llama 4 Scout (vision context)")
     ]
 
     /// Computed dropdown options: cloud first, then discovered local models.
@@ -243,6 +244,12 @@ struct SettingsView: View {
                     onRequest: { permissionService.requestInputMonitoringAccess() },
                     onOpenSettings: { permissionService.openPrivacyPane(.inputMonitoring) }
                 )
+                permissionRow(
+                    title: "Screen Recording",
+                    state: permissionService.screenRecordingState,
+                    onRequest: { permissionService.requestScreenRecordingAccess() },
+                    onOpenSettings: { permissionService.openPrivacyPane(.screenRecording) }
+                )
 
                 if !permissionService.allRequiredGranted {
                     Text("Global hotkeys will not work until required permissions are granted.")
@@ -325,7 +332,10 @@ struct SettingsView: View {
         // key. Matches the seed in configureDefaultSettings.
         outputMode = UserDefaults.standard.string(forKey: "output_mode") ?? TranscriptOutputStyle.verbatim.rawValue
         processingMode = UserDefaults.standard.string(forKey: "processing_mode") ?? TranscriptProcessingMode.dictation.rawValue
-        polishBackendId = UserDefaults.standard.string(forKey: PolishBackend.userDefaultsKey) ?? PolishBackend.defaultId
+        let storedPolishBackend = UserDefaults.standard.string(forKey: PolishBackend.userDefaultsKey) ?? PolishBackend.defaultId
+        polishBackendId = PolishBackend.legacyGroqModelIds.contains(storedPolishBackend)
+            ? PolishBackend.defaultIdGroq
+            : storedPolishBackend
         let storedThreshold = UserDefaults.standard.double(forKey: "noise_gate_threshold")
         noiseGateThreshold = storedThreshold == 0 ? 0.015 : storedThreshold
         if UserDefaults.standard.object(forKey: "run_log_enabled") != nil {
@@ -640,11 +650,11 @@ private struct OnboardingPermissionsStep: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: Theme.Space.lg) {
-            Text("Grant three permissions.")
+            Text("Grant four permissions.")
                 .font(.system(size: 26, weight: .semibold, design: .serif))
                 .foregroundColor(Theme.textPrimary)
 
-            Text("VoiceFlow needs to hear you (microphone), type for you (accessibility), and know when you press the fn key (input monitoring). macOS won't let us do any of this silently — that's a feature.")
+            Text("VoiceFlow needs to hear you, type for you, detect the fn key, and capture the active window for smart context. macOS won't let us do any of this silently — that's a feature.")
                 .font(.system(size: 13))
                 .foregroundColor(Theme.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -684,9 +694,16 @@ private struct OnboardingPermissionsStep: View {
                     pane: .inputMonitoring,
                     request: { permissionService.requestInputMonitoringAccess() }
                 )
+                permissionCard(
+                    title: "Screen Recording",
+                    subtitle: "Required for smart screenshot context",
+                    state: permissionService.screenRecordingState,
+                    pane: .screenRecording,
+                    request: { permissionService.requestScreenRecordingAccess() }
+                )
             }
 
-            if !permissionService.allRequiredGranted {
+            if !permissionService.allOnboardingPermissionsGranted {
                 Text("TCC prompts sometimes silently no-op on ad-hoc builds. If a toggle doesn't appear after clicking Grant, use Open Settings to enable it manually.")
                     .font(.system(size: 11))
                     .foregroundColor(Theme.textTertiary)

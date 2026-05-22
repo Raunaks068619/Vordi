@@ -1,0 +1,923 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>VoiceFlow — Notch UI</title>
+<style>
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box;}
+html,body{width:100%;height:100%;overflow:hidden;}
+body{
+  display:flex;flex-direction:column;align-items:stretch;
+  background:#000;
+  font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','SF Pro Text',sans-serif;
+  -webkit-font-smoothing:antialiased;
+}
+
+/* ── MacBook shell ── */
+.mb-wrap{flex:1;height:100%;display:flex;flex-direction:column;align-items:stretch;}
+.mb-lid{position:relative;flex:1;background:#0e0f14;overflow:hidden;}
+.mb-screen{
+  width:100%;height:100%;overflow:hidden;position:relative;
+  background:
+    radial-gradient(ellipse 55% 40% at 15% 75%, rgba(29,80,180,.5) 0%,transparent 55%),
+    radial-gradient(ellipse 45% 35% at 85% 20%, rgba(110,40,180,.4) 0%,transparent 50%),
+    radial-gradient(ellipse 35% 25% at 60% 60%, rgba(20,60,120,.25) 0%,transparent 50%),
+    linear-gradient(160deg,#0d1728 0%,#080c18 60%,#0a0814 100%);
+}
+
+/* ── Transparent menu bar ── */
+.mb-menubar{
+  position:absolute;top:0;left:0;right:0;height:32px;
+  background:transparent;
+  display:flex;align-items:center;padding:0 14px;z-index:5;
+}
+.mb-menubar-left{
+  display:flex;align-items:center;gap:18px;
+  font-size:14px;font-weight:400;color:rgba(255,255,255,.88);letter-spacing:-.01em;
+}
+.mb-menubar-left .apple{font-size:15px;}
+.mb-menubar-left .app-name{font-weight:600;}
+.mb-menubar-right{
+  margin-left:auto;display:flex;align-items:center;gap:14px;
+  font-size:13px;color:rgba(255,255,255,.72);letter-spacing:-.01em;
+}
+
+/* ── Desktop skeleton ── */
+.mb-desktop{
+  position:absolute;inset:32px 0 0;
+  display:flex;align-items:center;justify-content:center;gap:18px;padding:32px 24px;
+}
+.fake-win{background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.055);border-radius:10px;overflow:hidden;flex-shrink:0;}
+.fake-win-bar{height:28px;background:rgba(255,255,255,.04);border-bottom:1px solid rgba(255,255,255,.045);display:flex;align-items:center;padding:0 10px;gap:6px;}
+.dot{width:8px;height:8px;border-radius:50%;}
+.dot-r{background:#ff5f57;}.dot-y{background:#febc2e;}.dot-g{background:#28c840;}
+.fake-win-body{padding:12px 14px;display:flex;flex-direction:column;gap:7px;}
+.skel{height:7px;background:rgba(255,255,255,.065);border-radius:4px;}
+.skel.s{width:55%;}.skel.m{width:78%;}.skel.l{width:100%;}
+
+/* ════════════════════════════════════════════════════════
+   VOICEFLOW NOTCH WIDGET
+   Single black shape — everything lives inside .vf-pill.
+   The pill morphs width AND height. Nothing drops separately.
+════════════════════════════════════════════════════════ */
+.vf-notch{
+  position:absolute;top:0;left:50%;
+  transform:translateX(-50%);
+  z-index:50;
+}
+
+/*
+  The ONE shape.
+  Base width (220px) > physical notch (168px) so the
+  dead-zone gap is always visible on both sides at rest.
+  Content is anchored LEFT so the logo never sits over the camera.
+*/
+.vf-pill{
+  background:#000;
+  border-radius:0 0 22px 22px;
+  overflow:hidden;
+
+  /* Base = wider than notch so left/right gap is always visible */
+  width:220px;
+  min-height:32px;
+  /* max-height collapses the pill in closed states; open state uses content height */
+  max-height:32px;
+
+  display:flex;
+  flex-direction:column;
+
+  /* Spring-like morph on all shape changes */
+  transition:
+    width      .52s cubic-bezier(.34,1.45,.64,1),
+    max-height .5s  cubic-bezier(.22,1.08,.36,1),
+    border-radius .4s cubic-bezier(.34,1.2,.64,1);
+}
+
+/* ── State widths + max-heights ───────────────────────── */
+.vf-pill.s-idle       { width:220px;  max-height:32px;  }
+.vf-pill.s-proximity  { width:268px;  max-height:32px;  }
+.vf-pill.s-listening  { width:360px;  max-height:32px;  }
+/* listening + inline transcript: grow to show the strip */
+.vf-pill.s-listening.has-transcript { max-height:62px; }
+.vf-pill.s-thinking   { width:360px;  max-height:32px;  }
+.vf-pill.s-done       { width:320px;  max-height:32px;  }
+.vf-pill.s-error      { width:364px;  max-height:32px;  }
+/* panel open: no fixed height — content determines actual height */
+.vf-pill.s-open       { width:364px;  max-height:600px; border-radius:0 0 22px 22px; }
+
+/* ── Ambient glow under pill (state colour) ───────────── */
+.vf-pill::after{
+  content:'';position:absolute;bottom:-2px;left:12%;right:12%;
+  height:24px;border-radius:50%;filter:blur(13px);
+  opacity:0;transition:opacity .4s ease,background .4s ease;pointer-events:none;
+  z-index:-1;
+}
+.vf-pill.s-listening::after   { background:#3b82f6; opacity:.48; }
+.vf-pill.s-thinking::after    { background:#a78bfa; opacity:.42; }
+.vf-pill.s-done::after        { background:#22c55e; opacity:.48; }
+.vf-pill.s-error::after       { background:#f59e0b; opacity:.38; }
+
+/* ── Pill row — always 32px, content anchored LEFT ───── */
+.pill-row{
+  height:32px;min-height:32px;flex-shrink:0;
+  display:flex;align-items:center;
+  padding:0 13px;
+  cursor:pointer;
+}
+
+/* VF waveform mark */
+.vf-logo{display:flex;align-items:center;flex-shrink:0;}
+.vf-logo svg{
+  transition:opacity .25s ease;
+  animation:breathe 3.2s ease-in-out infinite;
+}
+.vf-pill:not(.s-idle):not(.s-done) .vf-logo svg{ animation:none; opacity:1; }
+@keyframes breathe{ 0%,100%{opacity:.42;} 50%{opacity:1;} }
+
+/* Proximity hint — slides in from left */
+.prox-hint{
+  font-size:12px;color:rgba(255,255,255,.55);white-space:nowrap;
+  max-width:0;overflow:hidden;opacity:0;margin-left:0;
+  transition:max-width .38s cubic-bezier(.34,1.2,.64,1),
+             opacity .25s ease .05s,
+             margin-left .38s cubic-bezier(.34,1.2,.64,1);
+}
+.vf-pill.s-proximity .prox-hint{
+  max-width:200px;opacity:1;margin-left:8px;
+}
+
+/* Status label — left of spacer, slides in next to logo */
+.pill-status{
+  font-size:12px;font-weight:500;color:rgba(255,255,255,.9);white-space:nowrap;
+  max-width:0;overflow:hidden;opacity:0;margin-left:0;
+  transition:max-width .3s ease, opacity .22s ease .1s, margin-left .3s ease;
+}
+.vf-pill.s-listening .pill-status,
+.vf-pill.s-thinking  .pill-status,
+.vf-pill.s-done      .pill-status { max-width:130px; opacity:1; margin-left:10px; }
+/* Done label matches Listening — white */
+
+/* Error inline — right of spacer, slides in from right */
+.pill-error{
+  font-size:11.5px;font-weight:500;color:#fbbf24;white-space:nowrap;
+  max-width:0;overflow:hidden;opacity:0;margin-right:0;
+  transition:max-width .3s ease, opacity .22s ease .1s, margin-right .3s ease;
+}
+.vf-pill.s-error .pill-error{ max-width:220px; opacity:1; margin-right:9px; }
+
+/* Thinking intent label — hidden (reserved for future use) */
+.pill-intent{ display:none; }
+
+.pill-spacer{ flex:1; }
+
+/* Waveform / dots */
+.pill-ind{
+  display:flex;align-items:center;gap:4px;height:16px;flex-shrink:0;
+  opacity:0;transform:scale(.55);
+  transition:opacity .25s ease .1s, transform .32s cubic-bezier(.34,1.4,.64,1) .1s;
+}
+.vf-pill.s-listening .pill-ind,
+.vf-pill.s-thinking  .pill-ind,
+.vf-pill.s-done      .pill-ind,
+.vf-pill.s-error     .pill-ind { opacity:1; transform:scale(1); }
+
+/* Green tick for done state */
+.tick-mark{ display:block;flex-shrink:0; }
+
+/* Amber pulsing dot for error state */
+.edot{
+  width:7px;height:7px;border-radius:50%;background:#f59e0b;
+  animation:tdotpulse .9s ease-in-out infinite;
+}
+
+/* Abort button removed from pill row */
+
+/* ── Waveform bars — VoiceFlow logo proportions ─────── */
+/*
+  Heights mirror the VF logo mark exactly:
+  bar1=4px  bar2=10px  bar3=14px  bar4=8px  bar5=4px
+  Each bar animates between 20% and 100% of its own height,
+  preserving the VF wave silhouette throughout the animation.
+*/
+.bar{
+  width:2.5px;border-radius:1.25px;
+  transform-origin:center;
+  animation:wavebar .55s ease-in-out infinite alternate;
+}
+.bar:nth-child(1){ height:4px;  animation-delay:0s;    animation-duration:.5s;  }
+.bar:nth-child(2){ height:10px; animation-delay:.12s;  animation-duration:.6s;  }
+.bar:nth-child(3){ height:14px; animation-delay:.06s;  animation-duration:.52s; }
+.bar:nth-child(4){ height:8px;  animation-delay:.18s;  animation-duration:.58s; }
+.bar:nth-child(5){ height:4px;  animation-delay:.03s;  animation-duration:.48s; }
+@keyframes wavebar{ from{transform:scaleY(.22);} to{transform:scaleY(1);} }
+.vf-pill.s-listening .bar{ background:#3b82f6; }
+.vf-pill.s-done      .bar{ background:#22c55e; }
+
+/* ── Thinking dots — sequential bounce wave (Clicky style) ── */
+.tdot{
+  width:5px;height:5px;border-radius:50%;
+  background:rgba(255,255,255,.9);
+  animation:tdotbounce .72s ease-in-out infinite;
+}
+.tdot:nth-child(1){ animation-delay:0s;   }
+.tdot:nth-child(2){ animation-delay:.16s; }
+.tdot:nth-child(3){ animation-delay:.32s; }
+@keyframes tdotbounce{
+  0%,50%,100%{ transform:translateY(0);   opacity:.35; }
+  25%         { transform:translateY(-4px); opacity:1;   }
+}
+
+/* ── Inline transcript strip (inside pill, 30px) ───── */
+.pill-transcript{
+  /* collapsed by default so it adds no height until transcript appears */
+  max-height:0;flex-shrink:0;
+  display:flex;align-items:center;padding:0 13px;
+  opacity:0;pointer-events:none;
+  transition:max-height .28s ease, opacity .22s ease;
+  overflow:hidden;
+}
+.vf-pill.has-transcript .pill-transcript{ max-height:30px; opacity:1; }
+.pill-transcript-text{
+  font-size:11px;color:rgba(255,255,255,.48);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;
+  border-right:1.5px solid rgba(59,130,246,.7);
+  animation:cur-blink .78s step-end infinite;
+}
+@keyframes cur-blink{ 50%{ border-color:transparent; } }
+
+/* ════════════════════════════════════════════════════════
+   PANEL AREA — lives INSIDE the pill.
+   Invisible at 0 flex / 0 opacity until s-open grows the pill.
+════════════════════════════════════════════════════════ */
+.panel-area{
+  flex-shrink:0;          /* don't compress; size to content */
+  overflow:hidden;
+  opacity:0;
+  transform:translateY(-5px);
+  transition:
+    opacity .28s ease .18s,
+    transform .32s cubic-bezier(.34,1.15,.64,1) .15s;
+}
+.vf-pill.s-open .panel-area{
+  opacity:1;
+  transform:translateY(0);
+}
+
+/* Mode switching via data-panel on .vf-notch */
+.panel-mode{ display:none; }
+[data-panel="idle"]       .panel-mode.mode-idle       { display:flex; flex-direction:column; }
+[data-panel="listen"]     .panel-mode.mode-listen     { display:flex; flex-direction:column; }
+[data-panel="error"]      .panel-mode.mode-error      { display:flex; flex-direction:column; }
+[data-panel="error-mini"] .panel-mode.mode-error-mini { display:flex; flex-direction:column; }
+
+/* Glow colour overrides for expanded error panels */
+[data-panel="error"]      .vf-pill.s-open::after { background:#f59e0b; opacity:.42; }
+[data-panel="error-mini"] .vf-pill.s-open::after { background:#f59e0b; opacity:.38; }
+
+/* ── Divider between pill row and panel ── */
+.panel-divider{
+  height:1px;background:rgba(255,255,255,.07);flex-shrink:0;
+  margin:0;
+}
+
+/* ── Panel: Idle / Hover ─────────────────────────── */
+.mode-idle{ padding:0; }
+.p-header{
+  display:flex;align-items:center;padding:8px 12px 7px;
+  border-bottom:1px solid rgba(255,255,255,.06);gap:6px;flex-shrink:0;
+}
+.p-logo{ display:flex;align-items:center;gap:6px; }
+.p-logo-name{ font-size:11.5px;font-weight:600;color:rgba(255,255,255,.82); }
+.p-icons{ margin-left:auto;display:flex;gap:3px; }
+.p-icon-btn{
+  width:24px;height:24px;border-radius:6px;
+  background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.07);
+  display:flex;align-items:center;justify-content:center;
+  color:rgba(255,255,255,.38);font-size:10px;cursor:pointer;
+  transition:background .15s,color .15s;
+}
+.p-icon-btn:hover{ background:rgba(255,255,255,.12);color:rgba(255,255,255,.82); }
+
+.p-section{
+  font-size:9.5px;font-weight:600;color:rgba(255,255,255,.25);
+  text-transform:uppercase;letter-spacing:.07em;
+  padding:6px 12px 3px;flex-shrink:0;
+}
+.cmd-list{ display:flex;flex-direction:column;gap:2px;padding:0 8px 6px; }
+.cmd-row{
+  display:flex;align-items:center;gap:7px;padding:5px 8px;
+  border-radius:7px;border:1px solid rgba(255,255,255,.05);
+  background:rgba(255,255,255,.03);cursor:pointer;
+  transition:background .15s,border-color .15s;
+}
+.cmd-row:hover{ background:rgba(255,255,255,.07);border-color:rgba(255,255,255,.09); }
+.cmd-row-icon{ font-size:11px;opacity:.6;flex-shrink:0; }
+.cmd-row-text{ font-size:11px;color:rgba(255,255,255,.65);flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis; }
+.cmd-row-time{ font-size:9.5px;color:rgba(255,255,255,.2);flex-shrink:0; }
+.cmd-row-play{
+  width:17px;height:17px;border-radius:4px;
+  background:none;border:none;color:rgba(255,255,255,.28);font-size:8px;cursor:pointer;
+  opacity:0;transition:opacity .15s,background .15s,color .15s;flex-shrink:0;
+}
+.cmd-row:hover .cmd-row-play{ opacity:1; }
+.cmd-row-play:hover{ background:rgba(255,255,255,.1);color:rgba(255,255,255,.78); }
+
+.p-footer{
+  display:flex;justify-content:space-between;align-items:center;
+  padding:5px 12px 10px;
+  border-top:1px solid rgba(255,255,255,.05);
+  flex-shrink:0;
+}
+.p-footer-btn{
+  display:flex;align-items:center;gap:4px;
+  font-size:11px;color:rgba(255,255,255,.32);
+  background:none;border:none;cursor:pointer;
+  padding:3px 0;transition:color .15s;
+}
+.p-footer-btn:hover{ color:rgba(255,255,255,.7); }
+
+/* ── Pill close btn (visible only when panel open) ── */
+.pill-close{
+  width:19px;height:19px;border-radius:50%;
+  background:rgba(255,255,255,.08);border:none;
+  display:flex;align-items:center;justify-content:center;
+  color:rgba(255,255,255,.38);font-size:8px;line-height:1;
+  cursor:pointer;flex-shrink:0;margin-left:6px;
+  opacity:0;transform:scale(.4);
+  transition:opacity .2s ease .2s, transform .24s cubic-bezier(.34,1.4,.64,1) .2s, background .15s;
+}
+.pill-close:hover{ background:rgba(255,255,255,.15);color:#fff; }
+.vf-pill.s-open .pill-close{ opacity:1;transform:scale(1); }
+
+/* ── Panel: Live transcription ───────────────────── */
+.mode-listen{ padding:0; }
+
+/* header row: pulsing dot + "Listening" + live mini-bars */
+.listen-header{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:8px 12px 7px;
+  border-bottom:1px solid rgba(255,255,255,.065);
+  flex-shrink:0;
+}
+.listen-header-left{ display:flex;align-items:center;gap:6px; }
+.rec-dot{
+  width:6px;height:6px;border-radius:50%;background:#3b82f6;
+  flex-shrink:0;
+  animation:rec-pulse 1s ease-in-out infinite;
+}
+@keyframes rec-pulse{
+  0%,100%{ opacity:1;transform:scale(1); }
+  50%    { opacity:.3;transform:scale(.65); }
+}
+.listen-title{
+  font-size:11px;font-weight:600;
+  color:rgba(59,130,246,.85);letter-spacing:.01em;
+}
+.listen-wave{ display:flex;align-items:center;gap:2.5px;height:14px; }
+.lbar{
+  width:2.5px;border-radius:1.5px;background:#3b82f6;
+  transform-origin:center;
+  animation:wavebar .55s ease-in-out infinite alternate;
+}
+.lbar:nth-child(1){ height:4px;  animation-delay:0s;    animation-duration:.5s;  }
+.lbar:nth-child(2){ height:10px; animation-delay:.12s;  animation-duration:.6s;  }
+.lbar:nth-child(3){ height:14px; animation-delay:.06s;  animation-duration:.52s; }
+.lbar:nth-child(4){ height:8px;  animation-delay:.18s;  animation-duration:.58s; }
+.lbar:nth-child(5){ height:4px;  animation-delay:.03s;  animation-duration:.48s; }
+
+/* scrollable transcript body */
+.live-text-wrap{
+  flex-shrink:0;padding:9px 12px 7px;overflow-y:auto;
+  max-height:90px; /* cap runaway growth; scroll within this */
+}
+.live-text{
+  font-size:12px;line-height:1.55;color:rgba(255,255,255,.85);
+  word-break:break-word;
+}
+.live-cursor{
+  display:inline-block;width:2px;height:15px;vertical-align:middle;margin-left:2px;
+  background:#3b82f6;border-radius:1px;
+  animation:cur-blink .78s step-end infinite;
+}
+
+/* footer: hint + cancel button */
+.listen-footer{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:5px 12px 9px;
+  border-top:1px solid rgba(255,255,255,.055);
+  flex-shrink:0;
+}
+.listen-hint{
+  font-size:10.5px;color:rgba(255,255,255,.22);letter-spacing:-.01em;
+}
+.listen-hint kbd{
+  display:inline-block;padding:1px 4px;border-radius:3px;
+  background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.1);
+  font-family:inherit;font-size:9.5px;color:rgba(255,255,255,.38);
+}
+.listen-cancel-btn{
+  padding:3px 9px;border-radius:5px;
+  background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.09);
+  color:rgba(255,255,255,.38);font-size:10.5px;font-weight:500;
+  cursor:pointer;transition:background .15s,border-color .15s,color .15s;
+  font-family:inherit;
+}
+.listen-cancel-btn:hover{
+  background:rgba(240,60,60,.14);border-color:rgba(240,60,60,.25);
+  color:rgba(255,120,120,.9);
+}
+
+/* ── Panel: Error ─────────────────────────────────── */
+.mode-error{ padding:10px 12px 12px; }
+.err-badge{
+  display:inline-flex;align-items:center;gap:4px;
+  background:rgba(245,158,11,.09);border:1px solid rgba(245,158,11,.18);
+  color:#fbbf24;font-size:10px;font-weight:600;
+  padding:2px 7px;border-radius:4px;letter-spacing:.03em;
+  margin-bottom:7px;flex-shrink:0;
+}
+.err-title{ font-size:12px;font-weight:600;color:rgba(255,255,255,.85);margin-bottom:4px; }
+.err-desc{ font-size:11px;color:rgba(255,255,255,.46);line-height:1.45;margin-bottom:8px; }
+.err-tip{
+  display:flex;align-items:flex-start;gap:6px;
+  background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.06);
+  border-radius:7px;padding:7px 9px;margin-bottom:9px;
+}
+.err-tip-icon{ font-size:11px;flex-shrink:0;margin-top:1px; }
+.err-tip-text{ font-size:11px;color:rgba(255,255,255,.48);line-height:1.4; }
+.err-actions{ display:flex;gap:6px; }
+.err-btn-p{
+  flex:1;padding:5px 9px;border-radius:7px;
+  background:rgba(245,158,11,.12);border:1px solid rgba(245,158,11,.25);
+  color:#fbbf24;font-size:11px;font-weight:500;cursor:pointer;
+  transition:background .15s;
+}
+.err-btn-p:hover{ background:rgba(245,158,11,.22); }
+.err-btn-s{
+  padding:5px 11px;border-radius:7px;
+  background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);
+  color:rgba(255,255,255,.4);font-size:11px;cursor:pointer;
+  transition:background .15s,color .15s;
+}
+.err-btn-s:hover{ background:rgba(255,255,255,.1);color:rgba(255,255,255,.7); }
+
+/* ── Error inline mini — single line beneath notch ── */
+.mode-error-mini{ padding:0; }
+.err-mini-line{
+  display:flex;align-items:center;gap:6px;
+  padding:9px 13px 11px;
+}
+.err-mini-icon{ font-size:11px;color:#fbbf24;flex-shrink:0; }
+.err-mini-text{ font-size:11.5px;color:rgba(255,255,255,.65);white-space:nowrap;overflow:hidden;text-overflow:ellipsis; }
+
+/* ── Panel: Done ──────────────────────────────────── */
+.mode-done{
+  padding:14px 14px 16px;
+  align-items:center;
+  gap:6px;
+}
+.done-check{
+  width:30px;height:30px;border-radius:50%;
+  background:rgba(34,197,94,.12);
+  border:1px solid rgba(34,197,94,.28);
+  display:flex;align-items:center;justify-content:center;
+  flex-shrink:0;
+}
+.done-check svg{ display:block; }
+.done-title{
+  font-size:12.5px;font-weight:600;
+  color:rgba(255,255,255,.88);
+  letter-spacing:-.01em;
+}
+.done-sub{
+  font-size:11px;color:rgba(255,255,255,.32);
+  letter-spacing:-.01em;
+}
+
+/* ── Physical notch dead-zone guide ──────────────── */
+/*
+  Always-on overlay showing the exact 162px camera dead zone.
+  Dashed border on bottom + sides only (top is screen edge).
+  Sits above everything so it's visible on any pill state.
+  pointer-events:none so it never blocks clicks.
+*/
+.notch-guide{
+  position:absolute;
+  top:0;left:50%;transform:translateX(-50%);
+  width:162px;height:32px;
+  border:1.5px dashed rgba(255,255,255,.22);
+  border-top:none;
+  border-radius:0 0 10px 10px;
+  z-index:200;
+  pointer-events:none;
+}
+/* tiny "dead zone" label below the guide line */
+.notch-guide::after{
+  content:'⊘ camera';
+  position:absolute;
+  bottom:-16px;left:50%;transform:translateX(-50%);
+  font-size:9px;font-weight:500;letter-spacing:.04em;
+  color:rgba(255,255,255,.2);white-space:nowrap;
+  font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text',sans-serif;
+}
+/* toggle button */
+.guide-toggle{
+  position:absolute;top:40px;left:50%;transform:translateX(-50%);
+  z-index:201;
+  padding:3px 10px;border-radius:10px;
+  background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);
+  color:rgba(255,255,255,.32);font-size:10px;font-weight:500;
+  cursor:pointer;transition:all .15s;white-space:nowrap;
+  font-family:inherit;letter-spacing:.02em;
+}
+.guide-toggle:hover{ background:rgba(255,255,255,.1);color:rgba(255,255,255,.65); }
+.guide-toggle.active{ color:rgba(255,200,60,.9);border-color:rgba(255,200,60,.3);background:rgba(255,200,60,.07); }
+
+/* ── State controls ──────────────────────────────── */
+.controls{
+  position:absolute;bottom:18px;left:50%;transform:translateX(-50%);
+  display:flex;gap:6px;z-index:60;flex-wrap:wrap;justify-content:center;max-width:740px;
+}
+.ctrl-btn{
+  padding:6px 14px;border-radius:20px;
+  border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.06);
+  color:rgba(255,255,255,.58);font-size:11px;font-weight:500;cursor:pointer;
+  backdrop-filter:blur(12px);transition:all .15s;white-space:nowrap;
+}
+.ctrl-btn:hover{ background:rgba(255,255,255,.12);color:#fff; }
+.ctrl-btn.on{ background:rgba(255,255,255,.15);color:#fff;border-color:rgba(255,255,255,.22); }
+</style>
+</head>
+<body>
+<div class="mb-wrap">
+  <div class="mb-lid">
+    <div class="mb-screen">
+
+      <div class="mb-menubar">
+        <div class="mb-menubar-left">
+          <span class="apple">&#63743;</span>
+          <span class="app-name">Finder</span>
+          <span>File</span><span>Edit</span><span>View</span><span>Go</span><span>Window</span>
+        </div>
+        <div class="mb-menubar-right">
+          <span>⌥⌃</span><span>📶</span><span>🔋</span><span id="clock"></span>
+        </div>
+      </div>
+
+      <!-- ══ PHYSICAL NOTCH DEAD-ZONE GUIDE ══ -->
+      <!-- Shows exactly where the 162px camera hardware sits.
+           Toggle with the button — use it to audit which pill content
+           lands inside the dead zone and gets hidden behind the notch. -->
+      <div class="notch-guide" id="notchGuide"></div>
+      <button class="guide-toggle active" id="guideToggle" onclick="toggleGuide()">⊘ notch guide on</button>
+
+      <!-- ══ SINGLE MORPHING WIDGET ══ -->
+      <div class="vf-notch" id="vfNotch" data-panel="idle">
+        <div class="vf-pill s-idle" id="vfPill">
+
+          <!-- ── Pill row — always 32px ── -->
+          <div class="pill-row" onclick="handlePillClick()">
+            <div class="vf-logo">
+              <svg width="18" height="14" viewBox="0 0 18 14" fill="none">
+                <rect x="0"    y="5"  width="2.5" height="4"  rx="1.25" fill="white" opacity=".9"/>
+                <rect x="4"    y="2"  width="2.5" height="10" rx="1.25" fill="white" opacity=".9"/>
+                <rect x="7.75" y="0"  width="2.5" height="14" rx="1.25" fill="white" opacity=".9"/>
+                <rect x="11.5" y="3"  width="2.5" height="8"  rx="1.25" fill="white" opacity=".9"/>
+                <rect x="15.5" y="5"  width="2.5" height="4"  rx="1.25" fill="white" opacity=".9"/>
+              </svg>
+            </div>
+            <span class="prox-hint">VoiceFlow &nbsp;·&nbsp; Hold <b>Fn</b> to talk</span>
+            <span id="pillStatus" class="pill-status"></span>
+            <span class="pill-spacer"></span>
+            <div  id="pillInd"   class="pill-ind"></div>
+            <button class="pill-close" onclick="closePanelClick(event)">✕</button>
+          </div>
+
+          <!-- ── Inline transcript (grows pill to 62px) ── -->
+          <div class="pill-transcript">
+            <span id="inlineTxt" class="pill-transcript-text"></span>
+          </div>
+
+          <!-- ── Panel area — inside the pill ── -->
+          <div class="panel-area">
+            <div class="panel-divider"></div>
+
+            <!-- IDLE / HOVER -->
+            <div class="panel-mode mode-idle">
+              <div class="p-header">
+                <div class="p-logo">
+                  <svg width="14" height="11" viewBox="0 0 18 14" fill="none">
+                    <rect x="0"    y="5"  width="2.5" height="4"  rx="1.25" fill="white" opacity=".6"/>
+                    <rect x="4"    y="2"  width="2.5" height="10" rx="1.25" fill="white" opacity=".6"/>
+                    <rect x="7.75" y="0"  width="2.5" height="14" rx="1.25" fill="white" opacity=".6"/>
+                    <rect x="11.5" y="3"  width="2.5" height="8"  rx="1.25" fill="white" opacity=".6"/>
+                    <rect x="15.5" y="5"  width="2.5" height="4"  rx="1.25" fill="white" opacity=".6"/>
+                  </svg>
+                  <span class="p-logo-name">VoiceFlow</span>
+                </div>
+                <div class="p-icons">
+                  <button class="p-icon-btn" title="Run logs">
+                    <svg width="11" height="10" viewBox="0 0 12 10" fill="currentColor">
+                      <rect y="0"   width="12" height="1.8" rx=".9"/>
+                      <rect y="4.1" width="8"  height="1.8" rx=".9"/>
+                      <rect y="8.2" width="10" height="1.8" rx=".9"/>
+                    </svg>
+                  </button>
+                  <button class="p-icon-btn" title="Keyboard shortcuts">⌨</button>
+                  <button class="p-icon-btn" title="Settings">⚙</button>
+                </div>
+              </div>
+              <div class="p-section">Recent commands</div>
+              <div class="cmd-list" id="cmdList"></div>
+              <div class="p-footer">
+                <button class="p-footer-btn">
+                  <svg width="10" height="9" viewBox="0 0 12 10" fill="currentColor" style="margin-right:2px">
+                    <rect y="0" width="12" height="1.8" rx=".9"/>
+                    <rect y="4.1" width="8" height="1.8" rx=".9"/>
+                    <rect y="8.2" width="10" height="1.8" rx=".9"/>
+                  </svg>
+                  View run logs
+                </button>
+                <button class="p-footer-btn">⚙&nbsp; Settings</button>
+              </div>
+            </div>
+
+            <!-- LIVE TRANSCRIPT -->
+            <div class="panel-mode mode-listen">
+              <div class="listen-header">
+                <div class="listen-header-left">
+                  <span class="rec-dot"></span>
+                  <span class="listen-title">Listening</span>
+                </div>
+                <div class="listen-wave">
+                  <div class="lbar"></div>
+                  <div class="lbar"></div>
+                  <div class="lbar"></div>
+                  <div class="lbar"></div>
+                  <div class="lbar"></div>
+                </div>
+              </div>
+              <div class="live-text-wrap">
+                <div class="live-text" id="liveText"><span class="live-cursor"></span></div>
+              </div>
+              <div class="listen-footer">
+                <span class="listen-hint">Release <kbd>Fn</kbd> to send</span>
+                <button class="listen-cancel-btn" onclick="abortFromPanel()">✕ Cancel</button>
+              </div>
+            </div>
+
+            <!-- ERROR -->
+            <div class="panel-mode mode-error">
+              <span class="err-badge">⚠ Error</span>
+              <div class="err-title" id="errTitle">No input field detected</div>
+              <div class="err-desc" id="errDesc">VoiceFlow couldn't find an active text field to insert into. Click into any input and try again.</div>
+              <div class="err-tip">
+                <span class="err-tip-icon">💡</span>
+                <span class="err-tip-text">Click into the target field first, then hold Fn to dictate directly into it.</span>
+              </div>
+              <div class="err-actions">
+                <button class="err-btn-p">Try again</button>
+                <button class="err-btn-s">View logs →</button>
+              </div>
+            </div>
+
+            <!-- ERROR MINI (single line) -->
+            <div class="panel-mode mode-error-mini">
+              <div class="err-mini-line">
+                <span class="err-mini-icon">⚠</span>
+                <span id="errMiniText" class="err-mini-text">No input field detected</span>
+              </div>
+            </div>
+
+            <!-- DONE -->
+            <div class="panel-mode mode-done">
+              <div class="done-check">
+                <svg width="13" height="10" viewBox="0 0 13 10" fill="none">
+                  <path d="M1.5 5L5 8.5L11.5 1.5" stroke="#22c55e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </div>
+              <div class="done-title">Done</div>
+              <div class="done-sub">Command completed</div>
+            </div>
+
+          </div><!-- /panel-area -->
+        </div><!-- /vf-pill -->
+      </div>
+      <!-- ══ END WIDGET ══ -->
+
+      <!-- Desktop -->
+      <div class="mb-desktop">
+        <div class="fake-win" style="width:210px;height:155px;">
+          <div class="fake-win-bar"><div class="dot dot-r"></div><div class="dot dot-y"></div><div class="dot dot-g"></div></div>
+          <div class="fake-win-body"><div class="skel l"></div><div class="skel s"></div><div class="skel m"></div><div class="skel l"></div><div class="skel m"></div><div class="skel s"></div></div>
+        </div>
+        <div class="fake-win" style="width:285px;height:185px;">
+          <div class="fake-win-bar"><div class="dot dot-r"></div><div class="dot dot-y"></div><div class="dot dot-g"></div></div>
+          <div class="fake-win-body"><div class="skel m"></div><div class="skel l"></div><div class="skel s"></div><div class="skel m"></div><div class="skel l"></div><div class="skel s"></div><div class="skel m"></div></div>
+        </div>
+        <div class="fake-win" style="width:195px;height:145px;">
+          <div class="fake-win-bar"><div class="dot dot-r"></div><div class="dot dot-y"></div><div class="dot dot-g"></div></div>
+          <div class="fake-win-body"><div class="skel l"></div><div class="skel m"></div><div class="skel s"></div><div class="skel l"></div><div class="skel s"></div></div>
+        </div>
+      </div>
+
+      <!-- Controls -->
+      <div class="controls">
+        <button class="ctrl-btn on" onclick="demo('idle',this)">Idle</button>
+        <button class="ctrl-btn"   onclick="demo('proximity',this)">Proximity</button>
+        <button class="ctrl-btn"   onclick="demo('listening',this)">Listening</button>
+        <button class="ctrl-btn"   onclick="demo('thinking',this)">Thinking</button>
+        <button class="ctrl-btn"   onclick="demo('done',this)">Done</button>
+        <button class="ctrl-btn"   onclick="demo('error',this)">Error</button>
+        <button class="ctrl-btn"   onclick="demo('panel-idle',this)">Panel: Hover</button>
+        <button class="ctrl-btn"   onclick="demo('panel-listen',this)">Panel: Transcript</button>
+        <button class="ctrl-btn"   onclick="demo('panel-error',this)">Panel: Error</button>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+const pill       = document.getElementById('vfPill');
+const notch      = document.getElementById('vfNotch');
+const pillStatus = document.getElementById('pillStatus');
+const pillInd    = document.getElementById('pillInd');
+const inlineTxt  = document.getElementById('inlineTxt');
+const liveText   = document.getElementById('liveText');
+
+let currentState = 'idle';
+let tTimer = null;
+let intentTimer = null;
+
+/* ── Recent commands ── */
+const RECENT = [
+  { icon:'✍️', text:'Write a follow-up email to the design team', time:'2m ago'  },
+  { icon:'🔍', text:'Summarise this page in 3 bullet points',      time:'9m ago'  },
+  { icon:'💬', text:'Reply to Slack: sounds good, will do',         time:'15m ago' },
+];
+document.getElementById('cmdList').innerHTML = RECENT.map(c => `
+  <div class="cmd-row">
+    <span class="cmd-row-icon">${c.icon}</span>
+    <span class="cmd-row-text">${c.text}</span>
+    <span class="cmd-row-time">${c.time}</span>
+    <button class="cmd-row-play">▶</button>
+  </div>`).join('');
+
+/* ── Intent cycling (unused, kept for reference) ── */
+const INTENTS = [];
+let intentIdx = 0;
+function nextIntent() {
+  intentTimer = setTimeout(nextIntent, 1800);
+}
+
+/* ── Transcription ── */
+const SAMPLES = [
+  'Can you write a follow-up email to the design team about the dashboard review from Monday',
+  'Search for the latest news on AI product launches and give me a quick summary',
+  'Reply to Priya on Slack — yes I\'ll join the 3pm call, can you share the link',
+];
+function startTranscript(panel) {
+  const txt = SAMPLES[Math.floor(Math.random() * SAMPLES.length)];
+  let i = 0;
+  const cur = '<span class="live-cursor"></span>';
+  liveText.innerHTML = cur;
+  inlineTxt.textContent = '';
+  function tick() {
+    i++;
+    const chunk = txt.slice(0, i);
+    if (panel) liveText.innerHTML = chunk + cur;
+    inlineTxt.textContent = chunk;
+    if (i === 10 && !panel) pill.classList.add('has-transcript');
+    if (i < txt.length) tTimer = setTimeout(tick, 50 + Math.random() * 32);
+  }
+  tTimer = setTimeout(tick, 500);
+}
+function stopTranscript() {
+  clearTimeout(tTimer);
+  pill.classList.remove('has-transcript');
+  inlineTxt.textContent = '';
+}
+
+/* ── Indicators ── */
+const BARS = '<div class="bar"></div>'.repeat(5);
+const DOTS = '<div class="tdot"></div>'.repeat(3);
+const EDOT = '<div class="edot"></div>';
+const TICK = '<svg class="tick-mark" width="16" height="12" viewBox="0 0 16 12" fill="none"><path d="M1.5 6L6 10.5L14.5 1.5" stroke="#22c55e" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+
+/* ── VoiceFlow-style error messages ── */
+const VF_ERRORS = [
+  { mini:'No input field detected — use ⌘V to paste',      title:'No input field detected',       desc:'VoiceFlow couldn\'t find an active text field. Use ⌘V to paste the transcription manually.', tip:'Click into any text field first, then hold Fn to dictate directly into it.' },
+  { mini:'No output was generated — check the logs',        title:'No output was generated',        desc:'The flow ran but produced no text output. This may be a flow configuration issue.',           tip:'Open the run logs to inspect which step failed or returned empty.' },
+  { mini:'Microphone access denied — check System Settings',title:'Microphone access denied',       desc:'VoiceFlow needs microphone access to listen. Grant access in System Settings → Privacy.',      tip:'Go to System Settings → Privacy & Security → Microphone and enable VoiceFlow.' },
+  { mini:'Flow timed out — try a shorter prompt',           title:'Flow timed out',                 desc:'The AI agent took too long to respond. Try simplifying your request.',                        tip:'Shorter, more specific prompts tend to run faster and more reliably.' },
+];
+let errIdx = 0;
+
+/* ── State machine ── */
+function clearAll() {
+  pill.classList.remove('s-idle','s-proximity','s-listening','s-thinking','s-done','s-error','s-open','has-transcript');
+  notch.dataset.panel = 'idle';
+  pillStatus.textContent = '';
+  pillInd.innerHTML = '';
+  clearTimeout(intentTimer);
+  stopTranscript();
+}
+
+function setState(key) {
+  clearAll();
+  currentState = key;
+
+  if      (key === 'idle')         { pill.classList.add('s-idle'); }
+  else if (key === 'proximity')    { pill.classList.add('s-proximity'); }
+  else if (key === 'done')         {
+    pill.classList.add('s-done');
+    pillStatus.textContent = 'Done';
+    pillInd.innerHTML = TICK;
+    setTimeout(() => { setState('idle'); markBtn(0); }, 2000);
+  }
+  else if (key === 'listening')    {
+    pill.classList.add('s-listening');
+    pillStatus.textContent = 'Listening';
+    pillInd.innerHTML = BARS;
+    startTranscript(false);
+  }
+  else if (key === 'thinking')     {
+    pill.classList.add('s-thinking');
+    pillStatus.textContent = 'Thinking';
+    pillInd.innerHTML = DOTS;
+  }
+  else if (key === 'error')        {
+    const e = VF_ERRORS[errIdx % VF_ERRORS.length]; errIdx++;
+    document.getElementById('errMiniText').textContent = e.mini;
+    pill.classList.add('s-open');
+    notch.dataset.panel = 'error-mini';
+  }
+  else if (key === 'panel-idle')   {
+    pill.classList.add('s-open');
+    notch.dataset.panel = 'idle';
+  }
+  else if (key === 'panel-listen') {
+    pill.classList.add('s-open');
+    notch.dataset.panel = 'listen';
+    startTranscript(true);
+  }
+  else if (key === 'panel-error')  {
+    const e = VF_ERRORS[(errIdx - 1 + VF_ERRORS.length) % VF_ERRORS.length];
+    document.getElementById('errTitle').textContent = e.title;
+    document.getElementById('errDesc').textContent  = e.desc;
+    document.querySelector('.err-tip-text').textContent = e.tip;
+    pill.classList.add('s-open');
+    notch.dataset.panel = 'error';
+  }
+}
+
+function markBtn(idx) {
+  document.querySelectorAll('.ctrl-btn').forEach((b,i) => b.classList.toggle('on', i === idx));
+}
+function demo(key, btn) {
+  document.querySelectorAll('.ctrl-btn').forEach(b => b.classList.remove('on'));
+  btn.classList.add('on');
+  setState(key);
+}
+function handlePillClick() {
+  if      (currentState === 'idle')      { setState('panel-idle'); markBtn(4); }
+  else if (currentState.startsWith('panel') || currentState === 'done' || currentState === 'error') {
+    setState('idle'); markBtn(0);
+  }
+}
+function closePanelClick(e) {
+  e.stopPropagation();
+  setState('idle'); markBtn(0);
+}
+function abortFromPanel() {
+  setState('idle'); markBtn(0);
+}
+document.addEventListener('click', e => {
+  if (!notch.contains(e.target) && !e.target.closest('.controls') && currentState.startsWith('panel')) {
+    setState('idle'); markBtn(0);
+  }
+});
+
+/* ── Notch guide toggle ── */
+function toggleGuide() {
+  const guide  = document.getElementById('notchGuide');
+  const btn    = document.getElementById('guideToggle');
+  const on     = guide.style.display !== 'none';
+  guide.style.display = on ? 'none' : '';
+  btn.textContent = on ? '⊘ notch guide off' : '⊘ notch guide on';
+  btn.classList.toggle('active', !on);
+}
+
+/* ── Clock ── */
+function tickClock() {
+  const n = new Date();
+  document.getElementById('clock').textContent =
+    n.toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short'}) +
+    '  ' + n.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
+}
+tickClock(); setInterval(tickClock, 10000);
+</script>
+</body>
+</html>

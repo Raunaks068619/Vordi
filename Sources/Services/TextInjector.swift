@@ -6,6 +6,7 @@ import ApplicationServices
 class TextInjector {
     private var lastInjectedSignature: String?
     private var lastInjectedAt: TimeInterval = 0
+    private static let directPasteClipboardRestoreDelay: TimeInterval = 0.45
 
     /// Delivered when injection is suppressed for ANY reason — VoiceFlow
     /// is foreground, no text input focused, etc. The transcript is on
@@ -13,7 +14,46 @@ class TextInjector {
     /// this hook to flash the floating chip's warning state.
     var onInjectionSuppressed: ((String) -> Void)?
 
-    func injectText(_ text: String) {
+    private struct PasteboardSnapshot {
+        let items: [[NSPasteboard.PasteboardType: Data]]
+
+        static func capture(from pasteboard: NSPasteboard) -> PasteboardSnapshot? {
+            guard let pasteboardItems = pasteboard.pasteboardItems, !pasteboardItems.isEmpty else {
+                return nil
+            }
+
+            let capturedItems = pasteboardItems.compactMap { item -> [NSPasteboard.PasteboardType: Data]? in
+                var dataByType: [NSPasteboard.PasteboardType: Data] = [:]
+                for type in item.types {
+                    if let data = item.data(forType: type) {
+                        dataByType[type] = data
+                    }
+                }
+                return dataByType.isEmpty ? nil : dataByType
+            }
+
+            guard !capturedItems.isEmpty else { return nil }
+            return PasteboardSnapshot(items: capturedItems)
+        }
+
+        func restore(to pasteboard: NSPasteboard) {
+            pasteboard.clearContents()
+
+            let restoredItems = items.map { dataByType -> NSPasteboardItem in
+                let item = NSPasteboardItem()
+                for (type, data) in dataByType {
+                    item.setData(data, forType: type)
+                }
+                return item
+            }
+
+            if !restoredItems.isEmpty {
+                pasteboard.writeObjects(restoredItems)
+            }
+        }
+    }
+
+    func injectText(_ text: String, targetBundleIdentifier: String? = nil) {
         DispatchQueue.main.async { [weak self] in
             guard let self else { return }
 
@@ -29,6 +69,14 @@ class TextInjector {
 
             self.lastInjectedSignature = signature
             self.lastInjectedAt = now
+
+            self.injectNormalizedText(normalized, targetBundleIdentifier: targetBundleIdentifier)
+        }
+    }
+
+    private func injectNormalizedText(_ normalized: String, targetBundleIdentifier: String?) {
+        reactivateTargetIfVoiceFlowOwnsFocus(targetBundleIdentifier) { [weak self] in
+            guard let self else { return }
 
             // Guard 1: VoiceFlow itself is foreground (Settings window
             // focused, etc.). Don't paste into our own UI — could clobber
@@ -59,6 +107,26 @@ class TextInjector {
         }
     }
 
+    private func reactivateTargetIfVoiceFlowOwnsFocus(
+        _ targetBundleIdentifier: String?,
+        completion: @escaping () -> Void
+    ) {
+        guard Self.isVoiceFlowForeground(),
+              let targetBundleIdentifier,
+              targetBundleIdentifier != Bundle.main.bundleIdentifier,
+              let targetApp = NSRunningApplication.runningApplications(
+                withBundleIdentifier: targetBundleIdentifier
+              ).first
+        else {
+            completion()
+            return
+        }
+
+        targetApp.activate(options: [.activateAllWindows, .activateIgnoringOtherApps])
+        print("Reactivated target app before paste: \(targetBundleIdentifier)")
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.18, execute: completion)
+    }
+
     // MARK: - Suppressed-injection clipboard preservation
     //
     // When we can't paste the transcript directly (no text input focused,
@@ -73,7 +141,7 @@ class TextInjector {
     // If the clipboard has been touched in the meantime (user copied
     // something new), we abort the restore so we don't clobber THAT.
 
-    private var preservedPreviousClipboard: String?
+    private var preservedPreviousClipboard: PasteboardSnapshot?
     /// `pasteboard.changeCount` recorded right after WE wrote the
     /// transcript. If it differs at restore-time, the clipboard has
     /// been mutated by some other source and we don't touch it.
@@ -85,12 +153,10 @@ class TextInjector {
     private func suppressInjection(_ text: String, reason: String) {
         let pasteboard = NSPasteboard.general
 
-        // Save previous clipboard BEFORE we overwrite. Only stash if it's
-        // different from the transcript — avoids dragging the same string
-        // through both slots if the user just dictated the same thing.
-        if let prev = pasteboard.string(forType: .string), prev != text {
-            preservedPreviousClipboard = prev
-        }
+        // Save previous clipboard BEFORE we overwrite. Preserve every
+        // pasteboard type, not just plain text, so image/rich-text clips
+        // survive the fallback path.
+        preservedPreviousClipboard = PasteboardSnapshot.capture(from: pasteboard)
 
         pasteboard.clearContents()
         pasteboard.setString(text, forType: .string)
@@ -120,8 +186,7 @@ class TextInjector {
             return
         }
 
-        pasteboard.clearContents()
-        pasteboard.setString(previous, forType: .string)
+        previous.restore(to: pasteboard)
         print("Restored previous clipboard")
     }
 
@@ -214,50 +279,76 @@ class TextInjector {
     }
 
     private func injectViaPasteboard(_ text: String) {
-        Self.pasteTextIntoFrontmostApp(text)
+        let didPostPasteShortcut = Self.pasteTextIntoFrontmostApp(
+            text,
+            restoreDelay: Self.directPasteClipboardRestoreDelay
+        )
+        if !didPostPasteShortcut {
+            suppressInjection(text, reason: "paste shortcut could not be posted")
+        }
     }
 
     /// Paste text into whichever app is currently frontmost, bypassing
     /// VoiceFlow/focused-role guards. Used by explicit action commands after
     /// they have already launched and activated their target app.
-    static func pasteTextIntoFrontmostApp(_ text: String, restoreDelay: TimeInterval = 0.1) {
+    @discardableResult
+    static func pasteTextIntoFrontmostApp(
+        _ text: String,
+        restoreDelay: TimeInterval = directPasteClipboardRestoreDelay
+    ) -> Bool {
         if !Thread.isMainThread {
             DispatchQueue.main.async {
                 Self.pasteTextIntoFrontmostApp(text, restoreDelay: restoreDelay)
             }
-            return
+            return true
+        }
+
+        let source = CGEventSource(stateID: .hidSystemState)
+        guard let vDown = CGEvent(keyboardEventSource: source, virtualKey: 0x09, keyDown: true),
+              let vUp = CGEvent(keyboardEventSource: source, virtualKey: 0x09, keyDown: false)
+        else {
+            print("Paste injection failed — could not create Cmd+V events")
+            return false
         }
 
         let pasteboard = NSPasteboard.general
-        let currentContent = pasteboard.string(forType: .string)
+        let previousClipboard = PasteboardSnapshot.capture(from: pasteboard)
         pasteboard.clearContents()
-        pasteboard.setString(text, forType: .string)
+        guard pasteboard.setString(text, forType: .string) else {
+            previousClipboard?.restore(to: pasteboard)
+            print("Paste injection failed — could not write transcript to clipboard")
+            return false
+        }
+        let transcriptChangeCount = pasteboard.changeCount
 
-        let source = CGEventSource(stateID: .hidSystemState)
+        vDown.flags = .maskCommand
+        vUp.flags = .maskCommand
+        vDown.post(tap: .cghidEventTap)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.035) {
+            vUp.post(tap: .cghidEventTap)
+        }
 
-        if let vDown = CGEvent(keyboardEventSource: source, virtualKey: 0x09, keyDown: true),
-           let vUp = CGEvent(keyboardEventSource: source, virtualKey: 0x09, keyDown: false) {
-            vDown.flags = .maskCommand
-            vUp.flags = .maskCommand
-            vDown.post(tap: .cghidEventTap)
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.01) {
-                vUp.post(tap: .cghidEventTap)
-            }
-
-            // Restore the user's previous clipboard contents shortly after
-            // the paste keystroke fires. 100ms is enough headroom for the
-            // target app to actually consume the paste (faster than a human
-            // can re-trigger Cmd+V) while minimizing the window during which
-            // the user's prior clipboard content is "missing".
-            //
-            // Was 500ms — overly cautious. Empirically the paste consumes
-            // within ~20ms in every app we've tested.
+        // Keep the transcript on the clipboard only long enough for the
+        // posted Cmd+V to read it. The no-input fallback path intentionally
+        // leaves the transcript available for manual paste; successful paste
+        // attempts should not steal the user's previous clipboard.
+        if restoreDelay > 0 {
             DispatchQueue.main.asyncAfter(deadline: .now() + restoreDelay) {
-                pasteboard.clearContents()
-                if let oldContent = currentContent {
-                    pasteboard.setString(oldContent, forType: .string)
+                guard pasteboard.changeCount == transcriptChangeCount else {
+                    print("Clipboard changed after paste attempt — skipping restore")
+                    return
+                }
+
+                if let previousClipboard {
+                    previousClipboard.restore(to: pasteboard)
+                    print("Restored previous clipboard after paste attempt")
+                } else {
+                    pasteboard.clearContents()
+                    print("Cleared transcript clipboard after paste attempt")
                 }
             }
         }
+
+        return true
     }
 }

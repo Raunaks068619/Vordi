@@ -44,6 +44,7 @@ enum PermissionPane {
     case microphone
     case accessibility
     case inputMonitoring
+    case screenRecording
 }
 
 final class PermissionService: ObservableObject {
@@ -52,6 +53,7 @@ final class PermissionService: ObservableObject {
     @Published private(set) var microphoneState: PermissionState = .notDetermined
     @Published private(set) var accessibilityState: PermissionState = .notDetermined
     @Published private(set) var inputMonitoringState: PermissionState = .notDetermined
+    @Published private(set) var screenRecordingState: PermissionState = .notDetermined
     @Published private(set) var environmentWarning: String?
     private var lastMicDebugSnapshot: String = ""
     private var observedWorkingMicrophoneInput = false
@@ -62,12 +64,16 @@ final class PermissionService: ObservableObject {
     var onPermissionNewlyGranted: ((PermissionPane) -> Void)?
 
     private var lastAllStates: [PermissionPane: Bool] = [
-        .microphone: false, .accessibility: false, .inputMonitoring: false
+        .microphone: false, .accessibility: false, .inputMonitoring: false, .screenRecording: false
     ]
     private var pollingTimer: Timer?
 
     var allRequiredGranted: Bool {
         microphoneState.isGranted && accessibilityState.isGranted && inputMonitoringState.isGranted
+    }
+
+    var allOnboardingPermissionsGranted: Bool {
+        allRequiredGranted && screenRecordingState.isGranted
     }
 
     private init() {
@@ -82,8 +88,10 @@ final class PermissionService: ObservableObject {
         pollingTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) { [weak self] _ in
             guard let self else { return }
             self.refreshStatus()
-            // Stop polling once everything is granted — no need to burn cycles.
-            if self.allRequiredGranted {
+            // Stop polling once every onboarding permission is granted — no
+            // need to burn cycles. Screen Recording is not required for core
+            // dictation, but onboarding displays it as part of setup.
+            if self.allOnboardingPermissionsGranted {
                 self.pollingTimer?.invalidate()
                 self.pollingTimer = nil
             }
@@ -95,16 +103,19 @@ final class PermissionService: ObservableObject {
             let newMic = self.currentMicrophoneState()
             let newAx = AXIsProcessTrusted() ? PermissionState.granted : .denied
             let newInput = self.preflightInputMonitoringAccess() ? PermissionState.granted : .denied
+            let newScreen = self.preflightScreenRecordingAccess() ? PermissionState.granted : .denied
 
             // Detect granted-transitions before mutating state, so
             // onPermissionNewlyGranted fires exactly once per flip.
             self.detectNewlyGranted(pane: .microphone, wasGranted: self.lastAllStates[.microphone] ?? false, isGranted: newMic.isGranted)
             self.detectNewlyGranted(pane: .accessibility, wasGranted: self.lastAllStates[.accessibility] ?? false, isGranted: newAx.isGranted)
             self.detectNewlyGranted(pane: .inputMonitoring, wasGranted: self.lastAllStates[.inputMonitoring] ?? false, isGranted: newInput.isGranted)
+            self.detectNewlyGranted(pane: .screenRecording, wasGranted: self.lastAllStates[.screenRecording] ?? false, isGranted: newScreen.isGranted)
 
             self.lastAllStates[.microphone] = newMic.isGranted
             self.lastAllStates[.accessibility] = newAx.isGranted
             self.lastAllStates[.inputMonitoring] = newInput.isGranted
+            self.lastAllStates[.screenRecording] = newScreen.isGranted
 
             // CRITICAL: Only assign @Published properties when the value
             // actually changed. @Published fires objectWillChange on EVERY
@@ -114,6 +125,7 @@ final class PermissionService: ObservableObject {
             if self.microphoneState != newMic { self.microphoneState = newMic }
             if self.accessibilityState != newAx { self.accessibilityState = newAx }
             if self.inputMonitoringState != newInput { self.inputMonitoringState = newInput }
+            if self.screenRecordingState != newScreen { self.screenRecordingState = newScreen }
             let newWarning = self.currentEnvironmentWarning()
             if self.environmentWarning != newWarning { self.environmentWarning = newWarning }
 
@@ -166,6 +178,10 @@ final class PermissionService: ObservableObject {
         return hidGranted || CGPreflightListenEventAccess()
     }
 
+    func preflightScreenRecordingAccess() -> Bool {
+        CGPreflightScreenCaptureAccess()
+    }
+
     /// Request Input Monitoring access.
     ///
     /// **Why `IOHIDRequestAccess` instead of `CGRequestListenEventAccess`:**
@@ -190,6 +206,13 @@ final class PermissionService: ObservableObject {
         }
     }
 
+    func requestScreenRecordingAccess() {
+        DispatchQueue.global(qos: .userInitiated).async {
+            _ = CGRequestScreenCaptureAccess()
+            self.refreshStatusAfterDelay()
+        }
+    }
+
     /// Opens the app's location in Finder so the user can manually drag
     /// VoiceFlow into the Input Monitoring list — this is the documented
     /// Apple-blessed escape hatch when the prompt refuses to appear.
@@ -207,6 +230,8 @@ final class PermissionService: ObservableObject {
             urlString = "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"
         case .inputMonitoring:
             urlString = "x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent"
+        case .screenRecording:
+            urlString = "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture"
         }
         guard let url = URL(string: urlString) else { return }
         NSWorkspace.shared.open(url)
@@ -351,6 +376,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
     /// The snapshot must be taken EAGERLY because by the time the LLM
     /// returns, the user may have alt-tabbed and the AX selection is gone.
     private var pendingContext: ContextSnapshot?
+    private var pendingContextSummaryTask: Task<Void, Never>?
 
     /// Router instance — created lazily because it depends on whisperService.
     private lazy var transformerRouter: TransformerRouter? = {
@@ -520,10 +546,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
         // matches Cap's behavior: any time perms are missing, walk the user
         // back through the grant flow.
         let hasCompleted = UserDefaults.standard.bool(forKey: "has_completed_onboarding")
-        let allPermsGranted = permissionService.allRequiredGranted
         if !hasCompleted {
             openOnboardingIfNeeded()
-        } else if !allPermsGranted {
+        } else if !permissionService.allOnboardingPermissionsGranted {
             openOnboardingIfNeeded(force: true, initialStep: .permissions)
         }
 
@@ -545,17 +570,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
         // we received an explicit transition event.
         startPermissionPolling()
 
-        // Memory subsystem — boots the indexer (migrates JSON history
-        // → SQLite + FTS5, computes embeddings, extracts entities) AND
-        // probes installed CLIs so the Memory tab is ready when the
-        // user opens it. Both run on background queues — zero impact
-        // on launch responsiveness.
+        // Memory chat provider detection is cheap and keeps the Memory tab
+        // ready. The actual Memory/Insights indexing work is manual-only via
+        // Sync so app launch never competes with dictation.
         Task { @MainActor in
-            // LLMRouter goes first so MemoryChatService is wired to
-            // the right provider before IndexerService starts running
-            // entity-extraction calls.
             LLMRouter.shared.start()
-            IndexerService.shared.start()
         }
 
         // Notification routing for chip side-buttons. SwiftUI views post
@@ -694,6 +713,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
         }
         if UserDefaults.standard.string(forKey: "processing_mode") == nil {
             UserDefaults.standard.set(TranscriptProcessingMode.dictation.rawValue, forKey: "processing_mode")
+        }
+        if let storedPolishBackend = UserDefaults.standard.string(forKey: PolishBackend.userDefaultsKey),
+           PolishBackend.legacyGroqModelIds.contains(storedPolishBackend) {
+            print("VoiceFlow: migrating polish_backend_id '\(storedPolishBackend)' → '\(PolishBackend.defaultIdGroq)'")
+            UserDefaults.standard.set(PolishBackend.defaultIdGroq, forKey: PolishBackend.userDefaultsKey)
         }
         if UserDefaults.standard.object(forKey: "noise_gate_threshold") == nil {
             // 0.005 is more permissive than the previous 0.008 default —
@@ -1120,7 +1144,21 @@ class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
             // LLM returns 1–4s later, the user may have alt-tabbed away.
             // ContextProvider is fail-soft — returns an empty snapshot if
             // capture is disabled or AX is unavailable.
-            self.pendingContext = ContextProvider.shared.snapshot(hotkey: .primary)
+            self.pendingContextSummaryTask?.cancel()
+            let capturedContext = ContextProvider.shared.snapshot(hotkey: .primary)
+            self.pendingContext = capturedContext
+            self.pendingContextSummaryTask = Task { [weak self, capturedContext] in
+                guard let self, let whisper = self.whisperService else { return }
+                let enrichedContext = await whisper.prepareContextSummaryAsync(capturedContext)
+                guard !Task.isCancelled, let enrichedContext else { return }
+                await MainActor.run { [weak self] in
+                    guard
+                        let self,
+                        self.pendingContext?.capturedAt == capturedContext.capturedAt
+                    else { return }
+                    self.pendingContext = enrichedContext
+                }
+            }
 
             // -----------------------------------------------------------------
             // Pre-flight permission check.
@@ -1273,9 +1311,14 @@ class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
                         // flicker.
                         if self.discardNextResult {
                             self.discardNextResult = false
+                            self.pendingContextSummaryTask?.cancel()
+                            self.pendingContextSummaryTask = nil
                             return
                         }
 
+                        self.pendingContext = nil
+                        self.pendingContextSummaryTask?.cancel()
+                        self.pendingContextSummaryTask = nil
                         self.hideRecordingOverlay()
                         self.floatingChip?.flashNoAudioWarning(durationSeconds: 3.0)
                     }
@@ -1377,9 +1420,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
                             // potentially routes — the snapshot is needed
                             // both for routing (trigger detection) AND for
                             // the run log row (per-app insights).
-                            let context = self.pendingContext ?? .empty()
+                            let context = metadata.context ?? self.pendingContext ?? .empty()
                             session.attachContext(context)
                             self.pendingContext = nil
+                            self.pendingContextSummaryTask?.cancel()
+                            self.pendingContextSummaryTask = nil
 
                             // Routing: decide if a non-standard profile
                             // should override the polished finalText.
@@ -1412,6 +1457,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
                                 session.attachContext(ctx)
                                 self.pendingContext = nil
                             }
+                            self.pendingContextSummaryTask?.cancel()
+                            self.pendingContextSummaryTask = nil
                             print("Transcription error: \(error)")
                             session.fail(reason: Self.shortErrorDescription(error))
                         }
@@ -1433,6 +1480,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
                                 transcriptionLatencyMs: streamLatency,
                                 style: effectiveStyle,
                                 processingMode: processingMode,
+                                context: self.pendingContext,
+                                summarizeContextIfNeeded: false,
                                 completion: handleResult
                             )
                         } catch {
@@ -1447,6 +1496,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
                                 language: transcriptionLanguage,
                                 style: effectiveStyle,
                                 processingMode: processingMode,
+                                context: self.pendingContext,
+                                summarizeContextIfNeeded: false,
                                 completion: handleResult
                             )
                         }
@@ -1457,6 +1508,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
                         language: transcriptionLanguage,
                         style: effectiveStyle,
                         processingMode: processingMode,
+                        context: self.pendingContext,
+                        summarizeContextIfNeeded: false,
                         completion: handleResult
                     )
                 }
@@ -1488,7 +1541,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
         // No router available (whisper not yet initialized — shouldn't
         // happen in practice but guards initialization order).
         guard let router = self.transformerRouter else {
-            self.persistAndInject(text: fallbackFinalText, session: session)
+            self.persistAndInject(
+                text: fallbackFinalText,
+                session: session,
+                targetBundleIdentifier: context.frontmostBundleID
+            )
             return
         }
 
@@ -1497,7 +1554,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
         // continue to work.
         let trimmedRaw = rawTranscript.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedRaw.isEmpty else {
-            self.persistAndInject(text: fallbackFinalText, session: session)
+            self.persistAndInject(
+                text: fallbackFinalText,
+                session: session,
+                targetBundleIdentifier: context.frontmostBundleID
+            )
             return
         }
 
@@ -1508,7 +1569,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
         // call StandardCleanupProfile.transform() because that would be
         // a second polish round-trip on the same text.
         if decision.profile.kind == .standardCleanup {
-            self.persistAndInject(text: fallbackFinalText, session: session)
+            self.persistAndInject(
+                text: fallbackFinalText,
+                session: session,
+                targetBundleIdentifier: context.frontmostBundleID
+            )
             return
         }
 
@@ -1527,7 +1592,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
                     session.recordLLMCost(output.costUSD)
                     session.overrideFinalText(output.finalText)
                     if output.shouldInject {
-                        self.persistAndInject(text: output.finalText, session: session)
+                        self.persistAndInject(
+                            text: output.finalText,
+                            session: session,
+                            targetBundleIdentifier: context.frontmostBundleID
+                        )
                     } else {
                         self.persistWithoutInjection(session: session)
                     }
@@ -1535,7 +1604,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
                     // Profile failed — fall back to polished text rather
                     // than dropping the dictation on the floor.
                     print("Profile \(decision.profile.kind.rawValue) failed: \(err.localizedDescription) — falling back to polished text")
-                    self.persistAndInject(text: fallbackFinalText, session: session)
+                    self.persistAndInject(
+                        text: fallbackFinalText,
+                        session: session,
+                        targetBundleIdentifier: context.frontmostBundleID
+                    )
                 }
             }
         }
@@ -1543,7 +1616,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
 
     /// Common tail: flush the run to disk + inject text into the focused
     /// app. Called from both the success and profile-failure paths.
-    private func persistAndInject(text: String, session: RunSession) {
+    private func persistAndInject(
+        text: String,
+        session: RunSession,
+        targetBundleIdentifier: String? = nil
+    ) {
         session.finish()
 
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -1552,7 +1629,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
             floatingChip?.flashNoOutputWarning(durationSeconds: 4.0)
             return
         }
-        self.textInjector?.injectText(trimmed)
+        self.textInjector?.injectText(trimmed, targetBundleIdentifier: targetBundleIdentifier)
     }
 
     private func persistWithoutInjection(session: RunSession) {

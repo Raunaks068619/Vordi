@@ -599,7 +599,7 @@ final class SystemActionExecutor {
 
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.85) {
                         runningApp?.activate(options: [.activateAllWindows, .activateIgnoringOtherApps])
-                        TextInjector.pasteTextIntoFrontmostApp(insertionText, restoreDelay: 0.25)
+                        TextInjector.pasteTextIntoFrontmostApp(insertionText)
                         completion(.success(action.completionSummary))
                     }
                 }

@@ -2,7 +2,7 @@ import Foundation
 import NaturalLanguage
 import Combine
 
-/// Background worker that keeps `MemoryStore` consistent with `RunStore`.
+/// Manual worker that keeps `MemoryStore` consistent with `RunStore`.
 ///
 /// **Three jobs:**
 ///   1. **Migration** — on first launch of v0.6.0, scan RunStore for any
@@ -14,13 +14,13 @@ import Combine
 ///      people / organizations / places for free; LLM handles
 ///      project / tool / concept / command. Both write to MemoryStore.
 ///
-/// **Concurrency**: a single utility-priority OperationQueue, max 1
-/// concurrent op. Sequential keeps the indexer cooperative — embedding
-/// model + LLM calls share precious resources, and parallelism wins
-/// nothing here.
+/// **Concurrency**: the sync pass is serial and cooperative. Embedding model
+/// work and entity LLM calls share user resources, and parallelism wins
+/// nothing for this derived index.
 ///
-/// **Pausing**: nothing pauses it explicitly. The OS deprioritizes
-/// utility-QoS work during user-active recording automatically.
+/// **Scheduling**: indexing is explicit. Dictation writes durable run files
+/// immediately, then the user clicks Sync in Memory/Insights when they want
+/// the derived search index, embeddings, entities, and AI insights updated.
 @MainActor
 final class IndexerService: ObservableObject {
     /// `nonisolated` so that nonisolated callers (RunStore.save runs
@@ -42,60 +42,46 @@ final class IndexerService: ObservableObject {
     @Published private(set) var indexedCount: Int = 0
     @Published private(set) var pendingCount: Int = 0
 
-    private let queue = OperationQueue()
     private let memory = MemoryStore.shared
     private let runStore = RunStore.shared
     private let embedder = EmbeddingService.shared
-    private let llm = LLMService.shared
-
-    /// Per-run debounce: when RunStore writes a new run, we enqueue it
-    /// for indexing. If the user dictates several times back-to-back we
-    /// don't want N separate operations all racing — coalesce.
-    ///
-    /// Wrapped in a `PendingSet` so it can be touched from the
-    /// nonisolated `enqueue(runID:)` entry point without fighting the
-    /// main-actor isolation of the rest of this class. PendingSet owns
-    /// its own NSLock; access is genuinely safe across threads.
-    private let pendingEnqueue = PendingSet()
 
     /// `nonisolated` so the singleton can be constructed from any
     /// context (the `static let shared` initializer runs on whichever
-    /// thread first touches it). The body only sets up an OperationQueue
-    /// — no @MainActor state touched, so this is safe.
-    nonisolated private init() {
-        queue.qualityOfService = .utility
-        queue.maxConcurrentOperationCount = 1
-        queue.name = "com.voiceflow.indexer"
-    }
+    /// thread first touches it). No @MainActor state touched here.
+    nonisolated private init() {}
 
     // MARK: - Public API
 
-    /// Boot the indexer. Idempotent — safe to call from AppDelegate
-    /// applicationDidFinishLaunching after RunStore + MemoryStore are
-    /// initialized. Runs migration first, then continuous backfill of
-    /// any un-indexed runs.
-    func start() {
-        Task { @MainActor in
-            await migrateIfNeeded()
-            await backfillEmbeddingsAndEntities()
+    var isWorking: Bool {
+        switch status {
+        case .migrating, .indexing: return true
+        case .idle, .error: return false
         }
     }
 
-    /// Hook for RunStore.save — request that a specific run get indexed
-    /// soon. Debounced to ~250ms so a rapid-fire sequence of dictations
-    /// coalesces into one indexing op per run.
-    nonisolated func enqueue(runID: String) {
-        guard pendingEnqueue.insert(runID) else { return }
-
+    /// Refresh counts only. This is safe for app/tab appearance because it
+    /// does not compute embeddings or call an LLM.
+    func start() {
         Task { @MainActor in
-            // Tiny debounce — lets a burst of saves settle before we
-            // schedule the work. Real index speed matters less than
-            // avoiding mid-record CPU spikes.
-            try? await Task.sleep(nanoseconds: 250_000_000)
-            self.pendingEnqueue.remove(runID)
-            await self.indexSingleRun(runID: runID)
-            await self.refreshCounts()
+            await refreshCounts()
         }
+    }
+
+    /// Hook retained for older call sites. New dictations are no longer
+    /// indexed automatically; Sync owns all derived Memory work.
+    nonisolated func enqueue(runID: String) {
+        _ = runID
+    }
+
+    /// User-triggered Sync. Updates the SQLite corpus from run files, then
+    /// computes missing embeddings and entity links. This can be expensive,
+    /// so callers should only invoke it from explicit UI.
+    func syncNow() async {
+        guard !isWorking else { return }
+        await migrateIfNeeded()
+        await backfillEmbeddingsAndEntities()
+        await refreshCounts()
     }
 
     /// Force a full re-index. Used by the "Rebuild Memory" debug
@@ -103,8 +89,11 @@ final class IndexerService: ObservableObject {
     /// that invalidates existing vectors. Drops embeddings + entities
     /// but keeps runs + FTS (those are derived from RunStore and stable).
     func forceReindex() async {
+        guard !isWorking else { return }
+        await migrateIfNeeded()
         memory.clearDerivedIndex()
         await backfillEmbeddingsAndEntities(force: true)
+        await refreshCounts()
     }
 
     // MARK: - Migration
@@ -114,13 +103,7 @@ final class IndexerService: ObservableObject {
     /// is safe and cheap (each run is upserted; existing rows are
     /// no-op'd by SQLite ON CONFLICT clauses).
     private func migrateIfNeeded() async {
-        let memoryRunCount = memory.runCount()
         let jsonSummaries = runStore.summaries
-        if memoryRunCount >= jsonSummaries.count {
-            // Already migrated (or up-to-date). Skip the bulk path.
-            return
-        }
-
         let toMigrate = jsonSummaries.filter { memory.getRun(id: $0.id.uuidString) == nil }
         guard !toMigrate.isEmpty else { return }
 
@@ -237,12 +220,12 @@ final class IndexerService: ObservableObject {
     private func extractEntities(from text: String) async -> [(id: String, label: String, type: String)] {
         let cheap = Self.nlTaggerEntities(in: text)
 
-        // LLM pass for the long-tail. Always run unless the polish
-        // backend has no API key (in which case we just ship the cheap
-        // entities — they're already useful).
+        // LLM pass for the long-tail. Uses the same provider picker as
+        // Memory chat, so Claude/Codex/Gemini auth can power the graph
+        // without requiring an OpenAI/Groq API key.
         let llmEntities: [(id: String, label: String, type: String)]
         do {
-            llmEntities = try await Self.llmEntities(in: text, llm: llm)
+            llmEntities = try await Self.llmEntities(in: text)
         } catch {
             print("IndexerService: LLM entity extraction failed: \(error)")
             llmEntities = []
@@ -299,7 +282,7 @@ final class IndexerService: ObservableObject {
     /// LLM-driven extraction for the conceptual long-tail. Same prompt
     /// shape as the v0.5 KnowledgeGraphService had — we move it here so
     /// the indexer owns ALL extraction in one place.
-    private static func llmEntities(in text: String, llm: LLMService) async throws -> [(id: String, label: String, type: String)] {
+    private static func llmEntities(in text: String) async throws -> [(id: String, label: String, type: String)] {
         let systemPrompt = """
         Extract the most important entities mentioned in this transcript.
         Focus on types that named-entity recognition can't catch:
@@ -315,19 +298,12 @@ final class IndexerService: ObservableObject {
         [{"id":"kubectl","label":"kubectl","type":"tool"}]
         """
 
-        let request = LLMRequest(
-            messages: [
-                LLMMessage(role: .system, content: systemPrompt),
-                LLMMessage(role: .user,   content: text),
-            ],
-            temperature: 0.0,
-            maxTokens: 500,
-            maxAttempts: 1,
-            purpose: "indexer_entities"
+        let response = try await LLMRouter.shared.complete(
+            system: systemPrompt,
+            user: text,
+            timeout: 60
         )
-
-        let response = try await llm.complete(request)
-        return parseEntityJSON(response.content)
+        return parseEntityJSON(response)
     }
 
     private static func parseEntityJSON(_ raw: String) -> [(id: String, label: String, type: String)] {
@@ -397,37 +373,19 @@ final class IndexerService: ObservableObject {
         return parts.trimmingCharacters(in: CharacterSet(charactersIn: "-"))
     }
 
-    private func refreshCounts() async {
+    func refreshCounts() async {
         indexedCount = memory.runCount()
-        pendingCount = memory.unindexedRunIDs(currentModel: modelTagFor(embedder.modelKind)).count
+        pendingCount = pendingWorkCount()
+    }
+
+    private func pendingWorkCount() -> Int {
+        let modelTag = embedder.modelKind.rawValue == "none"
+            ? "pending"
+            : modelTagFor(embedder.modelKind)
+        let derivedPending = Set(memory.unindexedRunIDs(currentModel: modelTag))
+            .union(Set(memory.unentityRunIDs()))
+            .count
+        let runFilePending = max(0, runStore.summaries.count - memory.runCount())
+        return runFilePending + derivedPending
     }
 }
-
-/// Thread-safe set of run IDs awaiting indexing. Owns its own NSLock so
-/// it can be touched from any thread — including the nonisolated
-/// `IndexerService.enqueue` entry point that RunStore calls right after
-/// saving a new run.
-///
-/// `@unchecked Sendable` is the honest annotation: the type IS safe to
-/// share across threads because every mutation goes through the lock,
-/// but the compiler can't prove that automatically (it'd need a more
-/// sophisticated effect system). We promise to keep the contract here.
-private final class PendingSet: @unchecked Sendable {
-    private let lock = NSLock()
-    private var set = Set<String>()
-
-    /// Returns true if the id was newly inserted (i.e. caller should
-    /// schedule indexing); false if it was already pending.
-    func insert(_ id: String) -> Bool {
-        lock.lock()
-        defer { lock.unlock() }
-        return set.insert(id).inserted
-    }
-
-    func remove(_ id: String) {
-        lock.lock()
-        defer { lock.unlock() }
-        set.remove(id)
-    }
-}
-

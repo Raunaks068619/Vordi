@@ -89,6 +89,18 @@ final class RunStore: ObservableObject {
                 let audioURL = folderURL.appendingPathComponent(run.capture.audioFilename)
                 try audioData.write(to: audioURL)
 
+                // Write optional screenshot context. The image bytes are
+                // intentionally transient on ContextSnapshot and omitted from
+                // run.json; the file is the source of truth for playback.
+                if
+                    let screenshot = run.context?.screenshot,
+                    screenshot.status == .captured,
+                    let filename = screenshot.filename,
+                    let imageData = screenshot.imageData
+                {
+                    try imageData.write(to: folderURL.appendingPathComponent(filename))
+                }
+
                 // Write full run record
                 let runData = try self.encoder.encode(run)
                 try runData.write(to: folderURL.appendingPathComponent("run.json"))
@@ -133,31 +145,9 @@ final class RunStore: ObservableObject {
 
                 print("RunStore: saved run \(run.id) (\(run.previewText))")
 
-                // Dual-write into MemoryStore. RunStore stays the system of
-                // record (one JSON per run, easy to debug); MemoryStore is
-                // the searchable index. Doing the write inline here keeps
-                // both stores consistent without a separate sync pass.
-                //
-                // If MemoryStore is offline or this call fails, we don't
-                // raise — MemoryStore is recoverable from RunStore via
-                // IndexerService on next launch.
-                MemoryStore.shared.upsertRun(
-                    id: run.id.uuidString,
-                    createdAt: run.createdAt,
-                    appName: run.context?.frontmostAppName,
-                    bundleID: run.context?.frontmostBundleID,
-                    profile: run.profileUsed,
-                    wordCount: wordCount,
-                    durationSeconds: run.durationSeconds,
-                    status: run.status.rawValue,
-                    llmCostUSD: run.llmCostUSD,
-                    transcriptText: Self.transcriptText(for: run)
-                )
-
-                // Kick the indexer so embeddings + entities are computed
-                // for this run on the background queue. Cheap; debounced
-                // inside IndexerService.
-                IndexerService.shared.enqueue(runID: run.id.uuidString)
+                // MemoryStore is a derived index. We intentionally do not
+                // update it from the dictation hot path; Memory/Insights Sync
+                // imports new run files on demand so recording stays cheap.
             } catch {
                 print("RunStore: failed to save run — \(error)")
             }
@@ -191,6 +181,19 @@ final class RunStore: ObservableObject {
         let candidates = runFolders().filter { $0.lastPathComponent.contains(run.id.uuidString) }
         guard let folder = candidates.first else { return nil }
         let url = folder.appendingPathComponent(run.capture.audioFilename)
+        return fileManager.fileExists(atPath: url.path) ? url : nil
+    }
+
+    /// URL of the context screenshot for detail view.
+    func screenshotURL(for run: Run) -> URL? {
+        guard
+            let filename = run.context?.screenshot?.filename,
+            !filename.isEmpty
+        else { return nil }
+
+        let candidates = runFolders().filter { $0.lastPathComponent.contains(run.id.uuidString) }
+        guard let folder = candidates.first else { return nil }
+        let url = folder.appendingPathComponent(filename)
         return fileManager.fileExists(atPath: url.path) ? url : nil
     }
 

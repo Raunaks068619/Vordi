@@ -84,6 +84,7 @@ final class MemoryStore {
         queue.sync {
             exec("DROP TABLE IF EXISTS embeddings;")
             exec("DROP TABLE IF EXISTS entity_runs;")
+            exec("DROP TABLE IF EXISTS entity_indexed_runs;")
             exec("DROP TABLE IF EXISTS entities;")
             exec("DROP TABLE IF EXISTS transcripts_fts;")
             exec("DROP TABLE IF EXISTS runs;")
@@ -112,6 +113,7 @@ final class MemoryStore {
             print("MemoryStore: schema v\(currentVersion) → v\(Self.currentSchemaVersion), wiping")
             exec("DROP TABLE IF EXISTS embeddings;")
             exec("DROP TABLE IF EXISTS entity_runs;")
+            exec("DROP TABLE IF EXISTS entity_indexed_runs;")
             exec("DROP TABLE IF EXISTS entities;")
             exec("DROP TABLE IF EXISTS transcripts_fts;")
             exec("DROP TABLE IF EXISTS runs;")
@@ -164,6 +166,16 @@ final class MemoryStore {
         """)
         exec("CREATE INDEX IF NOT EXISTS idx_entity_runs_run ON entity_runs(run_id);")
         exec("CREATE INDEX IF NOT EXISTS idx_entity_runs_entity ON entity_runs(entity_id);")
+
+        // Entity extraction can legitimately return zero entities for short
+        // dictations. Track completion separately from links so those runs
+        // do not retry LLM extraction on every manual sync.
+        exec("""
+            CREATE TABLE IF NOT EXISTS entity_indexed_runs (
+                run_id TEXT PRIMARY KEY,
+                indexed_at INTEGER NOT NULL
+            );
+        """)
 
         exec("""
             CREATE TABLE IF NOT EXISTS embeddings (
@@ -308,6 +320,7 @@ final class MemoryStore {
             exec("DELETE FROM transcripts_fts WHERE run_id = '\(escapeForLiteral(id))';")
             exec("DELETE FROM embeddings WHERE run_id = '\(escapeForLiteral(id))';")
             exec("DELETE FROM entity_runs WHERE run_id = '\(escapeForLiteral(id))';")
+            exec("DELETE FROM entity_indexed_runs WHERE run_id = '\(escapeForLiteral(id))';")
         }
     }
 
@@ -318,6 +331,7 @@ final class MemoryStore {
         queue.sync {
             // 1. Drop existing links.
             exec("DELETE FROM entity_runs WHERE run_id = '\(escapeForLiteral(runID))';")
+            exec("DELETE FROM entity_indexed_runs WHERE run_id = '\(escapeForLiteral(runID))';")
 
             // 2. Upsert entities. mentions counter is recomputed below.
             for entity in entities {
@@ -352,6 +366,10 @@ final class MemoryStore {
             exec("""
                 UPDATE entities
                 SET mentions = (SELECT COUNT(*) FROM entity_runs WHERE entity_id = entities.id);
+            """)
+            exec("""
+                INSERT OR REPLACE INTO entity_indexed_runs (run_id, indexed_at)
+                VALUES ('\(escapeForLiteral(runID))', \(Int(Date().timeIntervalSince1970)));
             """)
         }
     }
@@ -509,15 +527,15 @@ final class MemoryStore {
         }
     }
 
-    /// IDs of runs that have FTS text but no extracted entities yet.
+    /// IDs of runs whose entity extraction has not completed yet.
     func unentityRunIDs() -> [String] {
         queue.sync {
             var stmt: OpaquePointer?
             defer { sqlite3_finalize(stmt) }
             let sql = """
                 SELECT runs.id FROM runs
-                LEFT JOIN entity_runs ON entity_runs.run_id = runs.id
-                WHERE entity_runs.run_id IS NULL
+                LEFT JOIN entity_indexed_runs ON entity_indexed_runs.run_id = runs.id
+                WHERE entity_indexed_runs.run_id IS NULL
                 ORDER BY runs.created_at DESC;
             """
             guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return [] }
@@ -639,6 +657,7 @@ final class MemoryStore {
         queue.sync {
             exec("DELETE FROM embeddings;")
             exec("DELETE FROM entity_runs;")
+            exec("DELETE FROM entity_indexed_runs;")
             exec("DELETE FROM entities;")
         }
     }

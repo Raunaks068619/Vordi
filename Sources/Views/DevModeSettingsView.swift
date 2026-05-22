@@ -29,6 +29,9 @@ struct DevModeSettingsView: View {
     @AppStorage(ContextProvider.Keys.persistSelectionEnabled)
     var persistSelectionEnabled: Bool = false
 
+    @AppStorage(ContextProvider.Keys.screenshotContextEnabled)
+    var screenshotContextEnabled: Bool = true
+
     // Trigger tester
     @State private var triggerInput: String = "voiceflow create insert mock rows for users table"
     @State private var probeOutput: String = ""
@@ -128,6 +131,15 @@ struct DevModeSettingsView: View {
                 title: "Persist captured selection to Run Log",
                 subtitle: "Off by default — selections often contain code or secrets.",
                 isOn: $persistSelectionEnabled,
+                disabled: !contextCaptureEnabled
+            )
+            divider
+
+            toggleRow(
+                title: "Capture screenshot for smart context",
+                subtitle: "Uses Screen Recording and Groq Llama 4 Scout to summarize the active window for post-processing.",
+                isOn: $screenshotContextEnabled,
+                badge: "EXPERIMENT",
                 disabled: !contextCaptureEnabled
             )
         }

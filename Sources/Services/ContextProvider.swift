@@ -38,6 +38,10 @@ final class ContextProvider {
         /// Default OFF — selections often contain code/secrets the user
         /// doesn't want lying around. UI lives in Settings → Privacy.
         static let persistSelectionEnabled = "persist_selection_enabled"
+        /// Whether VoiceFlow captures the frontmost window screenshot and
+        /// sends it to the context-summary model. Default ON for this
+        /// experimental build so the FreeFlow-style flow is testable.
+        static let screenshotContextEnabled = "screenshot_context_enabled"
     }
 
     var isContextCaptureEnabled: Bool {
@@ -53,6 +57,11 @@ final class ContextProvider {
         UserDefaults.standard.bool(forKey: Keys.persistSelectionEnabled)
     }
 
+    var isScreenshotContextEnabled: Bool {
+        if UserDefaults.standard.object(forKey: Keys.screenshotContextEnabled) == nil { return true }
+        return UserDefaults.standard.bool(forKey: Keys.screenshotContextEnabled)
+    }
+
     /// Capture the snapshot. SAFE TO CALL on main thread; takes ~1–10ms.
     /// If you suspect it's slowing the hotkey response, profile with
     /// `Instruments → Time Profiler` — but as of writing, the AX query
@@ -66,6 +75,8 @@ final class ContextProvider {
         let bundleID = frontApp?.bundleIdentifier
         let appName = frontApp?.localizedName
         let surface = AppSurfaceCatalog.surface(for: bundleID)
+        let windowInfo = activeWindowInfo(for: frontApp)
+        let screenshot = captureScreenshot(windowInfo: windowInfo)
 
         // Selection capture — short-circuit when we're foreground (would
         // capture our own UI's selection state, which is meaningless).
@@ -74,11 +85,13 @@ final class ContextProvider {
             return ContextSnapshot(
                 frontmostBundleID: bundleID,
                 frontmostAppName: appName,
+                windowTitle: windowInfo?.title,
                 surface: surface,
                 selection: "",
                 selectionSource: .none,
                 hotkey: hotkey,
-                capturedAt: Date()
+                capturedAt: Date(),
+                screenshot: nil
             )
         }
 
@@ -86,12 +99,136 @@ final class ContextProvider {
         return ContextSnapshot(
             frontmostBundleID: bundleID,
             frontmostAppName: appName,
+            windowTitle: windowInfo?.title,
             surface: surface,
             selection: selection,
             selectionSource: source,
             hotkey: hotkey,
-            capturedAt: Date()
+            capturedAt: Date(),
+            screenshot: screenshot
         )
+    }
+
+    // MARK: - Screenshot capture
+
+    private struct ActiveWindowInfo {
+        let windowID: CGWindowID
+        let title: String?
+        let width: Int
+        let height: Int
+    }
+
+    private func activeWindowInfo(for app: NSRunningApplication?) -> ActiveWindowInfo? {
+        guard let pid = app?.processIdentifier else { return nil }
+        let options: CGWindowListOption = [.optionOnScreenOnly, .excludeDesktopElements]
+        guard let windows = CGWindowListCopyWindowInfo(options, kCGNullWindowID) as? [[String: Any]] else {
+            return nil
+        }
+
+        for window in windows {
+            guard
+                let ownerPID = window[kCGWindowOwnerPID as String] as? pid_t,
+                ownerPID == pid,
+                let windowID = window[kCGWindowNumber as String] as? CGWindowID
+            else { continue }
+
+            let layer = window[kCGWindowLayer as String] as? Int ?? 0
+            guard layer == 0 else { continue }
+
+            let alpha = window[kCGWindowAlpha as String] as? Double ?? 1.0
+            guard alpha > 0 else { continue }
+
+            guard
+                let boundsDict = window[kCGWindowBounds as String] as? [String: Any],
+                let width = boundsDict["Width"] as? Int,
+                let height = boundsDict["Height"] as? Int,
+                width >= 120,
+                height >= 80
+            else { continue }
+
+            let rawTitle = (window[kCGWindowName as String] as? String)?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            return ActiveWindowInfo(
+                windowID: windowID,
+                title: rawTitle?.isEmpty == true ? nil : rawTitle,
+                width: width,
+                height: height
+            )
+        }
+
+        return nil
+    }
+
+    private func captureScreenshot(windowInfo: ActiveWindowInfo?) -> ContextScreenshot? {
+        guard isScreenshotContextEnabled else {
+            return ContextScreenshot(status: .disabled)
+        }
+
+        guard CGPreflightScreenCaptureAccess() else {
+            return ContextScreenshot(status: .denied)
+        }
+
+        guard let windowInfo else {
+            return ContextScreenshot(status: .unavailable)
+        }
+
+        let imageOptions: CGWindowImageOption = [.boundsIgnoreFraming, .bestResolution]
+        guard let cgImage = CGWindowListCreateImage(
+            .null,
+            .optionIncludingWindow,
+            windowInfo.windowID,
+            imageOptions
+        ) else {
+            return ContextScreenshot(status: .failed)
+        }
+
+        guard let data = jpegData(from: cgImage, maxPixelDimension: 1280, compression: 0.58) else {
+            return ContextScreenshot(status: .failed)
+        }
+
+        return ContextScreenshot(
+            status: .captured,
+            filename: "context.jpg",
+            mimeType: "image/jpeg",
+            width: windowInfo.width,
+            height: windowInfo.height,
+            capturedAt: Date(),
+            imageData: data
+        )
+    }
+
+    private func jpegData(
+        from image: CGImage,
+        maxPixelDimension: CGFloat,
+        compression: CGFloat
+    ) -> Data? {
+        let originalWidth = CGFloat(image.width)
+        let originalHeight = CGFloat(image.height)
+        let scale = min(1.0, maxPixelDimension / max(originalWidth, originalHeight))
+        let size = NSSize(width: max(1, originalWidth * scale), height: max(1, originalHeight * scale))
+
+        guard
+            let rep = NSBitmapImageRep(
+                bitmapDataPlanes: nil,
+                pixelsWide: Int(size.width),
+                pixelsHigh: Int(size.height),
+                bitsPerSample: 8,
+                samplesPerPixel: 4,
+                hasAlpha: true,
+                isPlanar: false,
+                colorSpaceName: .deviceRGB,
+                bytesPerRow: 0,
+                bitsPerPixel: 0
+            )
+        else { return nil }
+
+        NSGraphicsContext.saveGraphicsState()
+        NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: rep)
+        NSImage(cgImage: image, size: NSSize(width: originalWidth, height: originalHeight))
+            .draw(in: NSRect(origin: .zero, size: size))
+        NSGraphicsContext.restoreGraphicsState()
+
+        return rep.representation(using: .jpeg, properties: [.compressionFactor: compression])
     }
 
     // MARK: - Selection capture
@@ -231,11 +368,13 @@ extension ContextSnapshot {
         ContextSnapshot(
             frontmostBundleID: nil,
             frontmostAppName: nil,
+            windowTitle: nil,
             surface: .unknown,
             selection: "",
             selectionSource: .none,
             hotkey: hotkey,
-            capturedAt: Date()
+            capturedAt: Date(),
+            screenshot: nil
         )
     }
 }

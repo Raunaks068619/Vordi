@@ -19,26 +19,27 @@ import Combine
 /// product decision, polish stays HTTPS so we don't add subprocess
 /// latency to the hot dictation loop.
 ///
-/// **Auto-pick logic** (Q2: "if any CLI is detected, use it"):
-///   - On first launch, if `CLIRunner.probe()` finds any CLI, we
-///     default to it (prefer Claude > Codex > Gemini for ordering).
-///   - User can override in Settings at any time.
-///   - If the chosen CLI later disappears (uninstalled), we transparently
-///     fall back to `.builtIn` and surface a one-time notice.
+/// **CLI discovery policy**:
+///   - Never probe local CLIs at launch or on Settings appearance.
+///   - The user explicitly clicks "Fetch AI CLIs" to scan for Claude,
+///     Codex, and Gemini binaries.
+///   - Auth smoke tests stay behind each row's manual Probe button.
 @MainActor
 final class LLMRouter: ObservableObject {
     nonisolated static let shared = LLMRouter()
 
-    /// What the user picked (or what auto-pick decided).
+    /// What the user picked.
     @Published private(set) var activeProvider: ChatProvider = .builtIn
 
     /// Currently-detected CLIs (post-probe). Reflects `CLIRunner.resolvedPaths`.
     @Published private(set) var detectedCLIs: Set<CLIIdentifier> = []
 
     /// Per-CLI probe state — populated by the Settings "Probe" button
-    /// (or auto-probe on Settings open). Lets the UI show a colored
-    /// status badge per CLI without re-running probes on every render.
+    /// after discovery. Lets the UI show a colored status badge per CLI
+    /// without re-running probes on every render.
     @Published private(set) var probeStates: [CLIIdentifier: ProbeState] = [:]
+    @Published private(set) var isFetchingCLIs: Bool = false
+    @Published private(set) var hasFetchedCLIs: Bool = false
 
     enum ChatProvider: Codable, Hashable {
         case builtIn               // existing LLMService → HTTPS path
@@ -79,17 +80,35 @@ final class LLMRouter: ObservableObject {
 
     // MARK: - Public API
 
-    /// Boot — probe CLIs, auto-pick default if user hasn't chosen one.
-    /// Safe to call from AppDelegate.applicationDidFinishLaunching.
+    /// Boot — wire Memory chat without touching local CLI binaries. CLI
+    /// discovery is manual-only via `fetchLocalCLIs()` from Settings.
     func start() {
-        Task {
-            await CLIRunner.shared.probe()
-            await MainActor.run {
-                self.detectedCLIs = Set(CLIRunner.shared.resolvedPaths.keys)
-            }
-            await autoPickIfNeeded()
-            self.wireMemoryChatService()
+        loadProvider()
+        wireMemoryChatService()
+    }
+
+    /// User-triggered CLI discovery. This checks binary presence only; it
+    /// does not run any AI prompt through the CLI. Per-provider auth probes
+    /// stay behind each row's Probe button.
+    func fetchLocalCLIs() async {
+        guard !isFetchingCLIs else { return }
+        isFetchingCLIs = true
+        defer { isFetchingCLIs = false }
+
+        await CLIRunner.shared.probe()
+        detectedCLIs = Set(CLIRunner.shared.resolvedPaths.keys)
+        hasFetchedCLIs = true
+
+        // Drop stale states for binaries that disappeared. New detections
+        // remain unprobed until the user clicks the row's Probe button.
+        probeStates = probeStates.filter { detectedCLIs.contains($0.key) }
+
+        if case .cli(let cli) = activeProvider, !detectedCLIs.contains(cli) {
+            activeProvider = .builtIn
+            persistProvider()
         }
+
+        wireMemoryChatService()
     }
 
     /// User-driven provider switch from Settings UI.
@@ -98,6 +117,34 @@ final class LLMRouter: ObservableObject {
         activeProvider = provider
         persistProvider()
         wireMemoryChatService()
+    }
+
+    /// Single call surface for Memory chat + Knowledge Graph entity
+    /// extraction. Both features should respect the same provider picker:
+    /// built-in HTTP, Claude Code, Codex, or Gemini.
+    func complete(system: String, user: String, timeout: TimeInterval = 60) async throws -> String {
+        switch activeProvider {
+        case .builtIn:
+            let request = LLMRequest(
+                messages: [
+                    LLMMessage(role: .system, content: system),
+                    LLMMessage(role: .user,   content: user),
+                ],
+                temperature: 0.2,
+                maxTokens: 500,
+                maxAttempts: 2,
+                purpose: "memory_chat"
+            )
+            let response = try await LLMService.shared.complete(request)
+            return response.content
+
+        case .cli(let cli):
+            guard let binary = CLIRunner.shared.resolvedPaths[cli] else {
+                throw CLIError.binaryNotFound(name: cli.binaryName)
+            }
+            return try await CLIBackend(identifier: cli, binary: binary)
+                .complete(system: system, user: user, timeout: timeout)
+        }
     }
 
     /// Run a probe call against the given CLI. Updates `probeStates`
@@ -131,28 +178,6 @@ final class LLMRouter: ObservableObject {
 
     // MARK: - Internals
 
-    /// Choose a default provider if the user hasn't picked one yet.
-    /// Prefer Claude → Codex → Gemini (rough order of "most users have
-    /// this installed in May 2026"; revisit if data says otherwise).
-    private func autoPickIfNeeded() async {
-        // If user already saved a preference, honor it — even if the
-        // chosen CLI isn't currently detected. That's the right call
-        // because "I uninstalled my CLI" is much rarer than "I just
-        // closed Settings and reopened it." We surface the missing-CLI
-        // state in Settings rather than silently switching.
-        if UserDefaults.standard.object(forKey: userDefaultsKey) != nil {
-            return
-        }
-
-        let order: [CLIIdentifier] = [.claude, .codex, .gemini]
-        for cli in order where detectedCLIs.contains(cli) {
-            activeProvider = .cli(cli)
-            persistProvider()
-            return
-        }
-        // Nothing detected — leave .builtIn (the init default).
-    }
-
     /// Wire `MemoryChatService.chatCall` to invoke whatever the user's
     /// chosen provider is. Re-called whenever the provider changes.
     private func wireMemoryChatService() {
@@ -162,37 +187,20 @@ final class LLMRouter: ObservableObject {
         switch provider {
         case .builtIn:
             MemoryChatService.shared.setChatCall { system, user in
-                let request = LLMRequest(
-                    messages: [
-                        LLMMessage(role: .system, content: system),
-                        LLMMessage(role: .user,   content: user),
-                    ],
-                    temperature: 0.2,
-                    maxTokens: 500,
-                    maxAttempts: 2,
-                    purpose: "memory_chat"
-                )
-                let response = try await LLMService.shared.complete(request)
-                return response.content
+                try await LLMRouter.shared.complete(system: system, user: user)
             }
 
         case .cli(let cli):
             // Capture the resolved binary path at wire time so the
             // closure doesn't depend on @MainActor state at call time.
-            guard let binary = CLIRunner.shared.resolvedPaths[cli] else {
-                // CLI vanished — fall back to built-in. We mark the
-                // active provider as builtIn so Settings UI tells the
-                // user honestly, instead of pretending "Claude" is
-                // active while quietly using their OpenAI key.
-                print("LLMRouter: CLI \(cli.rawValue) not found, falling back to built-in")
-                activeProvider = .builtIn
-                persistProvider()
-                wireMemoryChatService()
+            guard CLIRunner.shared.resolvedPaths[cli] != nil else {
+                MemoryChatService.shared.setChatCall { _, _ in
+                    throw CLIError.binaryNotFound(name: cli.binaryName)
+                }
                 return
             }
-            let backend = CLIBackend(identifier: cli, binary: binary)
             MemoryChatService.shared.setChatCall { system, user in
-                try await backend.complete(system: system, user: user)
+                try await LLMRouter.shared.complete(system: system, user: user)
             }
         }
     }

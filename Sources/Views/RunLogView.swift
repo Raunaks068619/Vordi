@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 import AVFoundation
 
 /// Run Log tab — chronological history of dictation runs with full pipeline
@@ -307,6 +308,7 @@ struct RunDetailView: View {
     @State private var audioPlayer: AVAudioPlayer?
     @State private var isPlaying = false
     @State private var showTranscriptionPrompt = false
+    @State private var showContextPrompt = false
     // Default expanded — the prompt is the highest-debug-value piece of
     // info on this card. Hiding it behind a click added one round trip of
     // friction every time someone opened a run to debug *why* the output
@@ -314,6 +316,7 @@ struct RunDetailView: View {
     // in this same field, we ALWAYS want this content visible — it's the
     // single source of truth for "what (or nothing) was done to my text."
     @State private var showPostProcessPrompt = true
+    @State private var contextImage: NSImage?
 
     var body: some View {
         Group {
@@ -328,15 +331,20 @@ struct RunDetailView: View {
         }
         .onAppear {
             run = runStore.loadRun(id: runID)
+            if let loadedRun = run,
+               let url = runStore.screenshotURL(for: loadedRun) {
+                contextImage = NSImage(contentsOf: url)
+            }
         }
     }
 
     @ViewBuilder
     private func detailContent(_ run: Run) -> some View {
         VStack(alignment: .leading, spacing: 18) {
-            // Stage 1: Audio Capture
-            pipelineStage(number: 1, title: "Audio Capture") {
+            // Stage 1: Context + Audio Capture
+            pipelineStage(number: 1, title: "Capture Context") {
                 VStack(alignment: .leading, spacing: 10) {
+                    contextCaptureBlock(run)
                     audioPlayerRow(run)
 
                     HStack(spacing: 16) {
@@ -406,6 +414,80 @@ struct RunDetailView: View {
                     }
                 }
             }
+        }
+    }
+
+    @ViewBuilder
+    private func contextCaptureBlock(_ run: Run) -> some View {
+        if let context = run.context {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(spacing: 12) {
+                    metaLabel("App", value: context.frontmostAppName ?? "unknown")
+                    if let title = context.windowTitle, !title.isEmpty {
+                        metaLabel("Window", value: title)
+                    }
+                }
+
+                if let screenshot = context.screenshot {
+                    switch screenshot.status {
+                    case .captured:
+                        if let contextImage {
+                            Image(nsImage: contextImage)
+                                .resizable()
+                                .scaledToFit()
+                                .frame(maxHeight: 170)
+                                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                        .strokeBorder(Theme.divider, lineWidth: 1)
+                                )
+                        }
+                    case .denied:
+                        metaLabel("Screenshot", value: "Screen Recording not granted")
+                    case .disabled:
+                        metaLabel("Screenshot", value: "disabled")
+                    case .unavailable:
+                        metaLabel("Screenshot", value: "no active window")
+                    case .failed:
+                        metaLabel("Screenshot", value: "capture failed")
+                    }
+                }
+
+                if let summary = context.summary {
+                    HStack {
+                        metaLabel("Context model", value: summary.model)
+                        Spacer()
+                        metaLabel("Latency", value: "\(summary.latencyMs)ms")
+                    }
+
+                    DisclosureGroup(
+                        isExpanded: $showContextPrompt,
+                        content: {
+                            codeBlock(summary.prompt)
+                                .padding(.top, 6)
+                        },
+                        label: {
+                            Text("Show prompt")
+                                .font(.system(size: 11, weight: .semibold))
+                                .foregroundColor(Theme.accent)
+                        }
+                    )
+                    .tint(Theme.accent)
+
+                    Text(summary.text)
+                        .font(.system(size: 12))
+                        .foregroundColor(Theme.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                } else if context.hasUsefulContext {
+                    Text("Captured app context; screenshot summary was not available for this run.")
+                        .font(.system(size: 12))
+                        .foregroundColor(Theme.textSecondary)
+                }
+            }
+        } else {
+            Text("No app context captured for this run.")
+                .font(.system(size: 12))
+                .foregroundColor(Theme.textSecondary)
         }
     }
 

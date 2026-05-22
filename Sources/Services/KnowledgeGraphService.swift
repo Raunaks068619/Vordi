@@ -72,6 +72,29 @@ struct KnowledgeChatTurn: Identifiable, Equatable {
     }
 }
 
+/// Lightweight transcript row for Memory popovers. Kept independent from
+/// `MemoryStore.StoredRun` so the view receives display-ready text without
+/// learning SQLite/index details.
+struct KnowledgeSourcePreview: Identifiable, Equatable {
+    let id: String
+    let createdAt: Date
+    let appName: String?
+    let profile: String?
+    let wordCount: Int
+    let durationSeconds: Double
+    let text: String
+}
+
+/// Derived details for a graph node popup.
+struct KnowledgeNodeSummary: Identifiable, Equatable {
+    let id: String
+    let label: String
+    let type: KnowledgeEntityType
+    let mentions: Int
+    let sources: [KnowledgeSourcePreview]
+    let connectedLabels: [String]
+}
+
 // MARK: - Service
 
 /// View-facing adapter over `MemoryStore`. The actual data lives in
@@ -106,11 +129,13 @@ final class KnowledgeGraphService: ObservableObject {
             self.indexer.$status
                 .receive(on: DispatchQueue.main)
                 .sink { [weak self] status in
+                    self?.objectWillChange.send()
                     if case .idle = status {
                         self?.reload()
                     }
                 }
                 .store(in: &self.cancellables)
+            Task { await self.indexer.refreshCounts() }
             self.reload()
         }
     }
@@ -125,6 +150,8 @@ final class KnowledgeGraphService: ObservableObject {
     }
 
     var indexerStatus: IndexerService.Status { indexer.status }
+    var pendingSyncCount: Int { indexer.pendingCount }
+    var indexedCount: Int { indexer.indexedCount }
 
     // MARK: - Public API
 
@@ -154,15 +181,76 @@ final class KnowledgeGraphService: ObservableObject {
         memory.runIDs(forEntity: entityID)
     }
 
+    /// Display-ready transcript previews for the given source IDs.
+    func sourcePreviews(for runIDs: [String], limit: Int = 12) -> [KnowledgeSourcePreview] {
+        runIDs
+            .prefix(limit)
+            .compactMap { runID in
+                guard let run = memory.getRun(id: runID) else { return nil }
+                let transcript = memory.transcriptText(for: runID)?
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                let displayText: String
+                if let transcript, !transcript.isEmpty {
+                    displayText = transcript
+                } else {
+                    displayText = "(no transcript text)"
+                }
+                return KnowledgeSourcePreview(
+                    id: run.id,
+                    createdAt: run.createdAt,
+                    appName: run.appName,
+                    profile: run.profile,
+                    wordCount: run.wordCount,
+                    durationSeconds: run.durationSeconds,
+                    text: displayText
+                )
+            }
+    }
+
+    /// Small, local-only summary for a graph node. This intentionally does
+    /// not call an LLM; the popup must feel instant.
+    func nodeSummary(for nodeID: String) -> KnowledgeNodeSummary? {
+        guard let node = graph.nodes.first(where: { $0.id == nodeID }) else { return nil }
+        let neighborIDs = graph.edges.compactMap { edge -> String? in
+            if edge.nodeA == nodeID { return edge.nodeB }
+            if edge.nodeB == nodeID { return edge.nodeA }
+            return nil
+        }
+        let labelsByID = Dictionary(uniqueKeysWithValues: graph.nodes.map { ($0.id, $0.label) })
+        let connectedLabels = neighborIDs.compactMap { labelsByID[$0] }
+        let connected = Array(connectedLabels.prefix(6))
+        return KnowledgeNodeSummary(
+            id: node.id,
+            label: node.label,
+            type: node.type,
+            mentions: node.mentions,
+            sources: sourcePreviews(for: node.runIDs, limit: 5),
+            connectedLabels: connected
+        )
+    }
+
     /// Forward question to MemoryChatService. The router (HTTP or CLI)
     /// is already wired by LLMRouter.start() at app launch.
-    func ask(_ question: String) async throws -> KnowledgeChatTurn {
-        let answer = try await chat.ask(question)
+    func ask(_ question: String, conversation: [KnowledgeChatTurn] = []) async throws -> KnowledgeChatTurn {
+        let memoryConversation = conversation.map { turn in
+            MemoryChatService.ConversationTurn(
+                role: turn.role == .user ? .user : .assistant,
+                text: turn.text,
+                sourceRunIDs: turn.sourceRunIDs
+            )
+        }
+        let answer = try await chat.ask(question, conversation: memoryConversation)
         return KnowledgeChatTurn(
             role: .assistant,
             text: answer.text,
             sourceRunIDs: answer.sourceRunIDs
         )
+    }
+
+    /// User-triggered sync for new run files and missing derived data.
+    func syncNow() async {
+        await indexer.syncNow()
+        reload()
     }
 
     /// Force re-extraction of ALL entities (drops embeddings + entity

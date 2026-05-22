@@ -498,8 +498,8 @@ struct MainDashboardView: View {
     ///     (otherwise selecting them would just fail at request time)
     private var cloudPolishOptions: [(id: String, label: String)] {
         var opts: [(id: String, label: String)] = [
-            ("groq::llama-3.3-70b-versatile",
-             "Groq · llama-3.3-70b (free, default)")
+            (PolishBackend.defaultIdGroq,
+             "Groq · Llama 4 Scout (vision context)")
         ]
         if !openAIKey.isEmpty {
             opts.append(("openai::gpt-4.1-mini",
@@ -1061,8 +1061,8 @@ struct MainDashboardView: View {
     ///     it for emails / docs / Slack messages where you'd reach
     ///     for Grammarly otherwise.
     ///
-    /// Has no effect on Verbatim style — that path skips the polish
-    /// LLM entirely so neither mode applies.
+    /// In Original style, Dictation skips the polish LLM while Rewrite still
+    /// runs the selected polish model.
     private var transcriptionModeCard: some View {
         cardContainer {
             VStack(alignment: .leading, spacing: 12) {
@@ -1072,7 +1072,7 @@ struct MainDashboardView: View {
                         .foregroundColor(Theme.textPrimary)
                     Spacer()
                     if outputMode == TranscriptOutputStyle.verbatim.rawValue {
-                        Text("No effect on Original")
+                        Text("Rewrite uses model")
                             .font(.system(size: 10, weight: .semibold))
                             .foregroundColor(Theme.textTertiary)
                             .padding(.horizontal, 6)
@@ -1591,6 +1591,12 @@ struct MainDashboardView: View {
                     state: permissionService.inputMonitoringState,
                     pane: .inputMonitoring
                 )
+                permissionRow(
+                    title: "Screen Recording",
+                    subtitle: "Optional for screenshot context summaries",
+                    state: permissionService.screenRecordingState,
+                    pane: .screenRecording
+                )
 
                 if !permissionService.allRequiredGranted {
                     Text("Global hotkeys won't work until all three are granted.")
@@ -1749,10 +1755,9 @@ struct MainDashboardView: View {
     /// — that stays on whatever the user picked in `polishModelCard`
     /// so dictation latency doesn't pick up subprocess spawn overhead.
     ///
-    /// Auto-detects installed CLIs (Claude Code, Codex, Gemini) at
-    /// app launch via `LLMRouter.start` → `CLIRunner.probe`. Each row
-    /// shows a status badge (Ready / Not authed / Not installed / Error)
-    /// and a Probe button that runs a "say OK" call against the CLI.
+    /// Local CLI detection is manual. The user clicks "Fetch AI CLIs" to
+    /// scan for Claude Code, Codex, and Gemini binaries; each detected row
+    /// can then be selected or manually probed for auth.
     private var memoryProviderCard: some View {
         cardContainer {
             VStack(alignment: .leading, spacing: 14) {
@@ -2040,7 +2045,7 @@ struct MainDashboardView: View {
     private var outputStyleHelperText: String {
         switch TranscriptOutputStyle(rawValue: outputMode) ?? .cleanHinglish {
         case .verbatim:
-            return "Raw transcript with no cleanup. Preserves exact wording, fillers, and source language. Whisper's natural punctuation guesses come through (pauses can show up as full stops). The Language picker controls Whisper's language hint in this mode."
+            return "Dictation keeps the raw transcript. Rewrite runs the polish model on the same Original transcript for cleaner final intent text. The Language picker controls Whisper's language hint in this mode."
         case .clean:
             if isOnGroqTier {
                 return "English cleanup — removes fillers, fixes grammar, and normalizes punctuation so natural pauses don't become full stops. Speak English; Hindi will come through garbled on the free tier (add an OpenAI key in Settings → Provider for translation + Hinglish)."
@@ -2295,9 +2300,8 @@ final class FocusDetector {
 // MARK: - MemoryProviderPicker
 
 /// Settings widget: lets the user pick which AI answers Memory chat
-/// questions + extracts knowledge-graph entities. Each option shows a
-/// live status badge ("Ready", "Not authed", "Not installed") and a
-/// per-CLI Probe button that runs a smoke test.
+/// questions + extracts knowledge-graph entities. CLI discovery is
+/// explicit so opening Settings never spawns local processes.
 ///
 /// **Why a dedicated component** (not inline in the settings card):
 /// owns its own `@StateObject` on LLMRouter + CLIRunner state, has
@@ -2306,12 +2310,16 @@ final class FocusDetector {
 struct MemoryProviderPicker: View {
     @ObservedObject private var router = LLMRouter.shared
 
-    /// Per-CLI auto-probe state. We trigger probes on appearance so the
-    /// user sees real status (not "unknown") without having to click.
-    @State private var didInitialProbe: Bool = false
-
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 10) {
+                Text(cliFetchSummary)
+                    .font(.system(size: 10))
+                    .foregroundColor(Theme.textTertiary)
+                Spacer()
+                fetchCLIsButton
+            }
+
             providerRow(
                 title: "Built-in",
                 subtitle: "Routes through whatever you picked for the polish backend (OpenAI / Groq / local). Always available.",
@@ -2326,35 +2334,57 @@ struct MemoryProviderPicker: View {
                 cliRow(cli)
             }
         }
-        .task {
-            guard !didInitialProbe else { return }
-            didInitialProbe = true
-            for cli in CLIIdentifier.allCases {
-                // Only probe CLIs we've detected on disk — there's no
-                // point spending 30s of timeout waiting for a missing
-                // binary.
-                if router.detectedCLIs.contains(cli) {
-                    _ = await router.probe(cli)
-                }
-            }
-        }
     }
 
     // MARK: Row builders
+
+    private var cliFetchSummary: String {
+        if router.isFetchingCLIs { return "Scanning local CLI paths..." }
+        if router.hasFetchedCLIs {
+            let count = router.detectedCLIs.count
+            return count == 1 ? "1 AI CLI found" : "\(count) AI CLIs found"
+        }
+        return "Click Fetch AI CLIs to scan this Mac."
+    }
+
+    private var fetchCLIsButton: some View {
+        Button {
+            Task { await router.fetchLocalCLIs() }
+        } label: {
+            HStack(spacing: 6) {
+                if router.isFetchingCLIs {
+                    ProgressView().controlSize(.mini)
+                } else {
+                    Image(systemName: "terminal")
+                        .font(.system(size: 10, weight: .semibold))
+                }
+                Text(router.isFetchingCLIs ? "Fetching..." : "Fetch AI CLIs")
+                    .font(.system(size: 10, weight: .bold))
+            }
+            .padding(.horizontal, 9)
+            .padding(.vertical, 5)
+            .foregroundColor(Theme.textPrimary)
+            .background(Capsule().fill(Theme.surfaceElevated))
+            .overlay(Capsule().strokeBorder(Theme.divider, lineWidth: 1))
+        }
+        .buttonStyle(.plain)
+        .disabled(router.isFetchingCLIs)
+        .help("Scan for Claude Code, Codex, and Gemini CLI binaries")
+    }
 
     private func cliRow(_ cli: CLIIdentifier) -> some View {
         let isDetected = router.detectedCLIs.contains(cli)
         let isSelected = router.activeProvider == .cli(cli)
         return providerRow(
             title: cli.displayName,
-            subtitle: cli.settingsCopy,
+            subtitle: cliSubtitle(cli),
             isSelected: isSelected,
             statusBadge: { cliStatusBadge(cli) },
             trailingAction: {
                 Button {
                     Task { _ = await router.probe(cli) }
                 } label: {
-                    Image(systemName: "arrow.clockwise")
+                    Image(systemName: "checkmark.seal")
                         .font(.system(size: 10, weight: .semibold))
                         .padding(.horizontal, 6)
                         .padding(.vertical, 3)
@@ -2363,14 +2393,32 @@ struct MemoryProviderPicker: View {
                         .overlay(Capsule().strokeBorder(Theme.divider, lineWidth: 1))
                 }
                 .buttonStyle(.plain)
-                .help("Probe \(cli.displayName)")
+                .help("Probe \(cli.displayName) auth")
                 .disabled(!isDetected)
             }
         ) {
             guard isDetected else { return }
             router.setProvider(.cli(cli))
         }
-        .opacity(isDetected ? 1.0 : 0.55)
+        .opacity(isDetected || !router.hasFetchedCLIs ? 1.0 : 0.55)
+    }
+
+    private func cliSubtitle(_ cli: CLIIdentifier) -> String {
+        guard router.hasFetchedCLIs || router.detectedCLIs.contains(cli) else {
+            return "\(cli.settingsCopy) Fetch AI CLIs to check this Mac."
+        }
+        guard router.detectedCLIs.contains(cli) else {
+            return "\(cli.settingsCopy) Binary not found in common shell paths."
+        }
+
+        switch router.probeStates[cli] {
+        case .authNeeded(let hint):
+            return hint
+        case .error(let message):
+            return message
+        default:
+            return "\(cli.settingsCopy) Detected locally; probe to verify auth."
+        }
     }
 
     private func providerRow<Badge: View, Trailing: View>(
@@ -2432,12 +2480,14 @@ struct MemoryProviderPicker: View {
 
     @ViewBuilder
     private func cliStatusBadge(_ cli: CLIIdentifier) -> some View {
-        if !router.detectedCLIs.contains(cli) {
+        if !router.hasFetchedCLIs && !router.detectedCLIs.contains(cli) {
+            statusPill(text: "Not fetched", color: Theme.textTertiary)
+        } else if !router.detectedCLIs.contains(cli) {
             statusPill(text: "Not installed", color: Theme.textTertiary)
         } else if let state = router.probeStates[cli] {
             switch state {
             case .unknown:
-                statusPill(text: "Click probe", color: Theme.textTertiary)
+                statusPill(text: "Detected", color: Theme.success)
             case .probing:
                 HStack(spacing: 4) {
                     ProgressView().controlSize(.mini)
@@ -2453,7 +2503,7 @@ struct MemoryProviderPicker: View {
                 statusPill(text: "Error", color: Theme.danger)
             }
         } else {
-            statusPill(text: "Checking…", color: Theme.textTertiary)
+            statusPill(text: "Detected", color: Theme.success)
         }
     }
 

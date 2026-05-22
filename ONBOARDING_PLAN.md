@@ -22,12 +22,12 @@ FreeFlow has 12. We ruthlessly cut — first-launch attention is precious.
 |---|------|---------------|-------------------|
 | 1 | **Welcome** | Identity + value prop + one-sentence pitch | — |
 | 2 | **API Key** | Zero-config is impossible with BYO-key model | — |
-| 3 | **Permissions** | Mic + Accessibility in ONE step (polled) | Split into 3 steps (mic / accessibility / screen recording) |
+| 3 | **Permissions** | Mic + Accessibility + Input Monitoring + Screen Recording in ONE step (polled) | Split into 4 steps |
 | 4 | **Languages + Output Style** | Our differentiator — pick what you speak | `commandMode`, `vocabulary`, `launchAtLogin`, `toggleShortcut` |
 | 5 | **Try It** | Live dictation with real transcript | — |
 | 6 | **Ready** | Confirmation + "here's your menu bar icon" pointer | — |
 
-Skipped entirely: screen recording (we don't need it), hold-vs-toggle shortcut config (Fn is hardcoded), command mode (not shipped), vocabulary (not shipped), launch-at-login (moved to Settings tab as opt-in).
+Skipped entirely: hold-vs-toggle shortcut config (Fn is hardcoded), command mode (not shipped), vocabulary (not shipped), launch-at-login (moved to Settings tab as opt-in).
 
 ---
 

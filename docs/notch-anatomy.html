@@ -1,0 +1,816 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Notch Anatomy</title>
+<style>
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box;}
+html,body{
+  width:100%;min-height:100%;overflow-y:auto;
+  background:#1c1c1e;
+  font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text',sans-serif;
+  -webkit-font-smoothing:antialiased;
+  color:#fff;
+}
+.page{
+  max-width:1100px;margin:0 auto;
+  padding:48px 48px 64px;
+  display:flex;flex-direction:column;gap:44px;
+}
+h1{font-size:22px;font-weight:600;color:rgba(255,255,255,.85);letter-spacing:-.02em;}
+.sub{font-size:13px;color:rgba(255,255,255,.38);margin-top:4px;}
+
+/* ── Section card shell ── */
+.card{
+  background:rgba(255,255,255,.04);
+  border:1px solid rgba(255,255,255,.07);
+  border-radius:16px;overflow:hidden;
+}
+.card-label{
+  padding:11px 18px;
+  background:rgba(255,255,255,.035);
+  border-bottom:1px solid rgba(255,255,255,.06);
+  font-size:11px;font-weight:600;
+  color:rgba(255,255,255,.32);
+  text-transform:uppercase;letter-spacing:.08em;
+  display:flex;align-items:center;gap:8px;
+}
+.card-label em{ color:rgba(255,255,255,.18);font-style:normal; }
+
+/* ══════════════════════════════════════════════════════
+   SECTION 1 — REAL 1× MENUBAR STRAP
+══════════════════════════════════════════════════════ */
+.screen-sim{
+  position:relative;height:72px;
+  background:#3a3a3c;
+}
+.notch{
+  position:absolute;top:0;left:50%;transform:translateX(-50%);
+  width:162px;height:32px;
+  background:#000;border-radius:0 0 10px 10px;z-index:10;
+}
+.menubar-strap{
+  position:absolute;top:0;left:0;right:0;height:32px;
+  background:rgba(50,50,52,.84);
+  backdrop-filter:blur(24px) saturate(1.4);
+  border-bottom:1px solid rgba(255,255,255,.06);
+  display:flex;align-items:center;padding:0 16px;z-index:5;
+}
+.mb-left{display:flex;align-items:center;gap:18px;font-size:13px;color:rgba(255,255,255,.82);}
+.mb-left .apple{font-size:14px;}
+.mb-left .appname{font-weight:600;}
+.mb-right{margin-left:auto;display:flex;align-items:center;gap:14px;font-size:12.5px;color:rgba(255,255,255,.62);}
+
+/* ══════════════════════════════════════════════════════
+   SECTION 2 — 2× ZOOM DEAD ZONE ANATOMY
+══════════════════════════════════════════════════════ */
+.anatomy-wrap{
+  position:relative;background:#3a3a3c;height:140px;overflow:visible;
+}
+.z-notch{
+  position:absolute;top:0;left:50%;transform:translateX(-50%);
+  width:324px;height:64px;
+  background:#000;border-radius:0 0 20px 20px;z-index:10;
+}
+.z-strap{
+  position:absolute;top:0;left:0;right:0;height:64px;
+  background:rgba(50,50,52,.84);backdrop-filter:blur(24px);
+  border-bottom:1px solid rgba(255,255,255,.06);
+  display:flex;align-items:center;padding:0 28px;z-index:5;
+}
+.z-mb-left{display:flex;align-items:center;gap:28px;font-size:18px;color:rgba(255,255,255,.82);}
+.z-mb-left .apple{font-size:19px;}
+.z-mb-left .appname{font-weight:600;}
+.z-mb-right{margin-left:auto;display:flex;align-items:center;gap:20px;font-size:17px;color:rgba(255,255,255,.62);}
+.z-pill{
+  position:absolute;top:0;left:50%;transform:translateX(-50%);
+  width:440px;height:64px;
+  background:#000;border-radius:0 0 44px 44px;z-index:20;
+  display:flex;align-items:center;padding:0 26px;
+}
+.gap-ind{
+  position:absolute;top:0;height:64px;
+  background:rgba(59,130,246,.15);border:1px dashed rgba(59,130,246,.5);
+  z-index:30;display:flex;align-items:center;justify-content:center;
+}
+.gap-ind .gl{font-size:10px;font-weight:700;color:#3b82f6;text-align:center;line-height:1.2;}
+.gap-l{left:50%;margin-left:-220px;width:58px;}
+.gap-r{right:50%;margin-right:-220px;width:58px;}
+
+/* ══════════════════════════════════════════════════════
+   SECTION 3 — DIMENSION REFERENCE TABLE
+══════════════════════════════════════════════════════ */
+.diagram{padding:18px 22px;display:flex;flex-direction:column;gap:13px;}
+.dim-row{display:flex;align-items:center;gap:12px;font-size:12.5px;color:rgba(255,255,255,.55);}
+.dim-bar{height:8px;border-radius:4px;flex-shrink:0;}
+.dim-val{font-size:12px;font-weight:600;color:rgba(255,255,255,.75);min-width:44px;}
+.dim-note{font-size:11px;color:rgba(255,255,255,.28);font-style:italic;}
+
+/* ══════════════════════════════════════════════════════
+   SECTION 4 — STATE GALLERY
+   All 9 states at 0.65× scale vs. the physical notch
+══════════════════════════════════════════════════════ */
+
+/* shared scale constants (0.65×):
+   notch: 105px × 21px   pill-row: 21px   radius: 14px  */
+
+.state-grid{
+  display:grid;
+  grid-template-columns:repeat(3,1fr);
+  gap:1px;
+  background:rgba(255,255,255,.06); /* gap color */
+}
+
+.sc{
+  background:#1c1c1e;
+  display:flex;flex-direction:column;
+}
+.sc-head{
+  padding:10px 14px 7px;
+  display:flex;align-items:baseline;gap:8px;
+}
+.sc-name{font-size:12px;font-weight:600;color:rgba(255,255,255,.75);}
+.sc-badge{
+  font-size:10px;font-weight:500;color:rgba(255,255,255,.28);
+  padding:1px 6px;border-radius:10px;
+  border:1px solid rgba(255,255,255,.1);
+}
+.sc-badge.blue  { color:rgba(59,130,246,.8);  border-color:rgba(59,130,246,.25);  }
+.sc-badge.purple{ color:rgba(167,139,250,.8); border-color:rgba(167,139,250,.25); }
+.sc-badge.green { color:rgba(34,197,94,.8);   border-color:rgba(34,197,94,.25);   }
+.sc-badge.amber { color:rgba(251,191,36,.8);  border-color:rgba(251,191,36,.25);  }
+
+/* the mini-screen area inside each state card */
+.sc-screen{
+  position:relative;
+  background:#2c2c2e;    /* slightly lighter than page — "screen" content */
+  flex:1;
+  min-height:68px;
+  overflow:hidden;
+}
+
+/* notch dead-zone overlay (always 105px wide, always in center) */
+.mn{    /* mini-notch */
+  position:absolute;top:0;left:50%;transform:translateX(-50%);
+  width:105px;height:21px;
+  background:#000;border-radius:0 0 7px 7px;z-index:10;
+}
+
+/* menubar strap line */
+.ms{    /* mini-strap */
+  position:absolute;top:0;left:0;right:0;height:21px;
+  background:rgba(50,50,52,.75);
+  border-bottom:1px solid rgba(255,255,255,.05);
+  z-index:5;
+}
+
+/* notch dead-zone dashed border (shown on top of pill) */
+.nd{    /* notch-dead indicator */
+  position:absolute;top:0;left:50%;transform:translateX(-50%);
+  width:105px;height:21px;
+  border:1.5px dashed rgba(255,255,255,.2);
+  border-top:none;
+  border-radius:0 0 7px 7px;
+  z-index:25;pointer-events:none;
+}
+
+/* ── Mini pill — the morphing black shape ── */
+.mp{
+  position:absolute;top:0;left:50%;transform:translateX(-50%);
+  background:#000;border-radius:0 0 14px 14px;
+  z-index:20;
+  display:flex;flex-direction:column;
+  overflow:hidden;
+}
+.mp-row{
+  height:21px;flex-shrink:0;
+  display:flex;align-items:center;padding:0 8px;gap:5px;
+}
+/* VF logo micro (14×11 space) */
+.vfl{display:flex;align-items:center;gap:1.5px;flex-shrink:0;}
+.vfl span{
+  display:inline-block;width:1.5px;border-radius:1px;
+  background:rgba(255,255,255,.85);
+}
+/* waveform indicator bars */
+.wv{display:flex;align-items:center;gap:1.5px;margin-left:auto;flex-shrink:0;}
+.wv b{
+  display:inline-block;width:1.5px;border-radius:1px;
+  transform-origin:center;
+  animation:mv .55s ease-in-out infinite alternate;
+}
+.wv b:nth-child(1){animation-delay:0s;animation-duration:.5s;}
+.wv b:nth-child(2){animation-delay:.12s;animation-duration:.6s;}
+.wv b:nth-child(3){animation-delay:.06s;animation-duration:.52s;}
+.wv b:nth-child(4){animation-delay:.18s;animation-duration:.58s;}
+.wv b:nth-child(5){animation-delay:.03s;animation-duration:.48s;}
+@keyframes mv{from{transform:scaleY(.2);}to{transform:scaleY(1);}}
+
+/* thinking dots — white sequential Y-bounce (matches main demo) */
+.td{display:flex;align-items:center;gap:2px;margin-left:auto;}
+.td i{
+  display:inline-block;width:3px;height:3px;border-radius:50%;background:rgba(255,255,255,.9);
+  animation:tdp .72s ease-in-out infinite;
+}
+.td i:nth-child(1){animation-delay:0s;}
+.td i:nth-child(2){animation-delay:.16s;}
+.td i:nth-child(3){animation-delay:.32s;}
+@keyframes tdp{0%,50%,100%{transform:translateY(0);opacity:.35;}25%{transform:translateY(-3px);opacity:1;}}
+
+/* status text slug */
+.st{
+  font-size:7px;font-weight:600;color:rgba(255,255,255,.8);
+  white-space:nowrap;letter-spacing:.01em;
+}
+
+/* error text slug (legacy, kept for compat) */
+.et{font-size:7px;font-weight:500;color:#fbbf24;white-space:nowrap;letter-spacing:.01em;}
+
+/* error mini expansion line (new single-line error state) */
+.mp-err-mini-line{
+  display:flex;align-items:center;gap:4px;
+  padding:6px 8px 7px;
+  border-top:1px solid rgba(255,255,255,.05);
+}
+.mp-err-mini-icon{font-size:7px;color:#fbbf24;flex-shrink:0;}
+.mp-err-mini-text{font-size:7px;color:rgba(255,255,255,.55);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+
+/* green tick mark for Done state */
+.mp-tick{display:flex;align-items:center;margin-left:auto;flex-shrink:0;}
+
+/* mini panel content inside open-pill */
+.mp-panel{
+  flex-shrink:0;
+  background:#000;
+}
+.mp-panel-header{
+  height:18px;
+  border-top:1px solid rgba(255,255,255,.06);
+  border-bottom:1px solid rgba(255,255,255,.06);
+  display:flex;align-items:center;padding:0 8px;gap:4px;
+}
+.mp-panel-header .dot{width:4px;height:4px;border-radius:50%;background:#3b82f6;animation:rdp 1s ease-in-out infinite;}
+@keyframes rdp{0%,100%{opacity:1;transform:scale(1);}50%{opacity:.3;transform:scale(.6);}}
+.mp-panel-header .lbl{font-size:6.5px;font-weight:600;color:rgba(59,130,246,.8);letter-spacing:.04em;}
+.mp-panel-header .bars{display:flex;align-items:center;gap:1.5px;margin-left:auto;}
+.mp-panel-header .bars b{display:inline-block;width:1.5px;border-radius:1px;background:#3b82f6;transform-origin:center;animation:mv .55s ease-in-out infinite alternate;}
+.mp-panel-body{padding:5px 8px;display:flex;flex-direction:column;gap:3px;}
+.mp-skel{height:4px;background:rgba(255,255,255,.07);border-radius:2px;}
+.mp-row-item{height:12px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.06);border-radius:4px;display:flex;align-items:center;padding:0 5px;gap:4px;}
+.mp-row-item span{height:3px;background:rgba(255,255,255,.1);border-radius:1px;flex:1;}
+
+/* error panel mini */
+.mp-err-badge{font-size:6px;font-weight:700;color:#fbbf24;background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.2);border-radius:3px;padding:1px 4px;width:fit-content;}
+.mp-err-title{font-size:7px;font-weight:600;color:rgba(255,255,255,.75);margin-top:3px;}
+.mp-err-desc{margin-top:2px;height:3px;background:rgba(255,255,255,.08);border-radius:1px;}
+.mp-err-desc2{margin-top:2px;height:3px;width:70%;background:rgba(255,255,255,.05);border-radius:1px;}
+.mp-err-btn-row{margin-top:6px;display:flex;gap:3px;}
+.mp-err-btn{height:10px;flex:1;border-radius:3px;background:rgba(245,158,11,.15);border:1px solid rgba(245,158,11,.25);}
+.mp-err-btn2{height:10px;width:36px;flex-shrink:0;border-radius:3px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);}
+
+/* hover panel mini */
+.mp-hover-head{height:18px;border-top:1px solid rgba(255,255,255,.06);display:flex;align-items:center;padding:0 8px;border-bottom:1px solid rgba(255,255,255,.06);}
+.mp-hover-head .hlbl{font-size:7px;font-weight:600;color:rgba(255,255,255,.6);}
+.mp-hover-head .hbtns{margin-left:auto;display:flex;gap:2px;}
+.mp-hover-head .hbtn{width:10px;height:10px;border-radius:3px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.07);}
+.mp-hover-rows{padding:4px 6px;display:flex;flex-direction:column;gap:2px;}
+.mp-hover-row{height:13px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.05);border-radius:4px;display:flex;align-items:center;padding:0 5px;gap:4px;}
+.mp-hover-row .ico{font-size:7px;opacity:.5;}
+.mp-hover-row .txt{height:3px;flex:1;background:rgba(255,255,255,.1);border-radius:1px;}
+.mp-hover-row .ts{width:16px;height:3px;background:rgba(255,255,255,.05);border-radius:1px;}
+.mp-hover-footer{height:16px;border-top:1px solid rgba(255,255,255,.05);display:flex;align-items:center;padding:0 8px;justify-content:space-between;}
+.mp-hover-footer span{height:3px;width:30px;background:rgba(255,255,255,.06);border-radius:1px;}
+
+/* glow under pill (state-specific color) */
+.mp::after{
+  content:'';position:absolute;bottom:-3px;left:10%;right:10%;
+  height:10px;border-radius:50%;filter:blur(6px);
+  opacity:0;pointer-events:none;z-index:-1;
+  transition:opacity .3s ease;
+}
+.mp.glow-blue::after  { background:#3b82f6; opacity:.5; }
+.mp.glow-purple::after{ background:#a78bfa; opacity:.45; }
+.mp.glow-green::after { background:#22c55e; opacity:.5; }
+.mp.glow-amber::after { background:#f59e0b; opacity:.4; }
+
+/* gap highlight on each side of notch within the pill */
+.sc-gap{
+  position:absolute;top:0;height:21px;
+  background:rgba(59,130,246,.12);
+  border-left:1px dashed rgba(59,130,246,.4);
+  border-right:1px dashed rgba(59,130,246,.4);
+  z-index:22;
+}
+
+/* info row below each state screen */
+.sc-info{
+  padding:8px 14px 10px;
+  display:flex;align-items:center;justify-content:space-between;
+  border-top:1px solid rgba(255,255,255,.05);
+}
+.sc-w{font-size:11px;font-weight:700;color:rgba(255,255,255,.5);}
+.sc-w em{font-style:normal;font-weight:400;color:rgba(255,255,255,.3);font-size:10px;}
+.sc-desc{font-size:10px;color:rgba(255,255,255,.28);text-align:right;line-height:1.35;}
+
+/* legend row */
+.legend{
+  padding:12px 14px;
+  border-top:1px solid rgba(255,255,255,.05);
+  display:flex;align-items:center;gap:20px;flex-wrap:wrap;
+}
+.leg-item{display:flex;align-items:center;gap:5px;font-size:10.5px;color:rgba(255,255,255,.32);}
+.leg-dot{width:8px;height:8px;border-radius:2px;flex-shrink:0;}
+</style>
+</head>
+<body>
+<div class="page">
+
+  <div>
+    <h1>Notch &amp; Menubar Anatomy</h1>
+    <p class="sub">All VoiceFlow states in context — MacBook Pro 14-inch logical pixels</p>
+  </div>
+
+  <!-- ══ 1: REAL 1× MENUBAR STRAP ══ -->
+  <div class="card">
+    <div class="card-label">① Real 1× — the actual menubar strap you see on screen</div>
+    <div class="screen-sim">
+      <div class="notch"></div>
+      <div class="menubar-strap">
+        <div class="mb-left">
+          <span class="apple">&#63743;</span>
+          <span class="appname">Finder</span>
+          <span>File</span><span>Edit</span><span>View</span><span>Go</span><span>Window</span>
+        </div>
+        <div class="mb-right">
+          <span>⌥⌃</span><span>📶</span><span>🔋</span><span>Thu 21 May 15:43</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ 2: 2× ZOOM DEAD ZONE ══ -->
+  <div class="card">
+    <div class="card-label">② 2× zoom — notch dead zone vs VF pill footprint <em>(blue = usable gap)</em></div>
+    <div class="anatomy-wrap">
+      <div class="z-notch"></div>
+      <div class="z-strap">
+        <div class="z-mb-left">
+          <span class="apple">&#63743;</span>
+          <span class="appname">Finder</span>
+          <span>File</span><span>Edit</span><span>View</span>
+        </div>
+        <div class="z-mb-right"><span>🔋</span><span>15:43</span></div>
+      </div>
+      <div class="z-pill">
+        <svg width="24" height="18" viewBox="0 0 18 14" fill="none" style="flex-shrink:0">
+          <rect x="0"    y="5"  width="2.5" height="4"  rx="1.25" fill="white" opacity=".9"/>
+          <rect x="4"    y="2"  width="2.5" height="10" rx="1.25" fill="white" opacity=".9"/>
+          <rect x="7.75" y="0"  width="2.5" height="14" rx="1.25" fill="white" opacity=".9"/>
+          <rect x="11.5" y="3"  width="2.5" height="8"  rx="1.25" fill="white" opacity=".9"/>
+          <rect x="15.5" y="5"  width="2.5" height="4"  rx="1.25" fill="white" opacity=".9"/>
+        </svg>
+      </div>
+      <div class="gap-ind gap-l"><div class="gl">gap<br>29px</div></div>
+      <div class="gap-ind gap-r"><div class="gl">gap<br>29px</div></div>
+      <div style="position:absolute;bottom:10px;left:50%;transform:translateX(-50%);display:flex;gap:24px;z-index:50;white-space:nowrap;">
+        <div style="display:flex;align-items:center;gap:5px;font-size:11px;color:rgba(255,255,255,.38);"><div style="width:10px;height:10px;background:#000;border:1px solid rgba(255,255,255,.2);border-radius:2px"></div>Physical notch 162px — camera dead zone</div>
+        <div style="display:flex;align-items:center;gap:5px;font-size:11px;color:rgba(255,255,255,.38);"><div style="width:10px;height:10px;background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.25);border-radius:2px"></div>VF pill idle 220px</div>
+        <div style="display:flex;align-items:center;gap:5px;font-size:11px;color:rgba(59,130,246,.7);"><div style="width:10px;height:10px;background:rgba(59,130,246,.2);border:1px dashed rgba(59,130,246,.6);border-radius:2px"></div>29px gap each side</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ 3: DIMENSION TABLE ══ -->
+  <div class="card">
+    <div class="card-label">③ Dimension reference</div>
+    <div class="diagram">
+      <div class="dim-row">
+        <div class="dim-val">162 px</div>
+        <div class="dim-bar" style="width:162px;background:#000;border:1px solid rgba(255,255,255,.15)"></div>
+        <div>Physical notch width</div>
+        <div class="dim-note">— MacBook Pro 14" — camera dead zone, nothing renders here</div>
+      </div>
+      <div class="dim-row">
+        <div class="dim-val">220 px</div>
+        <div class="dim-bar" style="width:220px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.18)"></div>
+        <div>Idle</div>
+        <div class="dim-note">— 29 px visible gap each side</div>
+      </div>
+      <div class="dim-row">
+        <div class="dim-val">268 px</div>
+        <div class="dim-bar" style="width:268px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.18)"></div>
+        <div>Proximity</div>
+        <div class="dim-note">— "Hold Fn to talk" hint slides in</div>
+      </div>
+      <div class="dim-row">
+        <div class="dim-val">320 px</div>
+        <div class="dim-bar" style="width:320px;background:rgba(34,197,94,.1);border:1px solid rgba(34,197,94,.25)"></div>
+        <div>Done</div>
+        <div class="dim-note">— "Done" label left + green ✓ tick right · 79 px gap each side · auto-returns to idle after 2 s</div>
+      </div>
+      <div class="dim-row">
+        <div class="dim-val">360 px</div>
+        <div class="dim-bar" style="width:360px;background:rgba(59,130,246,.1);border:1px solid rgba(59,130,246,.28)"></div>
+        <div>Listening &amp; Thinking</div>
+        <div class="dim-note">— 99 px visible gap each side · Listening: waveform bars right · Thinking: white bounce dots right</div>
+      </div>
+      <div class="dim-row">
+        <div class="dim-val">364 px</div>
+        <div class="dim-bar" style="width:364px;background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.22)"></div>
+        <div>Error mini &amp; Panel open (width)</div>
+        <div class="dim-note">— Error mini: single-line ~67 px total (pill row + amber message line) · Panel: content-driven ~130–225 px</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ 4: ALL STATES GALLERY ══ -->
+  <div class="card">
+    <div class="card-label">④ All 9 states at 0.65× — how each morphs relative to the physical notch</div>
+
+    <div class="state-grid">
+
+      <!-- ─ IDLE ─ -->
+      <div class="sc">
+        <div class="sc-head">
+          <span class="sc-name">Idle</span>
+          <span class="sc-badge">220 px wide</span>
+        </div>
+        <div class="sc-screen" style="min-height:68px;">
+          <div class="ms"></div>
+          <div class="mn"></div>
+          <!-- pill: 143px = 220×0.65 -->
+          <div class="mp" style="width:143px;">
+            <div class="mp-row">
+              <div class="vfl">
+                <span style="height:4px;margin-top:1px;"></span>
+                <span style="height:7px;"></span>
+                <span style="height:9px;"></span>
+                <span style="height:6px;margin-top:1px;"></span>
+                <span style="height:4px;margin-top:1px;"></span>
+              </div>
+            </div>
+          </div>
+          <!-- dashed notch boundary overlay -->
+          <div class="nd"></div>
+          <!-- gap indicators: (143-105)/2 = 19px each side -->
+          <div class="sc-gap" style="left:50%;margin-left:-71.5px;width:19px;border-right:none;"></div>
+          <div class="sc-gap" style="right:50%;margin-right:-71.5px;width:19px;border-left:none;"></div>
+        </div>
+        <div class="sc-info">
+          <span class="sc-w">220 px <em>+29 each side</em></span>
+          <span class="sc-desc">VF logo breathes.<br>Gap always visible.</span>
+        </div>
+      </div>
+
+      <!-- ─ PROXIMITY ─ -->
+      <div class="sc">
+        <div class="sc-head">
+          <span class="sc-name">Proximity</span>
+          <span class="sc-badge">268 px wide</span>
+        </div>
+        <div class="sc-screen" style="min-height:68px;">
+          <div class="ms"></div>
+          <div class="mn"></div>
+          <!-- 174px = 268×0.65 -->
+          <div class="mp" style="width:174px;">
+            <div class="mp-row">
+              <div class="vfl">
+                <span style="height:4px;margin-top:1px;"></span>
+                <span style="height:7px;"></span>
+                <span style="height:9px;"></span>
+                <span style="height:6px;margin-top:1px;"></span>
+                <span style="height:4px;margin-top:1px;"></span>
+              </div>
+              <div style="font-size:6px;color:rgba(255,255,255,.45);white-space:nowrap;margin-left:5px;">Hold Fn to talk</div>
+            </div>
+          </div>
+          <div class="nd"></div>
+          <!-- gap: (174-105)/2 = 34px -->
+          <div class="sc-gap" style="left:50%;margin-left:-87px;width:34px;border-right:none;"></div>
+          <div class="sc-gap" style="right:50%;margin-right:-87px;width:34px;border-left:none;"></div>
+        </div>
+        <div class="sc-info">
+          <span class="sc-w">268 px <em>+53 each side</em></span>
+          <span class="sc-desc">Cursor approaches notch.<br>Hint slides in from logo.</span>
+        </div>
+      </div>
+
+      <!-- ─ LISTENING ─ -->
+      <div class="sc">
+        <div class="sc-head">
+          <span class="sc-name">Listening</span>
+          <span class="sc-badge blue">360 px wide</span>
+        </div>
+        <div class="sc-screen" style="min-height:68px;">
+          <div class="ms"></div>
+          <div class="mn"></div>
+          <!-- 234px = 360×0.65 -->
+          <div class="mp glow-blue" style="width:234px;">
+            <div class="mp-row">
+              <div class="vfl">
+                <span style="height:4px;margin-top:1px;"></span>
+                <span style="height:7px;"></span>
+                <span style="height:9px;"></span>
+                <span style="height:6px;margin-top:1px;"></span>
+                <span style="height:4px;margin-top:1px;"></span>
+              </div>
+              <div class="st" style="margin-left:5px;color:rgba(255,255,255,.7);">Listening</div>
+              <div class="wv" style="margin-left:auto;">
+                <b style="height:3px;background:#3b82f6;"></b>
+                <b style="height:7px;background:#3b82f6;"></b>
+                <b style="height:9px;background:#3b82f6;"></b>
+                <b style="height:5px;background:#3b82f6;"></b>
+                <b style="height:3px;background:#3b82f6;"></b>
+              </div>
+            </div>
+          </div>
+          <div class="nd"></div>
+          <!-- gap: (234-105)/2 = 64.5px -->
+          <div class="sc-gap" style="left:50%;margin-left:-117px;width:64px;border-right:none;"></div>
+          <div class="sc-gap" style="right:50%;margin-right:-117px;width:64px;border-left:none;"></div>
+        </div>
+        <div class="sc-info">
+          <span class="sc-w">360 px <em>+99 each side</em></span>
+          <span class="sc-desc">VF logo · "Listening" label left.<br>Waveform bars right, no ✕ abort.</span>
+        </div>
+      </div>
+
+      <!-- ─ THINKING ─ -->
+      <div class="sc">
+        <div class="sc-head">
+          <span class="sc-name">Thinking</span>
+          <span class="sc-badge blue">360 px wide</span>
+        </div>
+        <div class="sc-screen" style="min-height:68px;">
+          <div class="ms"></div>
+          <div class="mn"></div>
+          <!-- 234px = 360×0.65 -->
+          <div class="mp" style="width:234px;background:#000;">
+            <div class="mp-row">
+              <div class="vfl">
+                <span style="height:4px;margin-top:1px;"></span>
+                <span style="height:7px;"></span>
+                <span style="height:9px;"></span>
+                <span style="height:6px;margin-top:1px;"></span>
+                <span style="height:4px;margin-top:1px;"></span>
+              </div>
+              <div class="st" style="margin-left:5px;color:rgba(255,255,255,.7);">Thinking</div>
+              <div class="td" style="margin-left:auto;">
+                <i></i><i></i><i></i>
+              </div>
+            </div>
+          </div>
+          <div class="nd"></div>
+          <!-- gap: (234-105)/2 = 64.5px -->
+          <div class="sc-gap" style="left:50%;margin-left:-117px;width:64px;border-right:none;"></div>
+          <div class="sc-gap" style="right:50%;margin-right:-117px;width:64px;border-left:none;"></div>
+        </div>
+        <div class="sc-info">
+          <span class="sc-w">360 px <em>+99 each side</em></span>
+          <span class="sc-desc">"Thinking" label left.<br>White bounce dots right.</span>
+        </div>
+      </div>
+
+      <!-- ─ DONE ─ -->
+      <div class="sc">
+        <div class="sc-head">
+          <span class="sc-name">Done</span>
+          <span class="sc-badge green">320 px wide</span>
+        </div>
+        <div class="sc-screen" style="min-height:68px;">
+          <div class="ms"></div>
+          <div class="mn"></div>
+          <!-- 208px = 320×0.65 -->
+          <div class="mp glow-green" style="width:208px;">
+            <div class="mp-row">
+              <div class="vfl">
+                <span style="height:4px;margin-top:1px;"></span>
+                <span style="height:7px;"></span>
+                <span style="height:9px;"></span>
+                <span style="height:6px;margin-top:1px;"></span>
+                <span style="height:4px;margin-top:1px;"></span>
+              </div>
+              <div class="st" style="margin-left:5px;color:rgba(255,255,255,.85);">Done</div>
+              <div class="mp-tick" style="margin-left:auto;">
+                <!-- green tick SVG at 0.65× scale -->
+                <svg width="10" height="8" viewBox="0 0 16 12" fill="none">
+                  <path d="M1.5 6L6 10.5L14.5 1.5" stroke="#22c55e" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </div>
+            </div>
+          </div>
+          <div class="nd"></div>
+          <!-- gap: (208-105)/2 = 51.5px -->
+          <div class="sc-gap" style="left:50%;margin-left:-104px;width:51px;border-right:none;"></div>
+          <div class="sc-gap" style="right:50%;margin-right:-104px;width:51px;border-left:none;"></div>
+        </div>
+        <div class="sc-info">
+          <span class="sc-w">320 px <em>+79 each side</em></span>
+          <span class="sc-desc">"Done" white left · green ✓ right.<br>Inline strip — returns to idle 2 s.</span>
+        </div>
+      </div>
+
+      <!-- ─ ERROR (mini expansion) ─ -->
+      <div class="sc">
+        <div class="sc-head">
+          <span class="sc-name">Error</span>
+          <span class="sc-badge amber">364 × ~44 px</span>
+        </div>
+        <div class="sc-screen" style="min-height:80px;">
+          <div class="ms"></div>
+          <div class="mn"></div>
+          <!-- 237px = 364×0.65, ~44px tall: 21px pill row + 23px mini line -->
+          <div class="mp glow-amber" style="width:237px;border-radius:0 0 14px 14px;">
+            <div class="mp-row">
+              <div class="vfl">
+                <span style="height:4px;margin-top:1px;"></span>
+                <span style="height:7px;"></span>
+                <span style="height:9px;"></span>
+                <span style="height:6px;margin-top:1px;"></span>
+                <span style="height:4px;margin-top:1px;"></span>
+              </div>
+            </div>
+            <!-- single-line amber error message below pill row -->
+            <div class="mp-err-mini-line">
+              <span class="mp-err-mini-icon">⚠</span>
+              <span class="mp-err-mini-text">No input field detected — use ⌘V</span>
+            </div>
+          </div>
+          <div class="nd"></div>
+          <!-- gap: (237-105)/2 = 66px -->
+          <div class="sc-gap" style="left:50%;margin-left:-118.5px;width:66px;border-right:none;"></div>
+          <div class="sc-gap" style="right:50%;margin-right:-118.5px;width:66px;border-left:none;"></div>
+        </div>
+        <div class="sc-info">
+          <span class="sc-w">364 px <em>~67 px tall</em></span>
+          <span class="sc-desc">Single amber line morphs below notch.<br>Tap pill to expand full error panel.</span>
+        </div>
+      </div>
+
+      <!-- ─ PANEL: HOVER ─ -->
+      <div class="sc">
+        <div class="sc-head">
+          <span class="sc-name">Panel: Hover</span>
+          <span class="sc-badge">364 × ~225 px</span>
+        </div>
+        <!-- 146px total panel area = 225×0.65, pill-row included -->
+        <div class="sc-screen" style="min-height:174px;">
+          <div class="ms"></div>
+          <div class="mn"></div>
+          <!-- 237px = 364×0.65, height = 146px = 225×0.65 -->
+          <div class="mp" style="width:237px;height:146px;border-radius:0 0 14px 14px;">
+            <div class="mp-row">
+              <div class="vfl">
+                <span style="height:4px;margin-top:1px;"></span>
+                <span style="height:7px;"></span>
+                <span style="height:9px;"></span>
+                <span style="height:6px;margin-top:1px;"></span>
+                <span style="height:4px;margin-top:1px;"></span>
+              </div>
+              <div style="margin-left:auto;width:12px;height:12px;border-radius:50%;background:rgba(255,255,255,.08);display:flex;align-items:center;justify-content:center;">
+                <span style="font-size:5px;color:rgba(255,255,255,.4);">✕</span>
+              </div>
+            </div>
+            <!-- panel content -->
+            <div class="mp-hover-head">
+              <span class="hlbl">VoiceFlow</span>
+              <div class="hbtns"><div class="hbtn"></div><div class="hbtn"></div><div class="hbtn"></div></div>
+            </div>
+            <div style="font-size:5.5px;color:rgba(255,255,255,.2);text-transform:uppercase;letter-spacing:.06em;padding:4px 6px 2px;">Recent commands</div>
+            <div class="mp-hover-rows">
+              <div class="mp-hover-row"><span class="ico">✍️</span><span class="txt"></span><span class="ts"></span></div>
+              <div class="mp-hover-row"><span class="ico">🔍</span><span class="txt"></span><span class="ts"></span></div>
+              <div class="mp-hover-row"><span class="ico">💬</span><span class="txt"></span><span class="ts"></span></div>
+            </div>
+            <div class="mp-hover-footer"><span></span><span style="width:22px;"></span></div>
+          </div>
+          <div class="nd"></div>
+          <!-- gap: (237-105)/2 = 66px -->
+          <div class="sc-gap" style="left:50%;margin-left:-118.5px;width:66px;border-right:none;"></div>
+          <div class="sc-gap" style="right:50%;margin-right:-118.5px;width:66px;border-left:none;"></div>
+        </div>
+        <div class="sc-info">
+          <span class="sc-w">364 × ~225 px</span>
+          <span class="sc-desc">Morphs from notch down.<br>Recent commands + settings.</span>
+        </div>
+      </div>
+
+      <!-- ─ PANEL: TRANSCRIPT ─ -->
+      <div class="sc">
+        <div class="sc-head">
+          <span class="sc-name">Panel: Transcript</span>
+          <span class="sc-badge blue">364 × ~134 px</span>
+        </div>
+        <!-- 87px = 134×0.65 -->
+        <div class="sc-screen" style="min-height:110px;">
+          <div class="ms"></div>
+          <div class="mn"></div>
+          <!-- 237px wide, 87px tall -->
+          <div class="mp glow-blue" style="width:237px;height:87px;border-radius:0 0 14px 14px;">
+            <div class="mp-row">
+              <div class="vfl">
+                <span style="height:4px;margin-top:1px;"></span>
+                <span style="height:7px;"></span>
+                <span style="height:9px;"></span>
+                <span style="height:6px;margin-top:1px;"></span>
+                <span style="height:4px;margin-top:1px;"></span>
+              </div>
+              <div style="margin-left:auto;width:12px;height:12px;border-radius:50%;background:rgba(255,255,255,.08);display:flex;align-items:center;justify-content:center;">
+                <span style="font-size:5px;color:rgba(255,255,255,.4);">✕</span>
+              </div>
+            </div>
+            <div class="mp-panel-header">
+              <div class="dot"></div>
+              <div class="lbl">LISTENING</div>
+              <div class="bars">
+                <b style="height:8px;animation-delay:0s;"></b>
+                <b style="height:8px;animation-delay:.12s;"></b>
+                <b style="height:8px;animation-delay:.06s;"></b>
+                <b style="height:8px;animation-delay:.18s;"></b>
+              </div>
+            </div>
+            <div style="padding:5px 8px;flex:1;">
+              <div style="font-size:8px;color:rgba(255,255,255,.7);line-height:1.5;">Search for the latest news on AI<span style="display:inline-block;width:1px;height:8px;background:#3b82f6;vertical-align:middle;margin-left:1px;"></span></div>
+            </div>
+            <div style="padding:3px 8px 5px;border-top:1px solid rgba(255,255,255,.05);display:flex;align-items:center;justify-content:space-between;">
+              <span style="font-size:6px;color:rgba(255,255,255,.25);">Release Fn to send</span>
+              <span style="font-size:6px;color:rgba(255,255,255,.35);background:rgba(255,255,255,.06);border-radius:3px;padding:1px 4px;">✕ Cancel</span>
+            </div>
+          </div>
+          <div class="nd"></div>
+          <div class="sc-gap" style="left:50%;margin-left:-118.5px;width:66px;border-right:none;"></div>
+          <div class="sc-gap" style="right:50%;margin-right:-118.5px;width:66px;border-left:none;"></div>
+        </div>
+        <div class="sc-info">
+          <span class="sc-w">364 × ~134 px</span>
+          <span class="sc-desc">Compact live transcript.<br>Fn held — text grows in.</span>
+        </div>
+      </div>
+
+      <!-- ─ PANEL: ERROR ─ -->
+      <div class="sc">
+        <div class="sc-head">
+          <span class="sc-name">Panel: Error</span>
+          <span class="sc-badge amber">364 × ~218 px</span>
+        </div>
+        <!-- 142px = 218×0.65 -->
+        <div class="sc-screen" style="min-height:165px;">
+          <div class="ms"></div>
+          <div class="mn"></div>
+          <div class="mp glow-amber" style="width:237px;height:142px;border-radius:0 0 14px 14px;">
+            <div class="mp-row">
+              <div class="vfl">
+                <span style="height:4px;margin-top:1px;"></span>
+                <span style="height:7px;"></span>
+                <span style="height:9px;"></span>
+                <span style="height:6px;margin-top:1px;"></span>
+                <span style="height:4px;margin-top:1px;"></span>
+              </div>
+              <div style="margin-left:auto;width:12px;height:12px;border-radius:50%;background:rgba(255,255,255,.08);display:flex;align-items:center;justify-content:center;">
+                <span style="font-size:5px;color:rgba(255,255,255,.4);">✕</span>
+              </div>
+            </div>
+            <div style="padding:6px 8px 8px;">
+              <div class="mp-err-badge">⚠ Error</div>
+              <div class="mp-err-title">No input field detected</div>
+              <div class="mp-err-desc"></div>
+              <div class="mp-err-desc2"></div>
+              <div style="margin-top:6px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.05);border-radius:4px;padding:5px 6px;display:flex;gap:4px;">
+                <span style="font-size:8px;">💡</span>
+                <div style="font-size:6px;color:rgba(255,255,255,.4);line-height:1.4;">Click the target field first,<br>then hold Fn to dictate.</div>
+              </div>
+              <div class="mp-err-btn-row">
+                <div class="mp-err-btn"></div>
+                <div class="mp-err-btn2"></div>
+              </div>
+            </div>
+          </div>
+          <div class="nd"></div>
+          <div class="sc-gap" style="left:50%;margin-left:-118.5px;width:66px;border-right:none;"></div>
+          <div class="sc-gap" style="right:50%;margin-right:-118.5px;width:66px;border-left:none;"></div>
+        </div>
+        <div class="sc-info">
+          <span class="sc-w">364 × ~218 px</span>
+          <span class="sc-desc">Amber error detail + tip.<br>"Try again" or "View logs".</span>
+        </div>
+      </div>
+
+    </div><!-- /state-grid -->
+
+    <!-- Legend -->
+    <div class="legend">
+      <div class="leg-item"><div class="leg-dot" style="background:#000;border:1px solid rgba(255,255,255,.2)"></div>Physical notch dead zone (162px)</div>
+      <div class="leg-item"><div class="leg-dot" style="border:1.5px dashed rgba(255,255,255,.25)"></div>Notch boundary overlay</div>
+      <div class="leg-item"><div class="leg-dot" style="background:rgba(59,130,246,.2);border:1px dashed rgba(59,130,246,.5)"></div>Usable gap (pill extends past notch)</div>
+      <div class="leg-item"><div class="leg-dot" style="background:rgba(59,130,246,.25);"></div>Listening state</div>
+      <div class="leg-item"><div class="leg-dot" style="background:rgba(167,139,250,.25);"></div>Thinking state</div>
+      <div class="leg-item"><div class="leg-dot" style="background:rgba(34,197,94,.25);"></div>Done state</div>
+      <div class="leg-item"><div class="leg-dot" style="background:rgba(245,158,11,.25);"></div>Error state</div>
+    </div>
+
+  </div><!-- /card -->
+
+</div>
+</body>
+</html>

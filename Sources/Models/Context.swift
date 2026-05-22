@@ -15,6 +15,10 @@ struct ContextSnapshot: Codable {
     /// Human-readable name for log/UI display. e.g. "Cursor", "Xcode".
     let frontmostAppName: String?
 
+    /// Best-effort active-window title from CoreGraphics. Nil when the app
+    /// does not expose one or Screen Recording is not granted.
+    let windowTitle: String?
+
     /// Inferred surface category — drives profile defaults & UI hints.
     /// "I'm in an IDE" enables variable-recognition; "I'm in a chat" doesn't.
     let surface: AppSurface
@@ -36,11 +40,161 @@ struct ContextSnapshot: Codable {
     /// current intent).
     let capturedAt: Date
 
+    /// Optional screenshot of the active window at hotkey-press time. The
+    /// binary image data is transient: it is written to `context.jpg` by
+    /// RunStore and intentionally omitted from `run.json`.
+    let screenshot: ContextScreenshot?
+
+    /// Optional LLM-generated page/window summary derived from screenshot +
+    /// metadata. Used only as spelling/casing context for post-processing.
+    let summary: ContextSummary?
+
     /// True when we have meaningful contextual info. Used by router to
     /// decide whether to take the "context-aware" branch vs. plain dictation.
     var hasUsefulContext: Bool {
-        !selection.isEmpty || surface != .unknown
+        !selection.isEmpty || surface != .unknown || summary != nil || screenshot?.status == .captured
     }
+
+    init(
+        frontmostBundleID: String?,
+        frontmostAppName: String?,
+        windowTitle: String? = nil,
+        surface: AppSurface,
+        selection: String,
+        selectionSource: SelectionSource,
+        hotkey: HotkeyIdentifier,
+        capturedAt: Date,
+        screenshot: ContextScreenshot? = nil,
+        summary: ContextSummary? = nil
+    ) {
+        self.frontmostBundleID = frontmostBundleID
+        self.frontmostAppName = frontmostAppName
+        self.windowTitle = windowTitle
+        self.surface = surface
+        self.selection = selection
+        self.selectionSource = selectionSource
+        self.hotkey = hotkey
+        self.capturedAt = capturedAt
+        self.screenshot = screenshot
+        self.summary = summary
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case frontmostBundleID, frontmostAppName, windowTitle, surface
+        case selection, selectionSource, hotkey, capturedAt
+        case screenshot, summary
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        self.frontmostBundleID = try c.decodeIfPresent(String.self, forKey: .frontmostBundleID)
+        self.frontmostAppName = try c.decodeIfPresent(String.self, forKey: .frontmostAppName)
+        self.windowTitle = try c.decodeIfPresent(String.self, forKey: .windowTitle)
+        self.surface = try c.decodeIfPresent(AppSurface.self, forKey: .surface) ?? .unknown
+        self.selection = try c.decodeIfPresent(String.self, forKey: .selection) ?? ""
+        self.selectionSource = try c.decodeIfPresent(SelectionSource.self, forKey: .selectionSource) ?? .none
+        self.hotkey = try c.decodeIfPresent(HotkeyIdentifier.self, forKey: .hotkey) ?? .unknown
+        self.capturedAt = try c.decodeIfPresent(Date.self, forKey: .capturedAt) ?? Date()
+        self.screenshot = try c.decodeIfPresent(ContextScreenshot.self, forKey: .screenshot)
+        self.summary = try c.decodeIfPresent(ContextSummary.self, forKey: .summary)
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encodeIfPresent(frontmostBundleID, forKey: .frontmostBundleID)
+        try c.encodeIfPresent(frontmostAppName, forKey: .frontmostAppName)
+        try c.encodeIfPresent(windowTitle, forKey: .windowTitle)
+        try c.encode(surface, forKey: .surface)
+        try c.encode(selection, forKey: .selection)
+        try c.encode(selectionSource, forKey: .selectionSource)
+        try c.encode(hotkey, forKey: .hotkey)
+        try c.encode(capturedAt, forKey: .capturedAt)
+        try c.encodeIfPresent(screenshot, forKey: .screenshot)
+        try c.encodeIfPresent(summary, forKey: .summary)
+    }
+
+    func withSummary(_ summary: ContextSummary) -> ContextSnapshot {
+        ContextSnapshot(
+            frontmostBundleID: frontmostBundleID,
+            frontmostAppName: frontmostAppName,
+            windowTitle: windowTitle,
+            surface: surface,
+            selection: selection,
+            selectionSource: selectionSource,
+            hotkey: hotkey,
+            capturedAt: capturedAt,
+            screenshot: screenshot,
+            summary: summary
+        )
+    }
+}
+
+struct ContextScreenshot: Codable {
+    let status: ScreenshotCaptureStatus
+    let filename: String?
+    let mimeType: String
+    let width: Int
+    let height: Int
+    let capturedAt: Date
+    let imageData: Data?
+
+    init(
+        status: ScreenshotCaptureStatus,
+        filename: String? = nil,
+        mimeType: String = "image/jpeg",
+        width: Int = 0,
+        height: Int = 0,
+        capturedAt: Date = Date(),
+        imageData: Data? = nil
+    ) {
+        self.status = status
+        self.filename = filename
+        self.mimeType = mimeType
+        self.width = width
+        self.height = height
+        self.capturedAt = capturedAt
+        self.imageData = imageData
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case status, filename, mimeType, width, height, capturedAt
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        self.status = try c.decodeIfPresent(ScreenshotCaptureStatus.self, forKey: .status) ?? .unavailable
+        self.filename = try c.decodeIfPresent(String.self, forKey: .filename)
+        self.mimeType = try c.decodeIfPresent(String.self, forKey: .mimeType) ?? "image/jpeg"
+        self.width = try c.decodeIfPresent(Int.self, forKey: .width) ?? 0
+        self.height = try c.decodeIfPresent(Int.self, forKey: .height) ?? 0
+        self.capturedAt = try c.decodeIfPresent(Date.self, forKey: .capturedAt) ?? Date()
+        self.imageData = nil
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(status, forKey: .status)
+        try c.encodeIfPresent(filename, forKey: .filename)
+        try c.encode(mimeType, forKey: .mimeType)
+        try c.encode(width, forKey: .width)
+        try c.encode(height, forKey: .height)
+        try c.encode(capturedAt, forKey: .capturedAt)
+    }
+}
+
+enum ScreenshotCaptureStatus: String, Codable {
+    case captured
+    case disabled
+    case denied
+    case unavailable
+    case failed
+}
+
+struct ContextSummary: Codable {
+    let model: String
+    let prompt: String
+    let text: String
+    let latencyMs: Int
 }
 
 /// High-level app category. Coarse on purpose — fine-grained "exactly which
