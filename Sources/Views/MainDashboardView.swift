@@ -2508,6 +2508,12 @@ final class FloatingChipModel: ObservableObject {
     /// hosting `NSView` reads it in `hitTest(_:)` to return `nil` outside
     /// the rect, which lets clicks fall through to the window below.
     @Published var chipHitBounds: CGRect = .zero
+
+    /// True when the global mouse monitor detects the cursor within ~20pt
+    /// of the chip pill. Drives hover-reveal of side buttons so the entire
+    /// chip area (including transparent window padding) responds to proximity
+    /// — not just the narrow visible pill hit area.
+    @Published var isMouseNear: Bool = false
 }
 
 /// Preference key that ferries the chip pill's visible bounds from the
@@ -2649,6 +2655,96 @@ final class FloatingChipWindow: NSPanel {
         UserDefaults.standard.set("\(origin.x),\(origin.y)", forKey: Self.originKey)
     }
 
+    // MARK: - Global mouse proximity monitor
+    //
+    // Root cause of two bugs:
+    //   1. Click-through failure: `ignoresMouseEvents = false` causes the
+    //      WindowServer to route ALL events inside the 420×40 frame to this
+    //      process — hitTest returning nil only affects intra-process view
+    //      dispatch; it does NOT forward events to other processes (system
+    //      dialogs like the TCC accessibility prompt live in a daemon process).
+    //   2. Hover dead-zone: SwiftUI onHover only fires inside regions where
+    //      hitTest is non-nil, so the transparent padding around the pill
+    //      never triggers hover expansion.
+    //
+    // Fix: global NSEvent monitor observes mouse position regardless of
+    // ignoresMouseEvents state. When the cursor is far from the chip:
+    //   ignoresMouseEvents = true  → ALL events fall through to any window,
+    //   including TCC/system dialogs in foreign processes.
+    // When the cursor is near:
+    //   ignoresMouseEvents = false → chip is live; SwiftUI onHover fires;
+    //   hitTest still returns nil for the transparent padding so clicks
+    //   there don't get captured.
+    //
+    // model.isMouseNear drives hover-reveal of side buttons for the FULL
+    // proximity zone, not just the narrow pill hit area.
+
+    private var globalMouseMonitor: Any?
+
+    private func startMouseProximityTracking() {
+        // Start with events ignored so the window is fully pass-through
+        // until the monitor first fires and evaluates proximity.
+        self.ignoresMouseEvents = true
+
+        globalMouseMonitor = NSEvent.addGlobalMonitorForEvents(
+            matching: [.mouseMoved, .leftMouseDragged, .rightMouseDragged]
+        ) { [weak self] _ in
+            self?.updateProximity()
+        }
+    }
+
+    private func updateProximity() {
+        let mouse = NSEvent.mouseLocation
+        let near = isMouseNearChip(at: mouse)
+        if model.isMouseNear != near {
+            model.isMouseNear = near
+        }
+        // Toggle pass-through. When near: receive events so buttons work.
+        // When far: ignore everything so system dialogs pass through.
+        if self.ignoresMouseEvents == near {
+            self.ignoresMouseEvents = !near
+        }
+    }
+
+    /// True when the cursor is within an expanded hit zone around the
+    /// chip pill (~20pt padding). Uses chipHitBounds when SwiftUI has
+    /// published it; falls back to a conservative centre-of-window rect
+    /// before first layout.
+    private func isMouseNearChip(at location: NSPoint) -> Bool {
+        let chipBounds = model.chipHitBounds
+        let chipScreenRect: NSRect
+        if chipBounds == .zero {
+            // Before first SwiftUI layout: approximate the centre pill.
+            let w = Self.windowSize.width
+            let h = Self.windowSize.height
+            chipScreenRect = NSRect(x: frame.origin.x + (w - 80) / 2,
+                                    y: frame.origin.y + (h - 30) / 2,
+                                    width: 80, height: 30)
+        } else {
+            chipScreenRect = chipBoundsInScreenCoords(chipBounds)
+        }
+        return chipScreenRect.insetBy(dx: -20, dy: -16).contains(location)
+    }
+
+    /// Convert chipHitBounds from SwiftUI view-space (top-left origin,
+    /// NSHostingView.isFlipped == true) to AppKit screen space (bottom-left).
+    private func chipBoundsInScreenCoords(_ bounds: CGRect) -> NSRect {
+        let winOrigin = frame.origin
+        let winH      = frame.height
+        return NSRect(
+            x: winOrigin.x + bounds.minX,
+            y: winOrigin.y + (winH - bounds.maxY),
+            width:  bounds.width,
+            height: bounds.height
+        )
+    }
+
+    deinit {
+        if let monitor = globalMouseMonitor {
+            NSEvent.removeMonitor(monitor)
+        }
+    }
+
     override var canBecomeKey: Bool { false }
     override var canBecomeMain: Bool { false }
 
@@ -2660,6 +2756,11 @@ final class FloatingChipWindow: NSPanel {
             self.repositionToBottom()
             self.alphaValue = 1
             self.orderFrontRegardless()
+            // Start the proximity monitor once (idempotent: guard prevents
+            // double-install if show() is called more than once).
+            if self.globalMouseMonitor == nil {
+                self.startMouseProximityTracking()
+            }
         }
     }
 
@@ -2840,11 +2941,17 @@ final class FloatingChipWindow: NSPanel {
                 let x = CGFloat(parts[0])
                 let y = CGFloat(parts[1])
                 let candidate = NSRect(x: x, y: y, width: size.width, height: size.height)
-                // Only restore if at least 50% of the chip would be on
-                // a connected screen — protects against display unplugs
-                // putting the chip somewhere unreachable.
+                // Guard 1: at least 50% of the chip must be on a connected
+                // screen (protects against display unplugs).
                 let onScreen = NSScreen.screens.contains { $0.visibleFrame.intersects(candidate) }
-                if onScreen {
+                // Guard 2: reject saved positions in the top 30% of the
+                // screen. A chip dragged up near the menu bar / notch area
+                // overlaps system dialogs (TCC prompts appear at center-screen
+                // or upper-center) and blocks clicks to them. Reset to the
+                // safe bottom-dock zone if the saved Y is too high.
+                let topThreshold = visible.maxY - visible.height * 0.3
+                let isTooHigh = y > topThreshold
+                if onScreen && !isTooHigh {
                     self.setFrame(candidate, display: true)
                     return
                 }
@@ -2940,6 +3047,10 @@ extension View {
 /// AppDelegate when fn-press happens without a text-input focus.
 struct FloatingChipView: View {
     @ObservedObject var model: FloatingChipModel
+    // `hovering` is kept for intra-pill onHover cursor changes (openHand),
+    // but hover-expand logic now reads `model.isMouseNear` which is driven
+    // by the AppKit global mouse monitor and fires for the full proximity
+    // zone — not just the narrow visible pill.
     @State private var hovering = false
 
     var body: some View {
@@ -3099,7 +3210,13 @@ struct FloatingChipView: View {
     /// the gap between pill and a button would unmount it (because
     /// neither child's onHover would fire), causing flicker.
     private var idleChip: some View {
-        HStack(spacing: 6) {
+        // isExpanded reads from the global proximity model so ANY mouse
+        // approach within ~20pt of the chip triggers expansion — not just
+        // hover directly over the pill. This fixes the "hover on whole chip"
+        // issue where onHover only fired inside the narrow visible pill.
+        let isExpanded = model.isMouseNear
+
+        return HStack(spacing: 6) {
             // Left button — Run Log (clock+arrow icon, matches the sidebar)
             Button {
                 NotificationCenter.default.post(name: Notification.Name("VoiceFlow.OpenRunLog"), object: nil)
@@ -3117,10 +3234,10 @@ struct FloatingChipView: View {
             }
             .buttonStyle(.plain)
             .help("Open Run Log")
-            .opacity(hovering ? 1 : 0)
-            .scaleEffect(hovering ? 1 : 0.4, anchor: .trailing)
-            .offset(x: hovering ? 0 : 8)
-            .allowsHitTesting(hovering)
+            .opacity(isExpanded ? 1 : 0)
+            .scaleEffect(isExpanded ? 1 : 0.4, anchor: .trailing)
+            .offset(x: isExpanded ? 0 : 8)
+            .allowsHitTesting(isExpanded)
 
             // Main pill. Two visual modes:
             //  • Hovered    → full 58×22 capsule with waveform glyph (clickable
@@ -3138,7 +3255,7 @@ struct FloatingChipView: View {
                 }
             } label: {
                 HStack(spacing: 0) {
-                    if hovering {
+                    if isExpanded {
                         Image(systemName: "waveform")
                             .font(.system(size: 13, weight: .semibold))
                             .foregroundColor(.white)
@@ -3146,8 +3263,8 @@ struct FloatingChipView: View {
                     }
                 }
                 .frame(
-                    width:  hovering ? 64 : 40,
-                    height: hovering ? 24 : 4
+                    width:  isExpanded ? 64 : 40,
+                    height: isExpanded ? 24 : 4
                 )
                 // Solid dark-grey fill in BOTH variants — no transparency.
                 // Visible on white backgrounds (as a dark shape) AND on
@@ -3163,11 +3280,11 @@ struct FloatingChipView: View {
                     Capsule(style: .continuous)
                         .strokeBorder(
                             Color.chipBorder,
-                            lineWidth: hovering ? 1 : 0.5
+                            lineWidth: isExpanded ? 1 : 0.5
                         )
                 )
                 .overlay(alignment: .topTrailing) {
-                    if !model.hasAllPermissions && hovering {
+                    if !model.hasAllPermissions && isExpanded {
                         Circle()
                             .fill(Theme.accent)
                             .frame(width: 7, height: 7)
@@ -3176,7 +3293,7 @@ struct FloatingChipView: View {
                             )
                             .offset(x: 2, y: -2)
                             .transition(.scale.combined(with: .opacity))
-                    } else if !model.hasAllPermissions && !hovering {
+                    } else if !model.hasAllPermissions && !isExpanded {
                         // Slim mode: tint the slim bar orange instead of
                         // showing a separate dot — same signal, fits the
                         // small footprint.
@@ -3207,22 +3324,17 @@ struct FloatingChipView: View {
             }
             .buttonStyle(.plain)
             .help("Open Settings")
-            .opacity(hovering ? 1 : 0)
-            .scaleEffect(hovering ? 1 : 0.4, anchor: .leading)
-            .offset(x: hovering ? 0 : -8)
-            .allowsHitTesting(hovering)
+            .opacity(isExpanded ? 1 : 0)
+            .scaleEffect(isExpanded ? 1 : 0.4, anchor: .leading)
+            .offset(x: isExpanded ? 0 : -8)
+            .allowsHitTesting(isExpanded)
         }
-        // Hit area — height is fixed at 30pt so hover still works on the
-        // slim 4pt chip; width is the natural HStack content width
-        // (~88pt slim, ~136pt hovered) so the surrounding panel padding
-        // stays click-through. Used to be `width: 180` to give the
-        // cursor a wider runway, but that artificially extended the
-        // window's draggable area past the visible pill — confusingly
-        // swallowing clicks meant for whatever was behind it.
         .frame(height: 30)
         .contentShape(Rectangle())
+        // Keep onHover for the openHand cursor inside the pill. Expansion
+        // state is driven by model.isMouseNear (global monitor) not by this.
         .onHover { hovering = $0 }
-        .animation(.spring(response: 0.28, dampingFraction: 0.78), value: hovering)
+        .animation(.spring(response: 0.28, dampingFraction: 0.78), value: isExpanded)
     }
 
     // MARK: Recording — pill with live waveform

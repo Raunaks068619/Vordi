@@ -55,23 +55,49 @@ final class RecordingOverlayWindow: NSPanel {
     override var canBecomeKey: Bool { false }
     override var canBecomeMain: Bool { false }
 
-    /// Final resting position: centered horizontally, sitting just below the
-    /// menu bar (and notch on notched MacBooks).
+    /// Final resting position: centered horizontally, anchored at the notch.
     ///
-    /// We anchor to `visibleFrame.maxY` rather than `frame.maxY`. On notched
-    /// MacBooks, `frame.maxY` is the absolute top of the display panel —
-    /// which is the camera notch hole. Positioning content there gets the
-    /// middle of the chip clipped by the notch hardware. `visibleFrame.maxY`
-    /// already accounts for both the menu bar AND the notch overlap, so
-    /// anchoring there guarantees the chip sits in usable screen real estate.
+    /// OpenClicky pattern: on notched MacBooks, use `screen.frame.maxY`
+    /// (raw display top) minus chip height, with 2 pt of overlap so the
+    /// chip tucks slightly into the notch safe area and visually reads as
+    /// "emerging from" the notch. The 2 pt overlap hides the seam between
+    /// the chip's rounded top corners and the physical notch cutout.
     ///
-    /// Gap: 4pt of breathing room below the menu bar so the chip doesn't
-    /// look fused to it.
+    /// On non-notched Macs or macOS < 12, fall back to the original
+    /// visibleFrame anchor (just below the menu bar).
     private func finalFrame(on screen: NSScreen) -> NSRect {
-        let x = screen.frame.midX - overlaySize.width / 2
-        let topAvailable = screen.visibleFrame.maxY
-        let y = topAvailable - overlaySize.height - 4
-        return NSRect(origin: NSPoint(x: x, y: y), size: overlaySize)
+        let size = currentOverlaySize(for: screen)
+        let x = screen.frame.midX - size.width / 2
+        let y: CGFloat
+        if #available(macOS 12.0, *), screen.safeAreaInsets.top > 0 {
+            // Notched Mac: tuck 2pt into the notch for a seamless look.
+            y = screen.frame.maxY - size.height + 2
+        } else {
+            // Non-notched Mac or older macOS: sit just below the menu bar.
+            y = screen.visibleFrame.maxY - size.height - 4
+        }
+        return NSRect(origin: NSPoint(x: x, y: y), size: size)
+    }
+
+    /// Compute chip size that fits the physical notch on notched Macs.
+    /// Falls back to `overlaySize` if the notch cannot be measured.
+    private func currentOverlaySize(for screen: NSScreen) -> NSSize {
+        if #available(macOS 12.0, *),
+           let leftArea  = screen.auxiliaryTopLeftArea,
+           let rightArea = screen.auxiliaryTopRightArea,
+           !leftArea.isEmpty, !rightArea.isEmpty {
+            let notchWidth = rightArea.minX - leftArea.maxX
+            if notchWidth > 40 {
+                // Chip is 8pt narrower than the notch so rounded corners
+                // don't clash with the notch's own corners.
+                let w = max(notchWidth - 8, 120)
+                // Height: safeAreaInsets.top is the full notch inset.
+                // Subtract 2 for the tuck-in so content stays in-bounds.
+                let h = min(max(screen.safeAreaInsets.top - 2, 32), 38)
+                return NSSize(width: w, height: h)
+            }
+        }
+        return overlaySize
     }
 
     /// Shows the chip with a FreeFlow-style slide-in from above.
@@ -87,9 +113,10 @@ final class RecordingOverlayWindow: NSPanel {
             let final = self.finalFrame(on: screen)
 
             // Start hidden above the screen edge (the chip "drops in").
+            // Use the same width/height so the animation doesn't resize mid-flight.
             let hidden = NSRect(
                 x: final.origin.x,
-                y: screen.frame.maxY,
+                y: screen.frame.maxY + final.height,
                 width: final.width,
                 height: final.height
             )
@@ -185,7 +212,7 @@ struct RecordingOverlayView: View {
             content
                 .padding(.horizontal, 14)
         }
-        .frame(width: 160, height: 38)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .animation(.spring(response: 0.28, dampingFraction: 0.8), value: model.state)
     }
 
