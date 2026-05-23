@@ -78,11 +78,12 @@ body{
   border-radius:0 0 22px 22px;
   overflow:hidden;
 
-  /* Base = wider than notch so left/right gap is always visible */
-  width:220px;
-  min-height:32px;
+  /* Base = wider than notch so left/right gap is always visible.
+     Width from Swift: max(248, 162+63) = 248pt. Height = notch(32) + surfaceHeightExtension(4) = 36pt. */
+  width:248px;
+  min-height:36px;
   /* max-height collapses the pill in closed states; open state uses content height */
-  max-height:32px;
+  max-height:36px;
 
   display:flex;
   flex-direction:column;
@@ -95,14 +96,17 @@ body{
 }
 
 /* ── State widths + max-heights ───────────────────────── */
-.vf-pill.s-idle       { width:220px;  max-height:32px;  }
-.vf-pill.s-proximity  { width:268px;  max-height:32px;  }
-.vf-pill.s-listening  { width:360px;  max-height:32px;  }
-/* listening + inline transcript: grow to show the strip */
-.vf-pill.s-listening.has-transcript { max-height:62px; }
-.vf-pill.s-thinking   { width:360px;  max-height:32px;  }
-.vf-pill.s-done       { width:320px;  max-height:32px;  }
-.vf-pill.s-error      { width:364px;  max-height:32px;  }
+/* Widths from Swift DynamicNotchWindow:
+   idle=248pt (defaultPillWidth), listening/thinking=354pt (162+96×2),
+   done=320pt, error/open=364pt. Row height=36pt (notch32+surfaceExt4). */
+.vf-pill.s-idle       { width:248px;  max-height:36px;  }
+.vf-pill.s-proximity  { width:268px;  max-height:36px;  }
+.vf-pill.s-listening  { width:354px;  max-height:36px;  }
+/* listening + inline transcript: 36px pill row + 30px strip */
+.vf-pill.s-listening.has-transcript { max-height:66px; }
+.vf-pill.s-thinking   { width:354px;  max-height:36px;  }
+.vf-pill.s-done       { width:320px;  max-height:36px;  }
+.vf-pill.s-error      { width:364px;  max-height:36px;  }
 /* panel open: no fixed height — content determines actual height */
 .vf-pill.s-open       { width:364px;  max-height:600px; border-radius:0 0 22px 22px; }
 
@@ -118,9 +122,9 @@ body{
 .vf-pill.s-done::after        { background:#22c55e; opacity:.48; }
 .vf-pill.s-error::after       { background:#f59e0b; opacity:.38; }
 
-/* ── Pill row — always 32px, content anchored LEFT ───── */
+/* ── Pill row — 36px (Swift: notch 32pt + surfaceHeightExtension 4pt) ── */
 .pill-row{
-  height:32px;min-height:32px;flex-shrink:0;
+  height:36px;min-height:36px;flex-shrink:0;
   display:flex;align-items:center;
   padding:0 13px;
   cursor:pointer;

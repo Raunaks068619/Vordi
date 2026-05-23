@@ -28,6 +28,11 @@ echo "Installing to $INSTALL_DIR..."
 rm -rf "$INSTALL_DIR/$APP_NAME.app"
 cp -R "$BUILT_APP" "$INSTALL_DIR/$APP_NAME.app"
 
+echo "Signing installed app with local entitlements..."
+codesign --force --deep --options runtime \
+  --entitlements "$PROJECT_DIR/Resources/VoiceFlow.entitlements" \
+  --sign - "$INSTALL_DIR/$APP_NAME.app"
+
 echo "Launching..."
 open "$INSTALL_DIR/$APP_NAME.app"
 

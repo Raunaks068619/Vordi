@@ -20,7 +20,9 @@ pkill -f "/$APP_NAME.app" 2>/dev/null || true
 
 rm -rf "$INSTALLED_APP"
 ditto "$BUILT_APP" "$INSTALLED_APP"
-codesign --force --deep --sign - --entitlements "$PROJECT_DIR/Resources/VoiceFlow.entitlements" "$INSTALLED_APP"
+codesign --force --deep --options runtime \
+  --entitlements "$PROJECT_DIR/Resources/VoiceFlow.entitlements" \
+  --sign - "$INSTALLED_APP"
 
 open "$INSTALLED_APP"
 pgrep -fl "$INSTALLED_APP/Contents/MacOS/$APP_NAME" || true

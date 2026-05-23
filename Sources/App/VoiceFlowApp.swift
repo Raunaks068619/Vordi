@@ -348,11 +348,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
     var settingsWindow: NSWindow?
     var onboardingWindow: NSWindow?
     var mainWindow: NSWindow?
-    var recordingOverlay: RecordingOverlayWindow?
-    /// Persistent bottom-of-screen chip — separate from the notch chip.
-    /// The notch chip appears DURING recording; this one is always-on as
-    /// an "I'm here" affordance and morphs to a warning when the focused
-    /// UI element isn't a text input.
+    /// Persistent feedback surfaces. Only one is visible at a time,
+    /// controlled by Settings -> Feedback Surface.
+    var notchPill: NotchPillWindow?
     var floatingChip: FloatingChipWindow?
     var audioRecorder: AudioRecorder?
     var whisperService: WhisperService?
@@ -485,7 +483,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
                 // "YOUR TRANSCRIPT" card via the RunStore observer.
                 if self.onboardingWindow?.isVisible == true { return }
 
-                self.floatingChip?.flashNoInputWarning(durationSeconds: 4.5)
+                self.activeFeedbackSurface()?.flashNoInputWarning(durationSeconds: 4.5)
             }
         }
         hotKeyListener = HotKeyListener()
@@ -552,16 +550,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
             openOnboardingIfNeeded(force: true, initialStep: .permissions)
         }
 
-        // Floating chip — always-on bottom-of-screen presence. We install
-        // it from second 1, regardless of onboarding state. Two reasons:
-        //   (a) discoverability — user sees the app exists even before
-        //       finishing setup;
-        //   (b) when fn is pressed without permissions, the chip is the
-        //       surface that tells the user "click here to fix it."
-        // The chip's passive orange dot indicator + permissions-warning
-        // state cover the "not ready yet" UX without hiding the chrome.
-        installFloatingChip()
-        // Initial state push — chip needs to know if it should show
+        // Feedback surface — always-on presence. The user can choose
+        // between the notch-docked pill and the draggable bottom chip.
+        // We install it from second 1, regardless of onboarding state,
+        // so permission and recording feedback always has a visible surface.
+        installFeedbackSurface()
+        // Initial state push — pill needs to know if it should show
         // the orange dot at first paint, before any permission change
         // notification fires.
         refreshChipPermissionState()
@@ -577,7 +571,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
             LLMRouter.shared.start()
         }
 
-        // Notification routing for chip side-buttons. SwiftUI views post
+        // Notification routing for notch pill taps. SwiftUI views post
         // names when their buttons are tapped; AppDelegate is the
         // single place that knows how to open windows.
         NotificationCenter.default.addObserver(
@@ -626,6 +620,13 @@ class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
             object: nil,
             queue: .main
         ) { [weak self] _ in self?.openOnboardingIfNeeded(force: true) }
+        NotificationCenter.default.addObserver(
+            forName: .voiceFlowFeedbackSurfaceStyleChanged,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            self?.applyFeedbackSurfacePreference()
+        }
         // App regained focus (typically: user came back from System Settings
         // after granting a permission). Re-poll TCC state so the chip's
         // orange dot disappears the moment they fixed the missing perm.
@@ -649,7 +650,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
             object: nil,
             queue: .main
         ) { [weak self] _ in
-            self?.floatingChip?.setIdle()
+            self?.activeFeedbackSurface()?.setIdle()
             self?.textInjector?.restorePreservedClipboard()
         }
         // Returning users: stay menu-bar only. Window is reachable via Dock
@@ -746,6 +747,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
         if UserDefaults.standard.object(forKey: Self.realtimeStreamingKey) == nil {
             UserDefaults.standard.set(true, forKey: Self.realtimeStreamingKey)
         }
+        if UserDefaults.standard.string(forKey: FeedbackSurfaceStyle.userDefaultsKey) == nil {
+            UserDefaults.standard.set(
+                FeedbackSurfaceStyle.dynamicNotch.rawValue,
+                forKey: FeedbackSurfaceStyle.userDefaultsKey
+            )
+        }
     }
 
     func applicationWillTerminate(_ notification: Notification) {
@@ -803,13 +810,54 @@ class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
         }
     }
 
-    /// Spawn the persistent floating chip window. Idempotent — safe to
-    /// call multiple times.
-    func installFloatingChip() {
-        if floatingChip == nil {
-            floatingChip = FloatingChipWindow()
+    /// Spawn the preferred feedback surface. Idempotent and safe to call often.
+    func installFeedbackSurface() {
+        switch FeedbackSurfaceStyle.current {
+        case .dynamicNotch:
+            floatingChip?.setIdle()
+            floatingChip?.hide()
+            if notchPill == nil {
+                notchPill = NotchPillWindow()
+            }
+            notchPill?.show()
+        case .draggableChip:
+            notchPill?.setIdle()
+            notchPill?.hide()
+            if floatingChip == nil {
+                floatingChip = FloatingChipWindow()
+            }
+            floatingChip?.show()
         }
-        floatingChip?.show()
+    }
+
+    private func activeFeedbackSurface() -> FeedbackSurface? {
+        switch FeedbackSurfaceStyle.current {
+        case .dynamicNotch:
+            if notchPill == nil {
+                installFeedbackSurface()
+            }
+            return notchPill
+        case .draggableChip:
+            if floatingChip == nil {
+                installFeedbackSurface()
+            }
+            return floatingChip
+        }
+    }
+
+    private func applyFeedbackSurfacePreference() {
+        notchPill?.hide()
+        floatingChip?.hide()
+        installFeedbackSurface()
+        refreshChipPermissionState()
+
+        if isRecording {
+            if handsFreeState == .on {
+                activeFeedbackSurface()?.setHandsFree()
+            } else {
+                activeFeedbackSurface()?.setRecording()
+            }
+        }
     }
 
     /// Sync the chip's passive permission indicator with the current TCC
@@ -822,7 +870,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
     func refreshChipPermissionState() {
         permissionService.refreshStatus()
         let allGranted = permissionService.allRequiredGranted
-        floatingChip?.setPermissionsAvailable(allGranted)
+        activeFeedbackSurface()?.setPermissionsAvailable(allGranted)
 
         // Belt-and-suspenders: re-check after 0.6s. TCC sometimes lags
         // refreshStatus; a single poll right after grant can read stale.
@@ -831,7 +879,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
             guard let self = self else { return }
             self.permissionService.refreshStatus()
             let recheck = self.permissionService.allRequiredGranted
-            self.floatingChip?.setPermissionsAvailable(recheck)
+            self.activeFeedbackSurface()?.setPermissionsAvailable(recheck)
         }
     }
 
@@ -974,12 +1022,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
                     UserDefaults.standard.set(true, forKey: "has_completed_onboarding")
                     self?.onboardingWindow?.close()
                     self?.onboardingWindow = nil
-                    // Chip is now installed from app launch — no longer
-                    // need to lazy-init here. installFloatingChip is
+                    // Feedback surface is now installed from app launch — no longer
+                    // need to lazy-init here. installFeedbackSurface is
                     // idempotent so calling again is harmless, but we
                     // do refresh permission state since the user just
                     // walked through the permissions step.
-                    self?.installFloatingChip()
+                    self?.installFeedbackSurface()
                     self?.refreshChipPermissionState()
                     // First-run only: surface the dashboard once so the user
                     // discovers it exists. Without this, onboarding closes
@@ -1038,7 +1086,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
         // normally — same path as a manual hold-release.
         if handsFreeState == .on {
             handsFreeState = .off
-            floatingChip?.setHandsFreeExitedAnimating()
+            activeFeedbackSurface()?.setHandsFreeExitedAnimating()
             if isRecording {
                 isRecording = false
                 stopRecording()
@@ -1073,12 +1121,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
             // already set isRecording=false in handleHotKeyUp.
             if !isRecording {
                 isRecording = true
-                floatingChip?.setHandsFree()
+                activeFeedbackSurface()?.setHandsFree()
                 startRecording()
             } else {
                 // Edge: pipeline lingered. Just push the chip into
                 // hands-free state; isRecording is already true.
-                floatingChip?.setHandsFree()
+                activeFeedbackSurface()?.setHandsFree()
             }
             lastFnPressAt = now
             return
@@ -1118,7 +1166,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
         guard handsFreeState == .on else { return }
         print("Escape pressed → exiting hands-free mode")
         handsFreeState = .off
-        floatingChip?.setHandsFreeExitedAnimating()
+        activeFeedbackSurface()?.setHandsFreeExitedAnimating()
         if isRecording {
             isRecording = false
             stopRecording()
@@ -1225,7 +1273,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
                !perms.inputMonitoringState.isGranted {
                 print("Aborting recording: required permissions missing")
                 self.isRecording = false
-                self.floatingChip?.flashPermissionsWarning()
+                self.activeFeedbackSurface()?.flashPermissionsWarning(durationSeconds: 5.0)
                 return
             }
 
@@ -1241,7 +1289,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
             // TextInjector. If injection can't land in a real text input,
             // the transcript still goes to the clipboard and the warning
             // chip flashes with paste instructions.
-            self.showRecordingOverlay()
+            self.showRecordingFeedback()
             // Spin up realtime streaming BEFORE starting the tap so the
             // PCM16 callback is already set. If the flag is off, skip
             // entirely — we don't want to pay WebSocket connect cost for
@@ -1257,7 +1305,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
                 // "no permission" case.
                 print("Audio engine failed to start despite granted mic permission")
                 self.isRecording = false
-                self.hideRecordingOverlay()
+                self.hideRecordingFeedback()
                 NSSound.beep()
             }
         }
@@ -1268,9 +1316,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
             guard let self else { return }
             // Recording stopped, polish/transcription in flight → processing.
             // The floating chip stays in this state until handleResult
-            // completes (success or failure), which calls hideRecordingOverlay
+            // completes (success or failure), which calls hideRecordingFeedback
             // → setIdle.
-            self.floatingChip?.setProcessing()
+            self.activeFeedbackSurface()?.setProcessing()
 
             // Begin a RunLog session to accumulate pipeline data.
             let session = self.runRecorder.beginRun()
@@ -1319,8 +1367,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
                         self.pendingContext = nil
                         self.pendingContextSummaryTask?.cancel()
                         self.pendingContextSummaryTask = nil
-                        self.hideRecordingOverlay()
-                        self.floatingChip?.flashNoAudioWarning(durationSeconds: 3.0)
+                        self.hideRecordingFeedback()
+                        self.activeFeedbackSurface()?.flashNoAudioWarning(durationSeconds: 3.0)
                     }
                     return
                 }
@@ -1384,13 +1432,13 @@ class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
                         if self.discardNextResult {
                             self.discardNextResult = false
                             print("Discarding phantom first-tap result (hands-free entered)")
-                            // Don't call hideRecordingOverlay — chip is
+                            // Don't call hideRecordingFeedback — chip is
                             // already in .handsFree state, owned by the
                             // new recording cycle.
                             return
                         }
 
-                        self.hideRecordingOverlay()
+                        self.hideRecordingFeedback()
                         switch result {
                         case .success(let metadata):
                             // Stage 2: Transcription
@@ -1461,6 +1509,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
                             self.pendingContextSummaryTask = nil
                             print("Transcription error: \(error)")
                             session.fail(reason: Self.shortErrorDescription(error))
+                            self.activeFeedbackSurface()?.flashNoOutputWarning(durationSeconds: 4.0)
                         }
                     }
                 }
@@ -1626,9 +1675,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else {
             print("Empty transcript (likely hallucination-filtered); nothing to inject.")
-            floatingChip?.flashNoOutputWarning(durationSeconds: 4.0)
+            activeFeedbackSurface()?.flashNoOutputWarning(durationSeconds: 4.0)
             return
         }
+        self.activeFeedbackSurface()?.setDone()
         self.textInjector?.injectText(trimmed, targetBundleIdentifier: targetBundleIdentifier)
     }
 
@@ -1650,6 +1700,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
         realtimeStream = nil
         realtimeStreamFailed = false
         audioRecorder?.onPCM16Samples = nil
+        activeFeedbackSurface()?.setLiveTranscript("")
 
         guard UserDefaults.standard.bool(forKey: Self.realtimeStreamingKey) else { return }
 
@@ -1692,6 +1743,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
         let stream = RealtimeTranscriptionService(config: config)
         realtimeStream = stream
         realtimeStreamStart = CFAbsoluteTimeGetCurrent()
+        stream.onPartial = { [weak self] text in
+            DispatchQueue.main.async {
+                self?.activeFeedbackSurface()?.setLiveTranscript(text)
+            }
+        }
 
         // Wire the PCM16 pump. We buffer chunks while the socket is still
         // connecting; once connect completes, the audio already in-flight
@@ -1718,36 +1774,36 @@ class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
         }
     }
 
-    /// Recording-state UI lives in the bottom floating chip. The notch
-    /// chip (`recordingOverlay`) is silenced — bottom chip is the only
-    /// indicator. Focus check happens UPSTREAM in `startRecording`; by
-    /// the time this runs, we've already gated and confirmed a text
-    /// input exists.
+    /// Recording-state UI lives in the notch pill. Focus check happens
+    /// upstream in `startRecording`; by the time this runs, we've already
+    /// gated and confirmed a text input exists.
     let focusDetector = FocusDetector()
 
-    private func showRecordingOverlay() {
+    private func showRecordingFeedback() {
         // Hands-free mode owns the chip state — `setHandsFree()` was
         // already called when entering the mode, and the recording-state
         // visual should persist until the user explicitly exits. The
         // standard "setRecording" call would overwrite that.
         if handsFreeState == .on {
-            floatingChip?.setHandsFree()
+            activeFeedbackSurface()?.setHandsFree()
         } else {
-            floatingChip?.setRecording()
+            activeFeedbackSurface()?.setRecording()
         }
-        audioRecorder?.onAmplitude = { [weak chip = floatingChip] level in
-            chip?.updateAudioLevel(level)
+        let surface = activeFeedbackSurface()
+        audioRecorder?.onAmplitude = { [weak surface] level in
+            surface?.updateAudioLevel(level)
         }
     }
 
-    private func hideRecordingOverlay() {
+    private func hideRecordingFeedback() {
         audioRecorder?.onAmplitude = nil
+        activeFeedbackSurface()?.setLiveTranscript("")
         // Pipeline complete → back to idle. setProcessing() is called
         // separately at the moment fn is released (stopRecording).
         // If hands-free mode is still on we'd be ending it incorrectly
-        // — but by the time hideRecordingOverlay runs, handsFreeState
+        // — but by the time hideRecordingFeedback runs, handsFreeState
         // has already been flipped to .off by handleHotKeyDown /
         // handleEscapeKey, so this is safe.
-        floatingChip?.setIdle()
+        activeFeedbackSurface()?.setIdle()
     }
 }

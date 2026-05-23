@@ -66,7 +66,7 @@ h1{font-size:22px;font-weight:600;color:rgba(255,255,255,.85);letter-spacing:-.0
    SECTION 2 — 2× ZOOM DEAD ZONE ANATOMY
 ══════════════════════════════════════════════════════ */
 .anatomy-wrap{
-  position:relative;background:#3a3a3c;height:140px;overflow:visible;
+  position:relative;background:#3a3a3c;height:160px;overflow:visible;
 }
 .z-notch{
   position:absolute;top:0;left:50%;transform:translateX(-50%);
@@ -84,8 +84,9 @@ h1{font-size:22px;font-weight:600;color:rgba(255,255,255,.85);letter-spacing:-.0
 .z-mb-left .appname{font-weight:600;}
 .z-mb-right{margin-left:auto;display:flex;align-items:center;gap:20px;font-size:17px;color:rgba(255,255,255,.62);}
 .z-pill{
+  /* Swift idle: 248pt wide, 36pt tall → ×2 = 496×72px */
   position:absolute;top:0;left:50%;transform:translateX(-50%);
-  width:440px;height:64px;
+  width:496px;height:72px;
   background:#000;border-radius:0 0 44px 44px;z-index:20;
   display:flex;align-items:center;padding:0 26px;
 }
@@ -95,8 +96,9 @@ h1{font-size:22px;font-weight:600;color:rgba(255,255,255,.85);letter-spacing:-.0
   z-index:30;display:flex;align-items:center;justify-content:center;
 }
 .gap-ind .gl{font-size:10px;font-weight:700;color:#3b82f6;text-align:center;line-height:1.2;}
-.gap-l{left:50%;margin-left:-220px;width:58px;}
-.gap-r{right:50%;margin-right:-220px;width:58px;}
+/* gap = (248-162)/2 = 43pt each side → ×2 = 86px at 2× zoom */
+.gap-l{left:50%;margin-left:-248px;width:86px;}
+.gap-r{right:50%;margin-right:-248px;width:86px;}
 
 /* ══════════════════════════════════════════════════════
    SECTION 3 — DIMENSION REFERENCE TABLE
@@ -184,7 +186,8 @@ h1{font-size:22px;font-weight:600;color:rgba(255,255,255,.85);letter-spacing:-.0
   overflow:hidden;
 }
 .mp-row{
-  height:21px;flex-shrink:0;
+  /* Swift: notch(32pt)+surfaceExt(4pt)=36pt, × 0.65 scale = 23px */
+  height:23px;flex-shrink:0;
   display:flex;align-items:center;padding:0 8px;gap:5px;
 }
 /* VF logo micro (14×11 space) */
@@ -371,12 +374,12 @@ h1{font-size:22px;font-weight:600;color:rgba(255,255,255,.85);letter-spacing:-.0
           <rect x="15.5" y="5"  width="2.5" height="4"  rx="1.25" fill="white" opacity=".9"/>
         </svg>
       </div>
-      <div class="gap-ind gap-l"><div class="gl">gap<br>29px</div></div>
-      <div class="gap-ind gap-r"><div class="gl">gap<br>29px</div></div>
+      <div class="gap-ind gap-l"><div class="gl">gap<br>43px</div></div>
+      <div class="gap-ind gap-r"><div class="gl">gap<br>43px</div></div>
       <div style="position:absolute;bottom:10px;left:50%;transform:translateX(-50%);display:flex;gap:24px;z-index:50;white-space:nowrap;">
         <div style="display:flex;align-items:center;gap:5px;font-size:11px;color:rgba(255,255,255,.38);"><div style="width:10px;height:10px;background:#000;border:1px solid rgba(255,255,255,.2);border-radius:2px"></div>Physical notch 162px — camera dead zone</div>
-        <div style="display:flex;align-items:center;gap:5px;font-size:11px;color:rgba(255,255,255,.38);"><div style="width:10px;height:10px;background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.25);border-radius:2px"></div>VF pill idle 220px</div>
-        <div style="display:flex;align-items:center;gap:5px;font-size:11px;color:rgba(59,130,246,.7);"><div style="width:10px;height:10px;background:rgba(59,130,246,.2);border:1px dashed rgba(59,130,246,.6);border-radius:2px"></div>29px gap each side</div>
+        <div style="display:flex;align-items:center;gap:5px;font-size:11px;color:rgba(255,255,255,.38);"><div style="width:10px;height:10px;background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.25);border-radius:2px"></div>VF pill idle 248px</div>
+        <div style="display:flex;align-items:center;gap:5px;font-size:11px;color:rgba(59,130,246,.7);"><div style="width:10px;height:10px;background:rgba(59,130,246,.2);border:1px dashed rgba(59,130,246,.6);border-radius:2px"></div>43px gap each side</div>
       </div>
     </div>
   </div>
@@ -392,10 +395,10 @@ h1{font-size:22px;font-weight:600;color:rgba(255,255,255,.85);letter-spacing:-.0
         <div class="dim-note">— MacBook Pro 14" — camera dead zone, nothing renders here</div>
       </div>
       <div class="dim-row">
-        <div class="dim-val">220 px</div>
-        <div class="dim-bar" style="width:220px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.18)"></div>
+        <div class="dim-val">248 px</div>
+        <div class="dim-bar" style="width:248px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.18)"></div>
         <div>Idle</div>
-        <div class="dim-note">— 29 px visible gap each side</div>
+        <div class="dim-note">— Swift: max(248, 162+63)=248pt · 43 px visible gap each side</div>
       </div>
       <div class="dim-row">
         <div class="dim-val">268 px</div>
@@ -410,16 +413,16 @@ h1{font-size:22px;font-weight:600;color:rgba(255,255,255,.85);letter-spacing:-.0
         <div class="dim-note">— "Done" label left + green ✓ tick right · 79 px gap each side · auto-returns to idle after 2 s</div>
       </div>
       <div class="dim-row">
-        <div class="dim-val">360 px</div>
-        <div class="dim-bar" style="width:360px;background:rgba(59,130,246,.1);border:1px solid rgba(59,130,246,.28)"></div>
+        <div class="dim-val">354 px</div>
+        <div class="dim-bar" style="width:354px;background:rgba(59,130,246,.1);border:1px solid rgba(59,130,246,.28)"></div>
         <div>Listening &amp; Thinking</div>
-        <div class="dim-note">— 99 px visible gap each side · Listening: waveform bars right · Thinking: white bounce dots right</div>
+        <div class="dim-note">— Swift: 162 + 96×2 = 354pt · 96 px visible gap each side · Listening: waveform bars right · Thinking: white bounce dots right</div>
       </div>
       <div class="dim-row">
         <div class="dim-val">364 px</div>
         <div class="dim-bar" style="width:364px;background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.22)"></div>
         <div>Error mini &amp; Panel open (width)</div>
-        <div class="dim-note">— Error mini: single-line ~67 px total (pill row + amber message line) · Panel: content-driven ~130–225 px</div>
+        <div class="dim-note">— Error mini: single-line ~71 px total (36px pill row + 35px amber line) · Panel: content-driven ~130–225 px</div>
       </div>
     </div>
   </div>
@@ -434,13 +437,13 @@ h1{font-size:22px;font-weight:600;color:rgba(255,255,255,.85);letter-spacing:-.0
       <div class="sc">
         <div class="sc-head">
           <span class="sc-name">Idle</span>
-          <span class="sc-badge">220 px wide</span>
+          <span class="sc-badge">248 px wide</span>
         </div>
         <div class="sc-screen" style="min-height:68px;">
           <div class="ms"></div>
           <div class="mn"></div>
-          <!-- pill: 143px = 220×0.65 -->
-          <div class="mp" style="width:143px;">
+          <!-- pill: 161px = 248×0.65 (Swift defaultPillWidth=248pt) -->
+          <div class="mp" style="width:161px;">
             <div class="mp-row">
               <div class="vfl">
                 <span style="height:4px;margin-top:1px;"></span>
@@ -453,12 +456,12 @@ h1{font-size:22px;font-weight:600;color:rgba(255,255,255,.85);letter-spacing:-.0
           </div>
           <!-- dashed notch boundary overlay -->
           <div class="nd"></div>
-          <!-- gap indicators: (143-105)/2 = 19px each side -->
-          <div class="sc-gap" style="left:50%;margin-left:-71.5px;width:19px;border-right:none;"></div>
-          <div class="sc-gap" style="right:50%;margin-right:-71.5px;width:19px;border-left:none;"></div>
+          <!-- gap indicators: (161-105)/2 = 28px each side -->
+          <div class="sc-gap" style="left:50%;margin-left:-80.5px;width:28px;border-right:none;"></div>
+          <div class="sc-gap" style="right:50%;margin-right:-80.5px;width:28px;border-left:none;"></div>
         </div>
         <div class="sc-info">
-          <span class="sc-w">220 px <em>+29 each side</em></span>
+          <span class="sc-w">248 px <em>+43 each side</em></span>
           <span class="sc-desc">VF logo breathes.<br>Gap always visible.</span>
         </div>
       </div>
@@ -500,13 +503,13 @@ h1{font-size:22px;font-weight:600;color:rgba(255,255,255,.85);letter-spacing:-.0
       <div class="sc">
         <div class="sc-head">
           <span class="sc-name">Listening</span>
-          <span class="sc-badge blue">360 px wide</span>
+          <span class="sc-badge blue">354 px wide</span>
         </div>
         <div class="sc-screen" style="min-height:68px;">
           <div class="ms"></div>
           <div class="mn"></div>
-          <!-- 234px = 360×0.65 -->
-          <div class="mp glow-blue" style="width:234px;">
+          <!-- 230px = 354×0.65 (Swift: 162+96×2=354pt) -->
+          <div class="mp glow-blue" style="width:230px;">
             <div class="mp-row">
               <div class="vfl">
                 <span style="height:4px;margin-top:1px;"></span>
@@ -526,12 +529,12 @@ h1{font-size:22px;font-weight:600;color:rgba(255,255,255,.85);letter-spacing:-.0
             </div>
           </div>
           <div class="nd"></div>
-          <!-- gap: (234-105)/2 = 64.5px -->
-          <div class="sc-gap" style="left:50%;margin-left:-117px;width:64px;border-right:none;"></div>
-          <div class="sc-gap" style="right:50%;margin-right:-117px;width:64px;border-left:none;"></div>
+          <!-- gap: (230-105)/2 = 62.5px -->
+          <div class="sc-gap" style="left:50%;margin-left:-115px;width:62px;border-right:none;"></div>
+          <div class="sc-gap" style="right:50%;margin-right:-115px;width:62px;border-left:none;"></div>
         </div>
         <div class="sc-info">
-          <span class="sc-w">360 px <em>+99 each side</em></span>
+          <span class="sc-w">354 px <em>+96 each side</em></span>
           <span class="sc-desc">VF logo · "Listening" label left.<br>Waveform bars right, no ✕ abort.</span>
         </div>
       </div>
@@ -540,13 +543,13 @@ h1{font-size:22px;font-weight:600;color:rgba(255,255,255,.85);letter-spacing:-.0
       <div class="sc">
         <div class="sc-head">
           <span class="sc-name">Thinking</span>
-          <span class="sc-badge blue">360 px wide</span>
+          <span class="sc-badge blue">354 px wide</span>
         </div>
         <div class="sc-screen" style="min-height:68px;">
           <div class="ms"></div>
           <div class="mn"></div>
-          <!-- 234px = 360×0.65 -->
-          <div class="mp" style="width:234px;background:#000;">
+          <!-- 230px = 354×0.65 (Swift: 162+96×2=354pt) -->
+          <div class="mp" style="width:230px;background:#000;">
             <div class="mp-row">
               <div class="vfl">
                 <span style="height:4px;margin-top:1px;"></span>
@@ -562,12 +565,12 @@ h1{font-size:22px;font-weight:600;color:rgba(255,255,255,.85);letter-spacing:-.0
             </div>
           </div>
           <div class="nd"></div>
-          <!-- gap: (234-105)/2 = 64.5px -->
-          <div class="sc-gap" style="left:50%;margin-left:-117px;width:64px;border-right:none;"></div>
-          <div class="sc-gap" style="right:50%;margin-right:-117px;width:64px;border-left:none;"></div>
+          <!-- gap: (230-105)/2 = 62.5px -->
+          <div class="sc-gap" style="left:50%;margin-left:-115px;width:62px;border-right:none;"></div>
+          <div class="sc-gap" style="right:50%;margin-right:-115px;width:62px;border-left:none;"></div>
         </div>
         <div class="sc-info">
-          <span class="sc-w">360 px <em>+99 each side</em></span>
+          <span class="sc-w">354 px <em>+96 each side</em></span>
           <span class="sc-desc">"Thinking" label left.<br>White bounce dots right.</span>
         </div>
       </div>

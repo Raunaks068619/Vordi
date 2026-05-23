@@ -15,6 +15,7 @@ struct SettingsView: View {
     @State private var noiseGateThreshold: Double = 0.015
     @State private var runLogEnabled: Bool = true
     @State private var runLogCapped: Bool = true
+    @State private var feedbackSurfaceStyle: String = FeedbackSurfaceStyle.current.rawValue
     @State private var showSaveConfirmation = false
 
     /// Cloud polish-model options. `gpt-4.1-nano` is included as an escape
@@ -70,6 +71,20 @@ struct SettingsView: View {
                 .pickerStyle(.segmented)
 
                 Text("Groq is free but English-only. OpenAI supports Hindi + Hinglish.")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+
+            Section("Feedback Surface") {
+                Picker("Style", selection: $feedbackSurfaceStyle) {
+                    ForEach(FeedbackSurfaceStyle.allCases, id: \.self) { style in
+                        Label(style.title, systemImage: style.icon)
+                            .tag(style.rawValue)
+                    }
+                }
+                .pickerStyle(.segmented)
+
+                Text((FeedbackSurfaceStyle(rawValue: feedbackSurfaceStyle) ?? .dynamicNotch).subtitle)
                     .font(.caption)
                     .foregroundColor(.secondary)
             }
@@ -308,6 +323,10 @@ struct SettingsView: View {
                 RunStore.shared.applyCap()
             }
         }
+        .onChange(of: feedbackSurfaceStyle) { _ in
+            saveSettings()
+            NotificationCenter.default.post(name: .voiceFlowFeedbackSurfaceStyleChanged, object: nil)
+        }
     }
 
     /// Contextual caption under the Run Log toggles — explains what the
@@ -348,6 +367,7 @@ struct SettingsView: View {
         } else {
             runLogCapped = true
         }
+        feedbackSurfaceStyle = FeedbackSurfaceStyle.current.rawValue
     }
 
     private func saveSettings() {
@@ -361,6 +381,7 @@ struct SettingsView: View {
         UserDefaults.standard.set(noiseGateThreshold, forKey: "noise_gate_threshold")
         UserDefaults.standard.set(runLogEnabled, forKey: "run_log_enabled")
         UserDefaults.standard.set(runLogCapped, forKey: "run_log_cap_enabled")
+        UserDefaults.standard.set(feedbackSurfaceStyle, forKey: FeedbackSurfaceStyle.userDefaultsKey)
     }
 
     @ViewBuilder
