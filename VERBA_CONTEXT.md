@@ -1,4 +1,4 @@
-# VoiceFlow — AI Handoff Context
+# Verba — AI Handoff Context
 
 > Paste this entire file at the start of a new ChatGPT/Claude/Gemini chat.
 > Then ask your question. The assistant will have enough context to be useful
@@ -6,7 +6,7 @@
 
 ---
 
-## 🎯 What is VoiceFlow
+## 🎯 What is Verba
 
 A **macOS-native dictation app** for bilingual (Hindi/English) power users.
 Think Wispr Flow, but open-ended about language and output style.
@@ -120,7 +120,7 @@ let transcriptionLanguage = (effectiveStyle == .translateEnglish && language == 
 
 1. **Bengali translation fails silently.** STT detects Bengali fine, but `translateToEnglish()` prompt is Hindi-biased ("most likely Hindi, English, or Hinglish"). Non-Hindi scripts fall through. Fix: generalize the prompt.
 
-2. **No Apple Developer signing.** Ad-hoc means testers hit "VoiceFlow is damaged" dialog. Workaround is `xattr -cr /Applications/VoiceFlow.app`. Real fix: $99/yr Dev ID + notarization.
+2. **No Apple Developer signing.** Ad-hoc means testers hit "Verba is damaged" dialog. Workaround is `xattr -cr /Applications/VoiceFlow.app`. Real fix: $99/yr Dev ID + notarization.
 
 3. **arm64 only.** Intel Macs can't run it.
 

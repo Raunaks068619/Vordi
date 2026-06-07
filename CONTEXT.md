@@ -1,11 +1,11 @@
-# VoiceFlow — Session Context
+# Verba — Session Context
 
 > Paste this into a new Cowork chat to resume where we left off.
 > Last updated: April 18, 2026
 
 ---
 
-## What Is VoiceFlow
+## What Is Verba
 
 A macOS-native dictation app. Hold Fn → speak → release → transcribed + polished text is injected into the active text field. Built in pure Swift + SwiftUI, no Electron. Targets macOS 13+.
 

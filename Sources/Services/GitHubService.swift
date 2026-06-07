@@ -76,7 +76,7 @@ final class GitHubMetadataCache: ObservableObject {
 
     // Public repo — safe to hardcode.
     static let repoOwner = "Raunaks068619"
-    static let repoName = "VoiceFlow"
+    static let repoName = "Verba"
     static let repoHTMLURL = URL(string: "https://github.com/\(repoOwner)/\(repoName)")!
 
     @Published private(set) var starCount: Int?

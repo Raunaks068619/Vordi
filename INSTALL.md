@@ -1,6 +1,6 @@
-# 📦 Installing VoiceFlow on Another Mac
+# 📦 Installing Verba on Another Mac
 
-VoiceFlow is distributed as a `.dmg`. There are two install paths depending on whether the build is **signed + notarized** by an Apple Developer ID, or **ad-hoc / unsigned** (open-source build).
+Verba is distributed as a `.dmg`. There are two install paths depending on whether the build is **signed + notarized** by an Apple Developer ID, or **ad-hoc / unsigned** (open-source build).
 
 ---
 
@@ -70,7 +70,7 @@ Two bugs were fixed in this version:
 
 ## 🛠️ Troubleshooting
 
-**"VoiceFlow can't be opened because Apple cannot check it for malicious software"**
+**"Verba can't be opened because Apple cannot check it for malicious software"**
 → Right-click the app → Open → Open anyway. Or run the `xattr` command above.
 
 **Mic permission toggle exists in System Settings but mic still doesn't work**
