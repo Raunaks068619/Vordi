@@ -2,9 +2,9 @@
 
 **Status:** Parked, not started. Do not build until the trigger below is met.
 **Parked on:** 2026-06-06
-**Why parked:** VoiceFlow's bottleneck is distribution, not features. Starting a
+**Why parked:** Vordi's bottleneck is distribution, not features. Starting a
 second app now is the same scope-creep that pulled Memory away from
-transcription. Ship VoiceFlow, get real users, then revisit only if *users*
+transcription. Ship Vordi, get real users, then revisit only if *users*
 pull us toward this.
 
 ---
@@ -18,9 +18,9 @@ retrieval over the lot, and lets the developer ask one question across
 everything every agent did in a project ("what did Claude and Codex both touch
 in this repo last week?"). Everything stays on the machine.
 
-This is an **infrastructure / power-user** product, distinct from VoiceFlow
+This is an **infrastructure / power-user** product, distinct from Vordi
 (voice-to-text). Different customer, different value prop, different story. It
-was deliberately removed from VoiceFlow so the transcription product stays one
+was deliberately removed from Vordi so the transcription product stays one
 coherent thing.
 
 ## What it is NOT (the trap to avoid)
@@ -28,11 +28,11 @@ coherent thing.
 - NOT a "mediator" that injects context back into agents. That's a much harder
   bidirectional infra play competing directly with Anthropic/OpenAI's own
   native memory roadmaps. Read-only "ask your history" is the defensible scope.
-- NOT a VoiceFlow feature. If it ships, it ships as its own app.
+- NOT a Vordi feature. If it ships, it ships as its own app.
 
 ## Code to reuse (already written, preserved in this repo's history)
 
-The hard part is done and lives in VoiceFlow's tree as dormant/standalone code:
+The hard part is done and lives in Vordi's tree as dormant/standalone code:
 
 - `Sources/Services/Memory/AgentSessionImportService.swift` — **the crown
   jewel.** Parses Claude Code (`~/.claude/projects`), Codex
@@ -57,7 +57,7 @@ The hard part is done and lives in VoiceFlow's tree as dormant/standalone code:
 
 Revisit ONLY when **both** are true:
 
-1. VoiceFlow has a real user base (rough bar: ~100 active users), AND
+1. Vordi has a real user base (rough bar: ~100 active users), AND
 2. Some of those users have explicitly asked for cross-agent memory / "remember
    what my coding agents did."
 

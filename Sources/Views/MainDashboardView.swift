@@ -8,7 +8,7 @@ import AppKit
 /// build pipeline populates from `MARKETING_VERSION`. Avoids the bug we
 /// kept hitting where the sidebar showed "v1.0.0" forever because someone
 /// shipped a release without bumping the literal string.
-enum VoiceFlowVersion {
+enum VordiVersion {
     static var marketing: String {
         (Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String) ?? "0.0.0"
     }
@@ -605,7 +605,7 @@ struct MainDashboardView: View {
     @State private var polishBackendId: String = UserDefaults.standard.string(forKey: PolishBackend.userDefaultsKey) ?? PolishBackend.defaultId
     @State private var feedbackSurfaceStyle: String = FeedbackSurfaceStyle.current.rawValue
     // Default to verbatim ("Original"). Matches the seed in
-    // VoiceFlowApp.configureDefaultSettings — this fallback only fires
+    // VordiApp.configureDefaultSettings — this fallback only fires
     // for the brief window before the seed runs, OR if a user manually
     // wipes the UserDefault. Either way, verbatim is the safe choice
     // since it's the only style that doesn't require an OpenAI key.
@@ -723,7 +723,7 @@ struct MainDashboardView: View {
 
                     // Footer — subtle, aligned with the open-source positioning.
                     VStack(alignment: .leading, spacing: 4) {
-                        Text(VoiceFlowVersion.userFacing)
+                        Text(VordiVersion.userFacing)
                             .font(.system(size: 11))
                             .foregroundColor(Theme.textTertiary)
                         Text("Local-first · Open source")
@@ -803,7 +803,7 @@ struct MainDashboardView: View {
         }
         // Listen for menu-bar / chip / external requests to jump to a
         // specific tab. Settings is a modal overlay, not a content tab.
-        .onReceive(NotificationCenter.default.publisher(for: Notification.Name("VoiceFlow.SelectTab"))) { note in
+        .onReceive(NotificationCenter.default.publisher(for: Notification.Name("Vordi.SelectTab"))) { note in
             guard let raw = note.userInfo?["tab"] as? String else { return }
             switch raw {
             case "home":       selectedTab = .home
@@ -1773,10 +1773,10 @@ struct MainDashboardView: View {
                 .italic("fn"),
                 .plain(" to dictate")
             ],
-            bodyText: "Verba works in every app. Hold fn, speak, release. Your words appear wherever your cursor is.",
+            bodyText: "Vordi works in every app. Hold fn, speak, release. Your words appear wherever your cursor is.",
             cta: ("See how it works", {
                 NotificationCenter.default.post(
-                    name: Notification.Name("VoiceFlow.SelectTab"),
+                    name: Notification.Name("Vordi.SelectTab"),
                     object: nil,
                     userInfo: ["tab": "transforms"]
                 )
@@ -2019,7 +2019,7 @@ struct MainDashboardView: View {
             VStack(alignment: .leading, spacing: 6) {
                 Text("About")
                     .font(.headline)
-                Text("\(AppBrand.name) \(VoiceFlowVersion.userFacing)")
+                Text("\(AppBrand.name) \(VordiVersion.userFacing)")
                     .font(.subheadline.bold())
                 Text("Voice typing for macOS — powered by OpenAI Whisper with optional local LLM post-processing.")
                     .font(.caption)
@@ -2441,7 +2441,7 @@ struct MainDashboardView: View {
                 Text(AppBrand.name)
                     .font(.vfCalloutSemibold)
                     .foregroundColor(Theme.textPrimary)
-                Text(VoiceFlowVersion.userFacing)
+                Text(VordiVersion.userFacing)
                     .font(.vfCaption)
                     .foregroundColor(Theme.textTertiary)
             }
@@ -2710,7 +2710,7 @@ struct MainDashboardView: View {
             VFFormSection(header: "Post-processing") {
                 VFFormRow(
                     label: "Polish model",
-                    description: "Used when Verba cleans, rewrites, or formats the transcript."
+                    description: "Used when Vordi cleans, rewrites, or formats the transcript."
                 ) {
                     VFDropdown(
                         options: polishOptions.map { (id: $0.id, label: compactPolishLabel($0.label)) },
@@ -2849,7 +2849,7 @@ struct MainDashboardView: View {
                 ) {
                     VFButton(title: "Open", icon: "sparkles", style: .secondary, isCompact: true) {
                         NotificationCenter.default.post(
-                            name: Notification.Name("VoiceFlow.RestartOnboarding"),
+                            name: Notification.Name("Vordi.RestartOnboarding"),
                             object: nil
                         )
                     }
@@ -2859,12 +2859,12 @@ struct MainDashboardView: View {
             VFFormSection(header: "App") {
                 settingsStaticRow(
                     label: "Version",
-                    description: "Current installed Verba build.",
-                    value: VoiceFlowVersion.userFacing
+                    description: "Current installed Vordi build.",
+                    value: VordiVersion.userFacing
                 )
                 VFDivider(inset: Theme.Space.xl)
                 VFFormRow(
-                    label: "Quit Verba",
+                    label: "Quit Vordi",
                     description: "Stop the menu bar helper and close the app."
                 ) {
                     VFButton(title: "Quit", icon: "power", style: .destructive, isCompact: true) {
@@ -2950,7 +2950,7 @@ struct MainDashboardView: View {
 
             ZStack(alignment: .topLeading) {
                 if customVocabulary.isEmpty {
-                    Text("e.g. Raunak, Verba, Shopsense, Fynd")
+                    Text("e.g. Raunak, Vordi, Shopsense, Fynd")
                         .font(.vfCallout)
                         .foregroundColor(Theme.textTertiary)
                         .padding(.horizontal, Theme.Space.md)
@@ -3124,7 +3124,7 @@ struct MainDashboardView: View {
 
     // MARK: Settings — Permissions card
 
-    /// Live status of the three TCC permissions VoiceFlow requires. Inline
+    /// Live status of the three TCC permissions Vordi requires. Inline
     /// "Open Settings" button per row when the permission isn't granted —
     /// faster than navigating System Settings manually.
     /// Live mic level + threshold slider in one card. The threshold marker
@@ -3254,7 +3254,7 @@ struct MainDashboardView: View {
                 // macOS 14. ZStack-with-Text is the standard workaround.
                 ZStack(alignment: .topLeading) {
                     if customVocabulary.isEmpty {
-                        Text("e.g. Raunak, Verba, Shopsense, Fynd, my-side-project")
+                        Text("e.g. Raunak, Vordi, Shopsense, Fynd, my-side-project")
                             .font(.system(size: 13))
                             .foregroundColor(Theme.textTertiary)
                             .padding(.horizontal, 12)
@@ -3454,7 +3454,7 @@ struct MainDashboardView: View {
                 Spacer()
                 Button {
                     NotificationCenter.default.post(
-                        name: Notification.Name("VoiceFlow.RestartOnboarding"),
+                        name: Notification.Name("Vordi.RestartOnboarding"),
                         object: nil
                     )
                 } label: {
@@ -3874,7 +3874,7 @@ struct MainDashboardView: View {
     private var footerActions: some View {
         HStack {
             Button(action: onQuit) {
-                Label("Quit Verba", systemImage: "power")
+                Label("Quit Vordi", systemImage: "power")
             }
             .buttonStyle(.plain)
             .vfClickableCursor()
@@ -4426,7 +4426,7 @@ struct HomeTimelineRow: View {
                 isDisabled: summary.status == .failed
             ) {
                 NotificationCenter.default.post(
-                    name: Notification.Name("VoiceFlow.RetryRun"),
+                    name: Notification.Name("Vordi.RetryRun"),
                     object: nil,
                     userInfo: ["runID": summary.id]
                 )
@@ -4469,7 +4469,7 @@ struct HomeTimelineRow: View {
 
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy-MM-dd_HH-mm-ss"
-        let stem = "Verba_\(formatter.string(from: summary.createdAt))"
+        let stem = "Vordi_\(formatter.string(from: summary.createdAt))"
         var dest = downloads.appendingPathComponent("\(stem).wav")
         var counter = 2
         while FileManager.default.fileExists(atPath: dest.path) {
@@ -4780,7 +4780,7 @@ extension View {
 
 // MARK: - Profile cards
 
-private enum VoiceFlowOrangeMeshPalette {
+private enum VordiOrangeMeshPalette {
     static let hot = Color(red: 1.000, green: 0.231, blue: 0.020)
     static let ember = Color(red: 1.000, green: 0.412, blue: 0.063)
     static let gold = Color(red: 1.000, green: 0.690, blue: 0.196)
@@ -4788,7 +4788,42 @@ private enum VoiceFlowOrangeMeshPalette {
     static let creamMark = Color(red: 1.000, green: 0.965, blue: 0.895)
 }
 
-private struct VoiceFlowOrangeMeshHeader: View {
+private enum VoiceProfilePurplePalette {
+    static let nearWhite = Color(red: 0.992, green: 0.988, blue: 0.976)
+    static let paleLilac = Color(red: 0.938, green: 0.918, blue: 0.992)
+    static let lilacEdge = Color(red: 0.812, green: 0.760, blue: 0.965)
+    static let night = Color(red: 0.075, green: 0.049, blue: 0.118)
+    static let plum = Color(red: 0.145, green: 0.090, blue: 0.235)
+    static let aubergine = Color(red: 0.220, green: 0.137, blue: 0.365)
+    static let accent = Color(red: 0.314, green: 0.208, blue: 0.565)
+    static let accentLift = Color(red: 0.450, green: 0.337, blue: 0.745)
+    static let lavenderMark = Color(red: 0.760, green: 0.690, blue: 0.980)
+
+    static func headerBase(for colorScheme: ColorScheme) -> [Color] {
+        if colorScheme == .dark {
+            return [night, plum, aubergine]
+        }
+        return [nearWhite, paleLilac, lilacEdge]
+    }
+
+    static func primaryGlow(for colorScheme: ColorScheme) -> Color {
+        colorScheme == .dark ? accentLift : accent
+    }
+
+    static func secondaryGlow(for colorScheme: ColorScheme) -> Color {
+        colorScheme == .dark ? lavenderMark : accentLift
+    }
+
+    static func mark(for colorScheme: ColorScheme) -> Color {
+        colorScheme == .dark ? lavenderMark : accent
+    }
+
+    static func badgeFill(for colorScheme: ColorScheme) -> Color {
+        colorScheme == .dark ? night : Theme.surfaceElevated
+    }
+}
+
+private struct VordiOrangeMeshHeader: View {
     var height: CGFloat
     var watermarkOpacity: Double = 0.22
 
@@ -4796,8 +4831,8 @@ private struct VoiceFlowOrangeMeshHeader: View {
         ZStack(alignment: .trailing) {
             LinearGradient(
                 colors: [
-                    VoiceFlowOrangeMeshPalette.hot,
-                    VoiceFlowOrangeMeshPalette.ember,
+                    VordiOrangeMeshPalette.hot,
+                    VordiOrangeMeshPalette.ember,
                     Theme.accent
                 ],
                 startPoint: .topLeading,
@@ -4806,8 +4841,8 @@ private struct VoiceFlowOrangeMeshHeader: View {
 
             RadialGradient(
                 colors: [
-                    VoiceFlowOrangeMeshPalette.gold.opacity(0.72),
-                    VoiceFlowOrangeMeshPalette.gold.opacity(0.14),
+                    VordiOrangeMeshPalette.gold.opacity(0.72),
+                    VordiOrangeMeshPalette.gold.opacity(0.14),
                     Color.clear
                 ],
                 center: UnitPoint(x: 0.15, y: 1.0),
@@ -4818,8 +4853,8 @@ private struct VoiceFlowOrangeMeshHeader: View {
 
             RadialGradient(
                 colors: [
-                    VoiceFlowOrangeMeshPalette.rose.opacity(0.70),
-                    VoiceFlowOrangeMeshPalette.rose.opacity(0.18),
+                    VordiOrangeMeshPalette.rose.opacity(0.70),
+                    VordiOrangeMeshPalette.rose.opacity(0.18),
                     Color.clear
                 ],
                 center: UnitPoint(x: 0.90, y: 0.18),
@@ -4828,8 +4863,8 @@ private struct VoiceFlowOrangeMeshHeader: View {
             )
             .blendMode(.screen)
 
-            VoiceFlowLogoBars(
-                color: VoiceFlowOrangeMeshPalette.creamMark.opacity(watermarkOpacity),
+            VordiLogoBars(
+                color: VordiOrangeMeshPalette.creamMark.opacity(watermarkOpacity),
                 barWidth: 14,
                 maxHeight: 82,
                 spacing: 8
@@ -4844,25 +4879,23 @@ private struct VoiceFlowOrangeMeshHeader: View {
 }
 
 private struct VoiceProfileMeshHeader: View {
+    @Environment(\.colorScheme) private var colorScheme
+
     var height: CGFloat
     var watermarkOpacity: Double = 0.18
 
     var body: some View {
         ZStack(alignment: .trailing) {
             LinearGradient(
-                colors: [
-                    Theme.surfaceElevated,
-                    Color(red: 0.955, green: 0.944, blue: 1.000),
-                    Color(red: 0.820, green: 0.775, blue: 1.000)
-                ],
+                colors: VoiceProfilePurplePalette.headerBase(for: colorScheme),
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
             )
 
             RadialGradient(
                 colors: [
-                    Theme.interactive.opacity(0.20),
-                    Theme.interactive.opacity(0.06),
+                    VoiceProfilePurplePalette.primaryGlow(for: colorScheme).opacity(colorScheme == .dark ? 0.70 : 0.16),
+                    VoiceProfilePurplePalette.primaryGlow(for: colorScheme).opacity(colorScheme == .dark ? 0.18 : 0.05),
                     Color.clear
                 ],
                 center: UnitPoint(x: 0.10, y: 0.92),
@@ -4873,8 +4906,8 @@ private struct VoiceProfileMeshHeader: View {
 
             RadialGradient(
                 colors: [
-                    Color(red: 0.690, green: 0.590, blue: 1.000).opacity(0.30),
-                    Color(red: 0.690, green: 0.590, blue: 1.000).opacity(0.08),
+                    VoiceProfilePurplePalette.secondaryGlow(for: colorScheme).opacity(colorScheme == .dark ? 0.34 : 0.26),
+                    VoiceProfilePurplePalette.secondaryGlow(for: colorScheme).opacity(colorScheme == .dark ? 0.10 : 0.07),
                     Color.clear
                 ],
                 center: UnitPoint(x: 0.86, y: 0.18),
@@ -4883,8 +4916,9 @@ private struct VoiceProfileMeshHeader: View {
             )
             .blendMode(.screen)
 
-            VoiceFlowLogoBars(
-                color: Theme.interactive.opacity(watermarkOpacity),
+            VordiLogoBars(
+                color: VoiceProfilePurplePalette.mark(for: colorScheme)
+                    .opacity(colorScheme == .dark ? min(1.0, watermarkOpacity + 0.10) : watermarkOpacity),
                 barWidth: 14,
                 maxHeight: 82,
                 spacing: 8
@@ -4898,7 +4932,7 @@ private struct VoiceProfileMeshHeader: View {
     }
 }
 
-private struct VoiceFlowLogoBars: View {
+private struct VordiLogoBars: View {
     var color: Color
     var barWidth: CGFloat
     var maxHeight: CGFloat
@@ -4917,21 +4951,26 @@ private struct VoiceFlowLogoBars: View {
     }
 }
 
-private struct VoiceFlowProfileBadge: View {
+private struct VordiProfileBadge: View {
+    @Environment(\.colorScheme) private var colorScheme
+
     var diameter: CGFloat = 52
 
     var body: some View {
         ZStack {
             Circle()
-                .fill(Theme.surfaceElevated)
+                .fill(VoiceProfilePurplePalette.badgeFill(for: colorScheme))
             Circle()
-                .strokeBorder(Theme.interactive.opacity(0.42), lineWidth: 3)
+                .strokeBorder(
+                    VoiceProfilePurplePalette.accent.opacity(colorScheme == .dark ? 0.92 : 0.64),
+                    lineWidth: 3
+                )
 
             VFBrandLogo(size: diameter * 0.58, variant: .automatic, cornerRadius: diameter * 0.10)
                 .frame(width: diameter, height: diameter, alignment: .center)
         }
         .frame(width: diameter, height: diameter)
-        .shadow(color: Color.black.opacity(0.08), radius: 4, x: 0, y: 2)
+        .shadow(color: Color.black.opacity(colorScheme == .dark ? 0.18 : 0.08), radius: 4, x: 0, y: 2)
     }
 }
 
@@ -5066,6 +5105,7 @@ private struct GitHubMarkShape: Shape {
 
 private struct HomeVoiceProfileCard: View {
     let stats: ComputedStats
+    @Environment(\.colorScheme) private var colorScheme
     @ObservedObject private var classifier = UserTypeClassifier.shared
     @State private var isHovered = false
 
@@ -5118,14 +5158,14 @@ private struct HomeVoiceProfileCard: View {
                             .padding(.horizontal, 8)
                             .frame(height: 24)
                             .frame(maxWidth: .infinity, alignment: .leading)
-                            .background(Capsule(style: .continuous).fill(Theme.surface))
-                            .overlay(Capsule(style: .continuous).strokeBorder(Theme.divider, lineWidth: 1))
+                            .background(Capsule(style: .continuous).fill(signalChipFill))
+                            .overlay(Capsule(style: .continuous).strokeBorder(signalChipBorder, lineWidth: 1))
                         }
                     }
                     .padding(14)
                     .padding(.top, 24)
 
-                    VoiceFlowProfileBadge(diameter: 52)
+                    VordiProfileBadge(diameter: 52)
                         .offset(x: 14, y: -28)
                 }
             }
@@ -5134,7 +5174,7 @@ private struct HomeVoiceProfileCard: View {
             .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous)
-                    .strokeBorder(isHovered ? Theme.dividerStrong : Theme.divider, lineWidth: 1)
+                    .strokeBorder(cardBorder, lineWidth: 1)
             )
             .shadow(color: isHovered ? Theme.Shadow.card.color : Color.clear,
                     radius: Theme.Shadow.card.radius,
@@ -5211,6 +5251,25 @@ private struct HomeVoiceProfileCard: View {
         }
         let remaining = max(0, eligibility.requiredRuns - eligibility.qualifyingRuns)
         return "\(remaining) more qualifying dictations needed"
+    }
+
+    private var cardBorder: Color {
+        if isHovered {
+            return VoiceProfilePurplePalette.accent.opacity(colorScheme == .dark ? 0.44 : 0.24)
+        }
+        return Theme.divider
+    }
+
+    private var signalChipFill: Color {
+        colorScheme == .dark
+            ? VoiceProfilePurplePalette.night.opacity(0.44)
+            : Theme.surface
+    }
+
+    private var signalChipBorder: Color {
+        colorScheme == .dark
+            ? VoiceProfilePurplePalette.accentLift.opacity(0.30)
+            : VoiceProfilePurplePalette.accent.opacity(0.14)
     }
 
     private func profileStat(value: String, label: String) -> some View {

@@ -11,7 +11,7 @@ import Foundation
 ///
 /// **Triggered two ways**:
 /// 1. Hotkey identifier `.promptEngineer` (Phase 3 dedicated hotkey).
-/// 2. Trigger word "voiceflow prompt …" on the primary hotkey.
+/// 2. Trigger word "vordi prompt …" on the primary hotkey.
 ///
 /// **Backend selection**: prefers gpt-4.1-mini for prompt structure work —
 /// instruction-following matters more than speed here.

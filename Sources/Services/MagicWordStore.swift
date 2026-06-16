@@ -3,7 +3,7 @@ import Combine
 
 /// Disk-backed registry of magic-word entries.
 ///
-/// Storage: `~/Library/Application Support/VoiceFlow/magicwords.json`
+/// Storage: `~/Library/Application Support/Vordi/magicwords.json`
 /// — same parent dir as `runs/` for tidiness.
 ///
 /// **Why JSON, not Core Data**: 1–200 entries, schema is trivial,
@@ -13,7 +13,7 @@ final class MagicWordStore: ObservableObject {
 
     @Published private(set) var entries: [MagicWord] = []
 
-    private let queue = DispatchQueue(label: "com.voiceflow.magicwords", qos: .utility)
+    private let queue = DispatchQueue(label: "com.vordi.magicwords", qos: .utility)
     private let fileManager = FileManager.default
     private let encoder = JSONEncoder()
     private let decoder = JSONDecoder()
@@ -21,7 +21,7 @@ final class MagicWordStore: ObservableObject {
     private var storeURL: URL {
         let appSupport = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
         return appSupport
-            .appendingPathComponent("VoiceFlow", isDirectory: true)
+            .appendingPathComponent("Vordi", isDirectory: true)
             .appendingPathComponent("magicwords.json")
     }
 

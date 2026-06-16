@@ -10,9 +10,9 @@ if [ $# -ne 1 ]; then
 fi
 
 VERSION=$1
-VF_ROOT=/Users/raunaksingh/Documents/VoiceFlow
-DMG="$VF_ROOT/VoiceFlow-Beta.dmg"
-CASK="$VF_ROOT/homebrew-voiceflow/Casks/verba.rb"
+VF_ROOT=/Users/raunaksingh/Documents/Vordi
+DMG="$VF_ROOT/Vordi-Beta.dmg"
+CASK="$VF_ROOT/homebrew-vordi/Casks/vordi.rb"
 BUILD_SCRIPT="$VF_ROOT/build_beta_dmg.sh"
 
 echo "=== 1/4  Rebuild DMG ==="
@@ -40,20 +40,20 @@ echo
 echo "=== 4/4  Next steps (run these manually) ==="
 cat <<EONEXT
 
-  # 1. Cut the DMG release on the voiceflow (source) repo:
+  # 1. Cut the DMG release on the Vordi source repo:
   cd "$VF_ROOT"
   gh release create "v$VERSION" "$DMG" \\
-    --repo raunaksingh/voiceflow \\
-    --title "VoiceFlow $VERSION" \\
-    --notes "Beta release. Install: brew install --cask raunaksingh/voiceflow/voiceflow"
+    --repo Raunaks068619/Vordi \\
+    --title "Vordi $VERSION" \\
+    --notes "Beta release. Install: brew install --cask raunaks068619/vordi/vordi"
 
   # 2. Commit + push the cask bump to the tap repo:
-  cd "$VF_ROOT/homebrew-voiceflow"
-  git add Casks/voiceflow.rb
-  git commit -m "voiceflow $VERSION"
+  cd "$VF_ROOT/homebrew-vordi"
+  git add Casks/vordi.rb
+  git commit -m "vordi $VERSION"
   git push
 
   # 3. Test locally before announcing:
-  brew install --cask --debug raunaksingh/voiceflow/voiceflow
+  brew install --cask --debug raunaks068619/vordi/vordi
 
 EONEXT

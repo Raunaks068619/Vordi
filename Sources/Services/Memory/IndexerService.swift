@@ -10,9 +10,9 @@ import Combine
 ///      paginated in the background so the UI stays responsive.
 ///   2. **Embedding** — for each run in MemoryStore that lacks an
 ///      embedding (or has a stale one), compute via EmbeddingService.
-///   3. **Entity extraction** — hybrid path. NLTagger handles
-///      people / organizations / places for free; LLM handles
-///      project / tool / concept / command. Both write to MemoryStore.
+///   3. **Entity extraction** — local transcript vocabulary first,
+///      LLM enrichment second, NLTagger fallback last. This keeps the
+///      graph stable for software terms, product names, and user vocab.
 ///
 /// **Concurrency**: the sync pass is serial and cooperative. Embedding model
 /// work and entity LLM calls share user resources, and parallelism wins
@@ -64,7 +64,7 @@ final class IndexerService: ObservableObject {
     /// does not compute embeddings or call an LLM.
     func start() {
         Task { @MainActor in
-            // Memory is scoped to VoiceFlow's own dictations. Drop any
+            // Memory is scoped to Vordi's own dictations. Drop any
             // external AI-agent sessions that older builds may have
             // imported, so the corpus is transcription-only.
             memory.purgeAgentSessions()
@@ -206,26 +206,25 @@ final class IndexerService: ObservableObject {
 
         // 2. Entity extraction (skip if we already have entries).
         if needsEntities(runID: runID, includeAgentContext: includeAgentContext) {
-            let entities = enrichWithFolderEntity(
-                await extractEntities(from: text),
-                for: runID
-            )
+            let entities = await extractEntities(from: text)
             memory.setEntities(forRun: runID, entities: entities)
         }
     }
 
     // MARK: - Entity extraction (hybrid)
 
-    /// Hybrid extraction: NLTagger handles the easy "named entities"
-    /// (people / organizations / places) — it's free, fast, and works
-    /// without an LLM call. The remainder (projects, tools, concepts,
-    /// commands) is what the LLM is actually good at.
+    /// Hybrid extraction for conversational dictations.
     ///
-    /// For surveys of conversational transcripts NLTagger catches ~50-
-    /// 70% of useful entities for $0. The LLM only sees text that
-    /// passed the cheap pass first.
+    /// Order matters:
+    /// 1. Local transcript vocabulary: deterministic product/tool/concept
+    ///    labels, including user vocabulary.
+    /// 2. LLM: catches long-tail projects, concepts, and commands.
+    /// 3. NLTagger: last-resort people/org/place fallback.
+    ///
+    /// Local-first prevents Apple's named-entity model from turning
+    /// product terms like "Vordi", "Claude", or "UI" into places/people.
     private func extractEntities(from text: String) async -> [(id: String, label: String, type: String)] {
-        let cheap = Self.nlTaggerEntities(in: text)
+        let local = Self.localTranscriptEntities(in: text)
 
         // LLM pass for the long-tail. Uses the same provider picker as
         // Memory chat, so Claude/Codex/Gemini auth can power the graph
@@ -238,16 +237,216 @@ final class IndexerService: ObservableObject {
             llmEntities = []
         }
 
+        let cheap = Self.nlTaggerEntities(in: text)
+
         // Merge, de-dup by id (case-insensitive normalized slug).
         var seen = Set<String>()
         var merged: [(id: String, label: String, type: String)] = []
-        for entity in (cheap + llmEntities) {
+        for entity in (local + llmEntities + cheap) {
             if seen.insert(entity.id).inserted {
                 merged.append(entity)
             }
         }
-        // Cap at 8 per run so dense transcripts don't blow up the graph.
-        return Array(merged.prefix(8))
+        // Cap per run so dense transcripts don't blow up the graph.
+        return Array(merged.prefix(12))
+    }
+
+    private struct EntitySeed {
+        let label: String
+        let type: String
+    }
+
+    private static let localEntitySeeds: [EntitySeed] = [
+        .init(label: "Vordi", type: "project"),
+        .init(label: "Vordi", type: "project"),
+        .init(label: "Memory", type: "concept"),
+        .init(label: "Knowledge Graph", type: "concept"),
+        .init(label: "Run Log", type: "concept"),
+        .init(label: "Magic Words", type: "concept"),
+        .init(label: "Dictation", type: "concept"),
+        .init(label: "Transcription", type: "concept"),
+        .init(label: "Whisper", type: "tool"),
+        .init(label: "Super Whisper", type: "tool"),
+        .init(label: "Wispr Flow", type: "tool"),
+        .init(label: "WISPR", type: "tool"),
+        .init(label: "Claude", type: "tool"),
+        .init(label: "Claude AI", type: "tool"),
+        .init(label: "Codex", type: "tool"),
+        .init(label: "ChatGPT", type: "tool"),
+        .init(label: "OpenAI", type: "tool"),
+        .init(label: "OpenAI API", type: "tool"),
+        .init(label: "Groq", type: "tool"),
+        .init(label: "Grok API", type: "tool"),
+        .init(label: "Gemini", type: "tool"),
+        .init(label: "GitHub", type: "tool"),
+        .init(label: "YouTube", type: "tool"),
+        .init(label: "LinkedIn", type: "tool"),
+        .init(label: "OnePlus", type: "tool"),
+        .init(label: "AirPods", type: "tool"),
+        .init(label: "SQL", type: "tool"),
+        .init(label: "HTML", type: "tool"),
+        .init(label: "Swift", type: "tool"),
+        .init(label: "SwiftUI", type: "tool"),
+        .init(label: "Xcode", type: "tool"),
+        .init(label: "Figma", type: "tool"),
+        .init(label: "AI", type: "concept"),
+        .init(label: "A.I.", type: "concept"),
+        .init(label: "API", type: "concept"),
+        .init(label: "UI", type: "concept"),
+        .init(label: "UX", type: "concept"),
+        .init(label: "Hinglish", type: "concept"),
+        .init(label: "Hindi", type: "concept"),
+        .init(label: "Marathi", type: "concept"),
+        .init(label: "Bookmark", type: "concept"),
+        .init(label: "Bookmarks", type: "concept"),
+        .init(label: "Raunak", type: "person"),
+        .init(label: "Rahul", type: "person")
+    ]
+
+    /// Deterministic extractor for the product vocabulary users actually
+    /// dictate. It uses Vordi defaults, user vocabulary, and obvious
+    /// acronym/camel-case candidates before any model guesses run.
+    private static func localTranscriptEntities(in text: String) -> [(id: String, label: String, type: String)] {
+        guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return [] }
+
+        var seen = Set<String>()
+        var out: [(id: String, label: String, type: String)] = []
+
+        func append(_ label: String, type: String) {
+            let trimmed = label.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard trimmed.count >= 2 else { return }
+            let id = slug(trimmed)
+            guard !id.isEmpty, seen.insert(id).inserted else { return }
+            out.append((id: id, label: trimmed, type: type))
+        }
+
+        for seed in localEntitySeeds where containsTerm(seed.label, in: text) {
+            append(seed.label, type: seed.type)
+        }
+
+        for term in UserVocabulary.terms where containsTerm(term, in: text) {
+            append(term, type: classifyLocalEntity(label: term))
+        }
+
+        for candidate in regexEntityCandidates(in: text) {
+            append(candidate, type: classifyLocalEntity(label: candidate))
+        }
+
+        return Array(out.prefix(12))
+    }
+
+    private static func regexEntityCandidates(in text: String) -> [String] {
+        let patterns = [
+            #"(?<![\p{L}\p{N}])(?:[A-Z][A-Za-z0-9]+(?:\.[A-Za-z0-9]+)+)(?![\p{L}\p{N}])"#,
+            #"(?<![\p{L}\p{N}])(?:[A-Z]{2,8})(?![\p{L}\p{N}])"#,
+            #"(?<![\p{L}\p{N}])(?:[A-Z][a-z0-9]+(?:[A-Z][a-z0-9]+)+)(?![\p{L}\p{N}])"#,
+            #"(?<![\p{L}\p{N}])(?:[A-Z][A-Za-z0-9]+(?:[ -][A-Z][A-Za-z0-9]+){1,2})(?![\p{L}\p{N}])"#
+        ]
+
+        var seen = Set<String>()
+        var candidates: [String] = []
+        let nsText = text as NSString
+        let fullRange = NSRange(location: 0, length: nsText.length)
+
+        for pattern in patterns {
+            guard let regex = try? NSRegularExpression(pattern: pattern) else { continue }
+            for match in regex.matches(in: text, range: fullRange) {
+                let raw = nsText.substring(with: match.range)
+                let label = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard shouldKeepRegexCandidate(label) else { continue }
+                let id = slug(label)
+                guard seen.insert(id).inserted else { continue }
+                candidates.append(label)
+            }
+        }
+
+        return Array(candidates.prefix(10))
+    }
+
+    private static func shouldKeepRegexCandidate(_ label: String) -> Bool {
+        let normalized = label.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard normalized.count >= 2 else { return false }
+
+        let lower = normalized.lowercased()
+        let stopWords: Set<String> = [
+            "and", "but", "for", "from", "into", "like", "then", "this",
+            "that", "with", "without", "because", "today", "tomorrow",
+            "yesterday", "user", "people", "tools", "places"
+        ]
+        guard !stopWords.contains(lower) else { return false }
+
+        if normalized.contains(".") || normalized.contains("-") || normalized.contains(" ") {
+            return true
+        }
+
+        let scalars = normalized.unicodeScalars
+        let uppercaseCount = scalars.filter { CharacterSet.uppercaseLetters.contains($0) }.count
+        if uppercaseCount >= 2 { return true }
+
+        return normalized.dropFirst().contains { $0.isUppercase }
+    }
+
+    private static func classifyLocalEntity(label: String) -> String {
+        let lower = label.lowercased()
+        let slugged = slug(label)
+
+        if ["raunak", "rahul"].contains(slugged) {
+            return "person"
+        }
+        if ["ai", "a-i", "api", "ui", "ux", "memory", "knowledge-graph", "run-log", "magic-words", "dictation", "transcription", "hinglish", "hindi", "marathi", "bookmark", "bookmarks"].contains(slugged) {
+            return "concept"
+        }
+        if lower.contains("api")
+            || lower.hasSuffix(".io")
+            || lower.hasSuffix(".ai")
+            || lower.contains("github")
+            || lower.contains("openai")
+            || lower.contains("claude")
+            || lower.contains("codex")
+            || lower.contains("whisper")
+            || lower.contains("sql")
+            || lower.contains("html")
+            || lower.contains("swift")
+            || lower.contains("xcode")
+            || lower.contains("figma") {
+            return "tool"
+        }
+        if ["vordi", "vordi"].contains(slugged) {
+            return "project"
+        }
+        return "concept"
+    }
+
+    private static func containsTerm(_ term: String, in text: String) -> Bool {
+        let trimmed = term.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return false }
+
+        var range = text.startIndex..<text.endIndex
+        while let found = text.range(of: trimmed, options: [.caseInsensitive, .diacriticInsensitive], range: range) {
+            if isBoundary(text, before: found.lowerBound)
+                && isBoundary(text, after: found.upperBound) {
+                return true
+            }
+            guard found.upperBound < text.endIndex else { break }
+            range = found.upperBound..<text.endIndex
+        }
+        return false
+    }
+
+    private static func isBoundary(_ text: String, before index: String.Index) -> Bool {
+        guard index > text.startIndex else { return true }
+        let previous = text[text.index(before: index)]
+        return !isEntityWordCharacter(previous)
+    }
+
+    private static func isBoundary(_ text: String, after index: String.Index) -> Bool {
+        guard index < text.endIndex else { return true }
+        return !isEntityWordCharacter(text[index])
+    }
+
+    private static func isEntityWordCharacter(_ char: Character) -> Bool {
+        char.unicodeScalars.allSatisfy { CharacterSet.alphanumerics.contains($0) }
+            || char == "_"
     }
 
     /// NLTagger-driven extraction. Cheap and built into macOS. Returns
@@ -272,7 +471,7 @@ final class IndexerService: ObservableObject {
             case .personalName:     type = "person"
             case .organizationName: type = "tool"
             // Apple's `placeName` maps to physical locations. We keep
-            // it for completeness but most VoiceFlow transcripts will
+            // it for completeness but most Vordi transcripts will
             // talk about software, so this should be rare.
             case .placeName:        type = "place"
             default: type = nil
@@ -356,33 +555,6 @@ final class IndexerService: ObservableObject {
     private func needsEntities(runID: String, includeAgentContext: Bool) -> Bool {
         let ids = memory.unentityRunIDs(includeAgentContext: includeAgentContext)
         return ids.contains(runID)
-    }
-
-    private func enrichWithFolderEntity(
-        _ entities: [(id: String, label: String, type: String)],
-        for runID: String
-    ) -> [(id: String, label: String, type: String)] {
-        guard
-            let item = memory.getRun(id: runID),
-            item.isAgentSession,
-            let folderPath = item.folderPath,
-            !folderPath.isEmpty
-        else { return entities }
-
-        let label = item.folderDisplayName ?? URL(fileURLWithPath: folderPath).lastPathComponent
-        let folderEntity = (
-            id: "folder-\(Self.slug(folderPath))",
-            label: label.isEmpty ? folderPath : label,
-            type: "project"
-        )
-
-        var seen = Set<String>()
-        var merged: [(id: String, label: String, type: String)] = []
-        for entity in [folderEntity] + entities {
-            guard seen.insert(entity.id).inserted else { continue }
-            merged.append(entity)
-        }
-        return Array(merged.prefix(9))
     }
 
     private func modelTagFor(_ kind: EmbeddingService.ModelKind) -> String {

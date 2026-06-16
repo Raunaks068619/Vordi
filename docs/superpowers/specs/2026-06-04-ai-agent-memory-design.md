@@ -2,13 +2,13 @@
 
 Date: 2026-06-04
 Status: Approved for implementation planning
-Owner: VoiceFlow Memory
+Owner: Vordi Memory
 
 ## Summary
 
-VoiceFlow Memory should import local AI-agent sessions from Claude Code, Codex, and Gemini CLI on demand, map those sessions by project folder, and let the existing Knowledge Graph and Ask Memory surfaces use that context when the user enables it.
+Vordi Memory should import local AI-agent sessions from Claude Code, Codex, and Gemini CLI on demand, map those sessions by project folder, and let the existing Knowledge Graph and Ask Memory surfaces use that context when the user enables it.
 
-The feature should follow Agentlytics' proven model: each local agent has a small adapter that reads that agent's known local session store, normalizes sessions and messages into a common shape, and writes them into a local SQLite index. VoiceFlow should not become an analytics dashboard. The P1 is stronger local memory, folder-wise context mapping, source-aware search, and chat answers grounded in local dictations plus local agent sessions.
+The feature should follow Agentlytics' proven model: each local agent has a small adapter that reads that agent's known local session store, normalizes sessions and messages into a common shape, and writes them into a local SQLite index. Vordi should not become an analytics dashboard. The P1 is stronger local memory, folder-wise context mapping, source-aware search, and chat answers grounded in local dictations plus local agent sessions.
 
 ## Evidence From Agentlytics
 
@@ -27,17 +27,17 @@ Local exploratory scan showed that this machine has data in the same shapes:
 - Claude Code: around 97 sessions.
 - Codex: around 157 sessions.
 - Gemini: around 66 sessions, with missing folder mapping because `~/.gemini/projects.json` was not present.
-- VoiceFlow itself appears in both Claude and Codex session folders, which proves the same-folder connection is available locally.
+- Vordi itself appears in both Claude and Codex session folders, which proves the same-folder connection is available locally.
 
 ## Goals
 
 1. Add an opt-in `Include AI agent context` toggle in the Memory / Knowledge Graph view.
 2. Keep sync manual and on demand, using the existing Sync mental model.
-3. Import Claude Code, Codex, and Gemini CLI sessions into VoiceFlow's local Memory index when the toggle is enabled.
+3. Import Claude Code, Codex, and Gemini CLI sessions into Vordi's local Memory index when the toggle is enabled.
 4. Classify imported sessions by project folder so sessions from different agents working in the same repo are connected.
 5. Extend search, embeddings, entity extraction, graph edges, and Ask Memory retrieval to include agent sessions when enabled.
 6. Preserve source provenance in UI and citations.
-7. Keep the UI close to the current Wispr-derived VoiceFlow design system.
+7. Keep the UI close to the current Wispr-derived Vordi design system.
 
 ## Non-Goals
 
@@ -58,16 +58,16 @@ Include AI agent context
 
 When OFF:
 
-- Sync indexes VoiceFlow dictations only.
-- Ask Memory retrieves from VoiceFlow dictations only.
+- Sync indexes Vordi dictations only.
+- Ask Memory retrieves from Vordi dictations only.
 - The graph reflects existing dictation-derived entities and edges.
 
 When ON:
 
-- Sync indexes VoiceFlow dictations and local AI-agent sessions.
+- Sync indexes Vordi dictations and local AI-agent sessions.
 - Ask Memory retrieves from dictations and agent sessions.
 - The graph includes entities extracted from agent sessions.
-- Source chips and citations identify whether evidence came from VoiceFlow, Claude Code, Codex, or Gemini.
+- Source chips and citations identify whether evidence came from Vordi, Claude Code, Codex, or Gemini.
 
 The toggle should default OFF for privacy. The user's last choice can be remembered in `UserDefaults` after the first explicit toggle.
 
@@ -76,7 +76,7 @@ The toggle should default OFF for privacy. The user's last choice can be remembe
 Extend the current Memory pipeline instead of creating a parallel subsystem:
 
 ```text
-VoiceFlow dictations -> RunStore
+Vordi dictations -> RunStore
 Claude/Codex/Gemini -> AgentSessionImporters
              ↓
         MemoryStore
@@ -158,7 +158,7 @@ Recommended logical shape:
 memory_items
 - id TEXT PRIMARY KEY
 - source_type TEXT NOT NULL        -- dictation | agent_session
-- source_app TEXT NOT NULL         -- voiceflow | claude-code | codex | gemini-cli
+- source_app TEXT NOT NULL         -- vordi | claude-code | codex | gemini-cli
 - external_id TEXT NOT NULL
 - folder_path TEXT
 - folder_display_name TEXT
@@ -194,9 +194,9 @@ entity_indexed_items(memory_item_id, indexed_at)
 
 Migration strategy:
 
-- Existing dictation rows become `source_type = dictation`, `source_app = voiceflow`.
+- Existing dictation rows become `source_type = dictation`, `source_app = vordi`.
 - Because MemoryStore is a derived index, a breaking schema change may wipe and rebuild the index from `RunStore` plus agent importers.
-- Preserve the existing ability to delete a VoiceFlow run and remove the matching memory item.
+- Preserve the existing ability to delete a Vordi run and remove the matching memory item.
 
 ## Folder Mapping
 
@@ -218,7 +218,7 @@ Manual sync remains the only expensive work trigger.
 
 ```text
 User clicks Sync
--> migrate VoiceFlow RunStore items into MemoryStore
+-> migrate Vordi RunStore items into MemoryStore
 -> if Include AI agent context is ON, scan agent stores
 -> upsert changed agent sessions
 -> compute missing embeddings
@@ -261,7 +261,7 @@ Ranking inputs:
 - Recency decay.
 - Previous-source continuity for follow-up questions.
 
-Folder boost should apply when the question mentions a known folder name, repo name, file path, tool, or project entity. This is what lets questions such as "What did we decide about VoiceFlow memory?" pull both Claude and Codex sessions from `/Users/raunaksingh/Documents/VoiceFlow`.
+Folder boost should apply when the question mentions a known folder name, repo name, file path, tool, or project entity. This is what lets questions such as "What did we decide about Vordi memory?" pull both Claude and Codex sessions from `/Users/raunaksingh/Documents/Vordi`.
 
 Sources sent to the LLM should include:
 
@@ -289,7 +289,7 @@ This keeps the graph readable while still connecting sessions from multiple agen
 
 ## UI Design
 
-Use current VoiceFlow design tokens and components from `Sources/Views/DesignSystem.swift`.
+Use current Vordi design tokens and components from `Sources/Views/DesignSystem.swift`.
 
 Memory header:
 
@@ -300,7 +300,7 @@ Memory   Local   [Include AI agent context]   [Sync]
 When enabled, show a compact source status row:
 
 ```text
-VoiceFlow 42 runs · Claude Code 10 sessions · Codex 17 sessions · Gemini 66 unknown-project sessions
+Vordi 42 runs · Claude Code 10 sessions · Codex 17 sessions · Gemini 66 unknown-project sessions
 ```
 
 Ask Memory copy:
@@ -325,7 +325,7 @@ No new large dashboard, no card-heavy analytics page, no separate sidebar tab fo
 - Sync is manual.
 - Only known chat/session files are read.
 - Credentials, OAuth files, auth files, browser caches, and arbitrary agent folders are never indexed.
-- Local text is stored in VoiceFlow's local SQLite index.
+- Local text is stored in Vordi's local SQLite index.
 - Existing Ask Memory provider behavior still controls whether retrieved source excerpts are sent to an LLM.
 - Errors should reveal source and count, not sensitive content.
 
@@ -364,7 +364,7 @@ Manual verification:
 - Run local scan and compare counts against current local data.
 - Click Sync with toggle OFF and confirm dictation-only behavior.
 - Click Sync with toggle ON and confirm agent sessions import.
-- Ask a VoiceFlow project question and confirm answers can cite Claude and Codex sessions from the same folder.
+- Ask a Vordi project question and confirm answers can cite Claude and Codex sessions from the same folder.
 
 ## Implementation Order
 

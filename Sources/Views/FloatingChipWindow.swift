@@ -37,7 +37,7 @@ enum FeedbackSurfaceStyle: String, CaseIterable {
 }
 
 extension Notification.Name {
-    static let voiceFlowFeedbackSurfaceStyleChanged = Notification.Name("VoiceFlow.FeedbackSurfaceStyleChanged")
+    static let voiceFlowFeedbackSurfaceStyleChanged = Notification.Name("Vordi.FeedbackSurfaceStyleChanged")
 }
 
 protocol FeedbackSurface: AnyObject {
@@ -224,13 +224,13 @@ final class FloatingChipWindow: NSPanel, FeedbackSurface {
 
     func flashNoInputWarning(durationSeconds: Double = 4.5) {
         flash(.noInputWarning, durationSeconds: durationSeconds) {
-            NotificationCenter.default.post(name: Notification.Name("VoiceFlow.DismissChipWarning"), object: nil)
+            NotificationCenter.default.post(name: Notification.Name("Vordi.DismissChipWarning"), object: nil)
         }
     }
 
     func flashTranscriptCopied(durationSeconds: Double = 4.5) {
         flash(.transcriptCopied, durationSeconds: durationSeconds) {
-            NotificationCenter.default.post(name: Notification.Name("VoiceFlow.DismissChipWarning"), object: nil)
+            NotificationCenter.default.post(name: Notification.Name("Vordi.DismissChipWarning"), object: nil)
         }
     }
 
@@ -417,7 +417,7 @@ struct FloatingChipView: View {
                 text: "Click a textbox and use Cmd+V to paste",
                 actionIcon: "xmark",
                 action: {
-                    NotificationCenter.default.post(name: Notification.Name("VoiceFlow.DismissChipWarning"), object: nil)
+                    NotificationCenter.default.post(name: Notification.Name("Vordi.DismissChipWarning"), object: nil)
                 }
             )
         case .transcriptCopied:
@@ -428,7 +428,7 @@ struct FloatingChipView: View {
                 text: "Transcript copied - use Cmd+V to paste",
                 actionIcon: "xmark",
                 action: {
-                    NotificationCenter.default.post(name: Notification.Name("VoiceFlow.DismissChipWarning"), object: nil)
+                    NotificationCenter.default.post(name: Notification.Name("Vordi.DismissChipWarning"), object: nil)
                 }
             )
         case .permissionsMissing:
@@ -439,7 +439,7 @@ struct FloatingChipView: View {
                 text: "Grant permissions to dictate",
                 actionIcon: "chevron.right",
                 action: {
-                    NotificationCenter.default.post(name: Notification.Name("VoiceFlow.OpenOnboardingPermissions"), object: nil)
+                    NotificationCenter.default.post(name: Notification.Name("Vordi.OpenOnboardingPermissions"), object: nil)
                 }
             )
         case .noAudioWarning:
@@ -450,7 +450,7 @@ struct FloatingChipView: View {
                 text: "Didn't catch that - adjust Mic Sensitivity",
                 actionIcon: "chevron.right",
                 action: {
-                    NotificationCenter.default.post(name: Notification.Name("VoiceFlow.OpenSettings"), object: nil)
+                    NotificationCenter.default.post(name: Notification.Name("Vordi.OpenSettings"), object: nil)
                 }
             )
         case .noOutputWarning:
@@ -461,7 +461,7 @@ struct FloatingChipView: View {
                 text: "No output generated - check Run Log",
                 actionIcon: "chevron.right",
                 action: {
-                    NotificationCenter.default.post(name: Notification.Name("VoiceFlow.OpenRunLog"), object: nil)
+                    NotificationCenter.default.post(name: Notification.Name("Vordi.OpenRunLog"), object: nil)
                 }
             )
         case .handsFree:
@@ -472,7 +472,7 @@ struct FloatingChipView: View {
     private var idleChip: some View {
         HStack(spacing: 6) {
             Button {
-                NotificationCenter.default.post(name: Notification.Name("VoiceFlow.OpenRunLog"), object: nil)
+                NotificationCenter.default.post(name: Notification.Name("Vordi.OpenRunLog"), object: nil)
             } label: {
                 floatingIcon("clock.arrow.circlepath")
             }
@@ -486,7 +486,7 @@ struct FloatingChipView: View {
 
             Button {
                 if !model.hasAllPermissions {
-                    NotificationCenter.default.post(name: Notification.Name("VoiceFlow.OpenOnboardingPermissions"), object: nil)
+                    NotificationCenter.default.post(name: Notification.Name("Vordi.OpenOnboardingPermissions"), object: nil)
                 }
             } label: {
                 ZStack {
@@ -506,7 +506,7 @@ struct FloatingChipView: View {
             .help(model.hasAllPermissions ? "Drag to move" : "Click to fix permissions")
 
             Button {
-                NotificationCenter.default.post(name: Notification.Name("VoiceFlow.OpenSettings"), object: nil)
+                NotificationCenter.default.post(name: Notification.Name("Vordi.OpenSettings"), object: nil)
             } label: {
                 floatingIcon("gearshape.fill")
             }

@@ -9,7 +9,7 @@
 
 Persist each dictation run (audio, screenshot, raw transcript, processed output, prompts, metadata) to local disk as an observable, replayable timeline. Expose via a **Run Log** tab in the main window. Ring-buffered to the last *N* runs. Privacy-first: never leaves the machine.
 
-**Why it's powerful in one line:** It turns VoiceFlow from a black-box dictation tool into a *transparent, auditable, trust-building* pipeline — users see what the model heard, what context it had, and why the output looks the way it does.
+**Why it's powerful in one line:** It turns Vordi from a black-box dictation tool into a *transparent, auditable, trust-building* pipeline — users see what the model heard, what context it had, and why the output looks the way it does.
 
 ---
 
@@ -135,14 +135,14 @@ The existing pipeline must NOT know about the Run Log. We wire in via **events**
 
 - **`AudioRecorder.swift`** → emit `.captureStarted(runID)`, `.captureFinished(runID, audioURL)`.
 - **`WhisperService.swift`** → emit `.transcriptionCompleted(runID, rawText, latency)` and `.postProcessCompleted(runID, prompt, finalText, latency, guardTriggered)`.
-- **`VoiceFlowApp.swift`** → register `RunRecorder` on app start.
+- **`VordiApp.swift`** → register `RunRecorder` on app start.
 - No changes to `TextInjector` / `HotKeyListener` needed for MVP (we only need injection metadata for V2).
 
 ---
 
 ## 6. Storage schema
 
-**Location:** `~/Library/Application Support/VoiceFlow/runs/`
+**Location:** `~/Library/Application Support/Vordi/runs/`
 
 **Per-run folder:** `runs/<ISO8601>_<uuid>/`
 
@@ -211,7 +211,7 @@ runs/
 | Future cloud sync | **Explicitly out of scope.** If ever added, separate opt-in flow + E2E. |
 
 **Messaging to user (must be present):**
-> "Run Log is stored only on this Mac at `~/Library/Application Support/VoiceFlow/runs/`. It never syncs, uploads, or leaves your device. You can clear it anytime."
+> "Run Log is stored only on this Mac at `~/Library/Application Support/Vordi/runs/`. It never syncs, uploads, or leaves your device. You can clear it anytime."
 
 ---
 

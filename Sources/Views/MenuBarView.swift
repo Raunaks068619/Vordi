@@ -48,7 +48,7 @@ struct MenuBarView: View {
 
             Divider()
 
-            Button("Open Verba") {
+            Button("Open Vordi") {
                 appDelegate.openMainWindow()
             }
             .keyboardShortcut("o")
@@ -60,7 +60,7 @@ struct MenuBarView: View {
 
             Divider()
 
-            Button("Quit Verba") {
+            Button("Quit Vordi") {
                 appDelegate.allowTermination = true
                 NSApplication.shared.terminate(nil)
             }

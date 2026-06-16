@@ -1,0 +1,665 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		04BDBD5B8E3B5D6D04BE5ED6 /* ContextProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6AF3DD5E48ACC7EB31C537B5 /* ContextProvider.swift */; };
+		0C76095436494D696FAA8EA2 /* FloatingChipWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = ED538656A5B4F70DFA4888A8 /* FloatingChipWindow.swift */; };
+		0D04CC2C50A1DB9A1F92844C /* vordi_transparent_background_colored_logo_less_padding.png in Resources */ = {isa = PBXBuildFile; fileRef = 98A29CBA313987992424AAA2 /* vordi_transparent_background_colored_logo_less_padding.png */; };
+		0E208CE6D95237AFB451C0CE /* HomeHeroAbstract.jpg in Resources */ = {isa = PBXBuildFile; fileRef = 30A83A1BC84397568F7DF862 /* HomeHeroAbstract.jpg */; };
+		0E9769C95254DF29A7DA02D9 /* DesignSystem.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEEEF48A90CEF8C73C2460EE /* DesignSystem.swift */; };
+		1729D8D1CE63C3934D599A43 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D9A3515D754AEB9E26CCA68F /* SettingsView.swift */; };
+		17436F390943ED0428A98647 /* MainDashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C52A4B39FDE4068BB6AF34AD /* MainDashboardView.swift */; };
+		27F882F94D4BE57BB519E4FF /* LLMService.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5109697B9B8ECCAD8D2BA7A /* LLMService.swift */; };
+		28B512231E0D5C3A73492AA3 /* StarRepoCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6656307D078E5BA576297B46 /* StarRepoCard.swift */; };
+		2EEC3D3353E611386B3320F5 /* NotchPillView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DEA5C9FF9AB15D47EC2EF24F /* NotchPillView.swift */; };
+		318B02FCADB0B89565436A9F /* VordiApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16049E136D576F6E7155DDD9 /* VordiApp.swift */; };
+		3357B9553171F0C9012CBD16 /* vordi_light.png in Resources */ = {isa = PBXBuildFile; fileRef = F3A74928BB4BF5C4EBBF31BF /* vordi_light.png */; };
+		380E0CDD574796100219349C /* VariableRecognitionProfile.swift in Sources */ = {isa = PBXBuildFile; fileRef = 893D71D4AA4FD27AD94E7DA6 /* VariableRecognitionProfile.swift */; };
+		3D52DF1447A0279C535A0B83 /* IndexerService.swift in Sources */ = {isa = PBXBuildFile; fileRef = C799B202D09628989E4028D7 /* IndexerService.swift */; };
+		41CECEFEA266BE6F949B6900 /* VoiceNote.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2E56B216F1E19CAD1349593F /* VoiceNote.swift */; };
+		431E9EACD4E65B965443E5F7 /* MemoryStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = C316FCB545F9ABA590803E34 /* MemoryStore.swift */; };
+		468CDCD48CA8149271133188 /* vordi_light.svg in Resources */ = {isa = PBXBuildFile; fileRef = 00491839EBE34A181EEF8132 /* vordi_light.svg */; };
+		4B62B8CFF45D663C96E949F1 /* AgenticDeveloperModeProfile.swift in Sources */ = {isa = PBXBuildFile; fileRef = 603F8C5B3C8453E62ED37D50 /* AgenticDeveloperModeProfile.swift */; };
+		4D03854B3E796D3601EFF341 /* Context.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2DF892959707055E7041B09 /* Context.swift */; };
+		5004630536CF5A69AF2FEB03 /* RunModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = EBC82C85D284CD277F726EF1 /* RunModel.swift */; };
+		595062908F19EB2ADE07DF20 /* LLMRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE289E3C28ED96F9CFC023D0 /* LLMRouter.swift */; };
+		5A3D3A7A8D5F7287BBB0780B /* vordi_dark.png in Resources */ = {isa = PBXBuildFile; fileRef = A179A61DC37A56262042E310 /* vordi_dark.png */; };
+		5BA719CF7ADC2EEFEFD29DA9 /* vordi_transparent_background.png in Resources */ = {isa = PBXBuildFile; fileRef = DE2DBCDFD6BEF69A8550DA6B /* vordi_transparent_background.png */; };
+		5C586022E8C94DB729FAB8BA /* RunStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 887E67265EFE4654C3BCC5A6 /* RunStore.swift */; };
+		619D328DA903D3B09774C2F6 /* Vordi.icns in Resources */ = {isa = PBXBuildFile; fileRef = D3F11FF4D85D34524197D0F4 /* Vordi.icns */; };
+		62C7C0AA3049AE062EC0B3F4 /* MagicWordStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0F54E5E78BE13E40F547ECC /* MagicWordStore.swift */; };
+		633CC693C9CD54CED45703D9 /* InputMonitoringGuideView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 545269499F1DC1CA34A9BCD1 /* InputMonitoringGuideView.swift */; };
+		67998AED0F3C3893F6B8A031 /* FloatingNotesWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E2030425DA18339F3B75813 /* FloatingNotesWindow.swift */; };
+		6A0AA29B83F4821DC7AC68D3 /* UserTypeClassifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = E4D9152A7458B89441E192B4 /* UserTypeClassifier.swift */; };
+		6A8FE430BD07E97FB95EACAB /* DevModeSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2817E7F6BBFC15CEF33B2B2 /* DevModeSettingsView.swift */; };
+		7088ECD0D9DCA737B074E534 /* MenuBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 707DE76A41F81D64547A4653 /* MenuBarView.swift */; };
+		7798BE0B891A6DBD8B3E0870 /* MemoryChatService.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8E95D48894E3CC2B4F6D96E /* MemoryChatService.swift */; };
+		7ACB7F9379F4F1031DB656D2 /* TextInjector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16A5AE6AF5A3ECD86B1C2456 /* TextInjector.swift */; };
+		7D9E6E55E7889E36F00C80D0 /* MagicWordExpansionProfile.swift in Sources */ = {isa = PBXBuildFile; fileRef = 73CD091220C7A3491A487976 /* MagicWordExpansionProfile.swift */; };
+		8755272A76A3E943D190EB10 /* MicrophoneProbe.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5623664E5C75D7A0594F137 /* MicrophoneProbe.swift */; };
+		8E1B69BC20C6546EA818E750 /* NotchPillComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7BEE7DDBCB4DF78A6A9E90AF /* NotchPillComponents.swift */; };
+		8F32F3C70738D0E39E939E44 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 6652C756D456B67823D835B7 /* Assets.xcassets */; };
+		9142A6E3F9A06434581A5451 /* CLIBackend.swift in Sources */ = {isa = PBXBuildFile; fileRef = D92735525BB7D75241E8F90A /* CLIBackend.swift */; };
+		918CF1AE234D31C81C252F24 /* AccessibilityGuideView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FCCEE66076410F6A7435EAA5 /* AccessibilityGuideView.swift */; };
+		91D809860763228986368378 /* AudioRecorder.swift in Sources */ = {isa = PBXBuildFile; fileRef = FDB36DB33925A5B691D8B712 /* AudioRecorder.swift */; };
+		9356FF99B44FE97AFE801B9B /* PromptEngineerProfile.swift in Sources */ = {isa = PBXBuildFile; fileRef = D9BCFE2523F037C18D76095A /* PromptEngineerProfile.swift */; };
+		97F49CD6574D0894F43506BE /* VoiceNoteStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19413ECD16A24328128E2EE5 /* VoiceNoteStore.swift */; };
+		9887FD17360AC5295EC09109 /* vordi_dark.svg in Resources */ = {isa = PBXBuildFile; fileRef = 979135EB0A2D5EAE4B69FC1C /* vordi_dark.svg */; };
+		9AA91289C55A0E0084E7CFA8 /* LocalModelDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 446AC88C043326902AFD04EA /* LocalModelDetector.swift */; };
+		9CD8FBFFE4E85563E8F0094F /* GitHubService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 183AF48D9C154456FA98F609 /* GitHubService.swift */; };
+		A12E9012291F5A21328F0162 /* KnowledgeGraphService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 43175D537F9FD08B97B2D62A /* KnowledgeGraphService.swift */; };
+		A22EEB9DE9E17FEA09E47263 /* EmbeddingService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1DC552A4CCA5B49E151F47E /* EmbeddingService.swift */; };
+		A3DE090C2B7F0741C9EFD509 /* DeveloperModeProfile.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60CA8FA4FD26162CEAD4B35D /* DeveloperModeProfile.swift */; };
+		A4F6C1D5AB7E0DC5E34DC038 /* HeaderGradientGlitter.svg in Resources */ = {isa = PBXBuildFile; fileRef = 35D94D4B1CF48CD5FFE508F8 /* HeaderGradientGlitter.svg */; };
+		AAFEB1C5EF069EC701EF49B3 /* NotchPillWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7245DCA746C4265AC50430AF /* NotchPillWindow.swift */; };
+		AB4E6FF5F16127F4C097D730 /* KnowledgeGraphView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E85A5450D5E1380E9DA4B3E9 /* KnowledgeGraphView.swift */; };
+		ABC3DACAE9605322F1C0F98C /* vordi_transparent_background_colored_logo.png in Resources */ = {isa = PBXBuildFile; fileRef = 83B325BAEF88931E0E99F83C /* vordi_transparent_background_colored_logo.png */; };
+		ACDFB7F7ABB47D076C6E1A21 /* StandardCleanupProfile.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA3545FFC8AB388BE813268D /* StandardCleanupProfile.swift */; };
+		B4EE11C5585366F22C1177DB /* HeaderGradient.svg in Resources */ = {isa = PBXBuildFile; fileRef = 2660306123EE0B21FE97F13B /* HeaderGradient.svg */; };
+		B82CD7379C2D6B53472916E9 /* CLIRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF911FC4438406925F1D9AB3 /* CLIRunner.swift */; };
+		B85EC56E31005E8A85901A0D /* HallucinationGuard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2FAF42FBDE9CC6D4AC122C25 /* HallucinationGuard.swift */; };
+		BEBE0CCADE58598FF0253E84 /* HotKeyListener.swift in Sources */ = {isa = PBXBuildFile; fileRef = FC498E736D1087FB9B14187C /* HotKeyListener.swift */; };
+		C5FE79B5F3DFDAF3F2D9D6D6 /* RunRecorder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 908A3074AA6A02FC9B3C09A9 /* RunRecorder.swift */; };
+		C6613981899F49C4F192BDED /* NotesWorkspaceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6032E8FC2EEE446EEB66E231 /* NotesWorkspaceView.swift */; };
+		C916651E26475B380B21B012 /* MagicWordResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 71FA934987805D4FEF4BCE69 /* MagicWordResolver.swift */; };
+		CBDA21AA2596B22EF8D26F3E /* RunLogView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A6D59BD85E3A2AC8B5852ED /* RunLogView.swift */; };
+		D499A668C340F1138155A93B /* WhisperService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87966BCEB2D8E8154D5CAA5A /* WhisperService.swift */; };
+		D8A8700C5B6FD6011B45BCD0 /* playstore.png in Resources */ = {isa = PBXBuildFile; fileRef = 8BCD1D2B9BC0349E26923A63 /* playstore.png */; };
+		E69CEBC2C3835BD1CBCAA39D /* TransformerRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9EA0DCE3120A9C03D41C005D /* TransformerRouter.swift */; };
+		E6E5D69ED5C6233BF6FD2E15 /* HomeHeroAbstract.attribution.txt in Resources */ = {isa = PBXBuildFile; fileRef = 649B6A4851CCDD50C11C1FDE /* HomeHeroAbstract.attribution.txt */; };
+		E77AFC5BE81CB8EECF33808C /* github-6980894_640.png in Resources */ = {isa = PBXBuildFile; fileRef = 0CC685C870C777D969955B5C /* github-6980894_640.png */; };
+		E7E4CD52475EDFDCEB0BD80E /* appstore.png in Resources */ = {isa = PBXBuildFile; fileRef = 1B4887930577F24C894D56BA /* appstore.png */; };
+		ECB19ED0A03582F43219167E /* NotesRichTextEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = E553D56F6E4AEF05933E07D7 /* NotesRichTextEditor.swift */; };
+		ECFBE100AE2CEDC5F6E78140 /* InsightsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 55216EB9E4E46305A5007675 /* InsightsView.swift */; };
+		EE037EEBBA27925A9C107622 /* TransformerProfile.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C4A8B80959708C5CAF5ACA7 /* TransformerProfile.swift */; };
+		EFA32ADE38B2FE746E99D3B6 /* MagicWordsSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 112F9D5BEE30B9F5C09B0BEA /* MagicWordsSettingsView.swift */; };
+		F2C79AF77EAAC346CAFACFFE /* RealtimeTranscriptionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2335149D1EAB1326F66DC304 /* RealtimeTranscriptionService.swift */; };
+		F8CFBE9B3476C2150684AEE9 /* UserVocabulary.swift in Sources */ = {isa = PBXBuildFile; fileRef = 17C5B17EAA41C309AB9F4CA8 /* UserVocabulary.swift */; };
+		F9C2C120617D7DF8AA02E631 /* MagicWord.swift in Sources */ = {isa = PBXBuildFile; fileRef = 14218800EB8259A71C75CA3F /* MagicWord.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		00491839EBE34A181EEF8132 /* vordi_light.svg */ = {isa = PBXFileReference; path = vordi_light.svg; sourceTree = "<group>"; };
+		0CC685C870C777D969955B5C /* github-6980894_640.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "github-6980894_640.png"; sourceTree = "<group>"; };
+		112F9D5BEE30B9F5C09B0BEA /* MagicWordsSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MagicWordsSettingsView.swift; sourceTree = "<group>"; };
+		14218800EB8259A71C75CA3F /* MagicWord.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MagicWord.swift; sourceTree = "<group>"; };
+		16049E136D576F6E7155DDD9 /* VordiApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VordiApp.swift; sourceTree = "<group>"; };
+		16A5AE6AF5A3ECD86B1C2456 /* TextInjector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextInjector.swift; sourceTree = "<group>"; };
+		17C5B17EAA41C309AB9F4CA8 /* UserVocabulary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserVocabulary.swift; sourceTree = "<group>"; };
+		183AF48D9C154456FA98F609 /* GitHubService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitHubService.swift; sourceTree = "<group>"; };
+		19413ECD16A24328128E2EE5 /* VoiceNoteStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceNoteStore.swift; sourceTree = "<group>"; };
+		1A6D59BD85E3A2AC8B5852ED /* RunLogView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunLogView.swift; sourceTree = "<group>"; };
+		1B4887930577F24C894D56BA /* appstore.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = appstore.png; sourceTree = "<group>"; };
+		2335149D1EAB1326F66DC304 /* RealtimeTranscriptionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RealtimeTranscriptionService.swift; sourceTree = "<group>"; };
+		2660306123EE0B21FE97F13B /* HeaderGradient.svg */ = {isa = PBXFileReference; path = HeaderGradient.svg; sourceTree = "<group>"; };
+		2E56B216F1E19CAD1349593F /* VoiceNote.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceNote.swift; sourceTree = "<group>"; };
+		2FAF42FBDE9CC6D4AC122C25 /* HallucinationGuard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HallucinationGuard.swift; sourceTree = "<group>"; };
+		30A83A1BC84397568F7DF862 /* HomeHeroAbstract.jpg */ = {isa = PBXFileReference; lastKnownFileType = image.jpeg; path = HomeHeroAbstract.jpg; sourceTree = "<group>"; };
+		35D94D4B1CF48CD5FFE508F8 /* HeaderGradientGlitter.svg */ = {isa = PBXFileReference; path = HeaderGradientGlitter.svg; sourceTree = "<group>"; };
+		40B268B6DBB1EDFFDB41F116 /* Vordi.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Vordi.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		43175D537F9FD08B97B2D62A /* KnowledgeGraphService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnowledgeGraphService.swift; sourceTree = "<group>"; };
+		446AC88C043326902AFD04EA /* LocalModelDetector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalModelDetector.swift; sourceTree = "<group>"; };
+		545269499F1DC1CA34A9BCD1 /* InputMonitoringGuideView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InputMonitoringGuideView.swift; sourceTree = "<group>"; };
+		55216EB9E4E46305A5007675 /* InsightsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InsightsView.swift; sourceTree = "<group>"; };
+		5C4A8B80959708C5CAF5ACA7 /* TransformerProfile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransformerProfile.swift; sourceTree = "<group>"; };
+		6032E8FC2EEE446EEB66E231 /* NotesWorkspaceView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotesWorkspaceView.swift; sourceTree = "<group>"; };
+		603F8C5B3C8453E62ED37D50 /* AgenticDeveloperModeProfile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgenticDeveloperModeProfile.swift; sourceTree = "<group>"; };
+		60CA8FA4FD26162CEAD4B35D /* DeveloperModeProfile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeveloperModeProfile.swift; sourceTree = "<group>"; };
+		649B6A4851CCDD50C11C1FDE /* HomeHeroAbstract.attribution.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = HomeHeroAbstract.attribution.txt; sourceTree = "<group>"; };
+		6652C756D456B67823D835B7 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		6656307D078E5BA576297B46 /* StarRepoCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StarRepoCard.swift; sourceTree = "<group>"; };
+		6AF3DD5E48ACC7EB31C537B5 /* ContextProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContextProvider.swift; sourceTree = "<group>"; };
+		707DE76A41F81D64547A4653 /* MenuBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarView.swift; sourceTree = "<group>"; };
+		71FA934987805D4FEF4BCE69 /* MagicWordResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MagicWordResolver.swift; sourceTree = "<group>"; };
+		7245DCA746C4265AC50430AF /* NotchPillWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotchPillWindow.swift; sourceTree = "<group>"; };
+		73CD091220C7A3491A487976 /* MagicWordExpansionProfile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MagicWordExpansionProfile.swift; sourceTree = "<group>"; };
+		7BEE7DDBCB4DF78A6A9E90AF /* NotchPillComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotchPillComponents.swift; sourceTree = "<group>"; };
+		83B325BAEF88931E0E99F83C /* vordi_transparent_background_colored_logo.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = vordi_transparent_background_colored_logo.png; sourceTree = "<group>"; };
+		87966BCEB2D8E8154D5CAA5A /* WhisperService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WhisperService.swift; sourceTree = "<group>"; };
+		887E67265EFE4654C3BCC5A6 /* RunStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunStore.swift; sourceTree = "<group>"; };
+		893D71D4AA4FD27AD94E7DA6 /* VariableRecognitionProfile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VariableRecognitionProfile.swift; sourceTree = "<group>"; };
+		8BCD1D2B9BC0349E26923A63 /* playstore.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = playstore.png; sourceTree = "<group>"; };
+		8E2030425DA18339F3B75813 /* FloatingNotesWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FloatingNotesWindow.swift; sourceTree = "<group>"; };
+		908A3074AA6A02FC9B3C09A9 /* RunRecorder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunRecorder.swift; sourceTree = "<group>"; };
+		979135EB0A2D5EAE4B69FC1C /* vordi_dark.svg */ = {isa = PBXFileReference; path = vordi_dark.svg; sourceTree = "<group>"; };
+		98A29CBA313987992424AAA2 /* vordi_transparent_background_colored_logo_less_padding.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = vordi_transparent_background_colored_logo_less_padding.png; sourceTree = "<group>"; };
+		9EA0DCE3120A9C03D41C005D /* TransformerRouter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransformerRouter.swift; sourceTree = "<group>"; };
+		A0F54E5E78BE13E40F547ECC /* MagicWordStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MagicWordStore.swift; sourceTree = "<group>"; };
+		A179A61DC37A56262042E310 /* vordi_dark.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = vordi_dark.png; sourceTree = "<group>"; };
+		A1DC552A4CCA5B49E151F47E /* EmbeddingService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmbeddingService.swift; sourceTree = "<group>"; };
+		A5623664E5C75D7A0594F137 /* MicrophoneProbe.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MicrophoneProbe.swift; sourceTree = "<group>"; };
+		AEEEF48A90CEF8C73C2460EE /* DesignSystem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesignSystem.swift; sourceTree = "<group>"; };
+		AF911FC4438406925F1D9AB3 /* CLIRunner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CLIRunner.swift; sourceTree = "<group>"; };
+		B2817E7F6BBFC15CEF33B2B2 /* DevModeSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DevModeSettingsView.swift; sourceTree = "<group>"; };
+		B33BF7E64BAAF219F092C06E /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		B9F20AD1290941D8B706EB76 /* Vordi.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Vordi.entitlements; sourceTree = "<group>"; };
+		C316FCB545F9ABA590803E34 /* MemoryStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemoryStore.swift; sourceTree = "<group>"; };
+		C5109697B9B8ECCAD8D2BA7A /* LLMService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LLMService.swift; sourceTree = "<group>"; };
+		C52A4B39FDE4068BB6AF34AD /* MainDashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainDashboardView.swift; sourceTree = "<group>"; };
+		C799B202D09628989E4028D7 /* IndexerService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IndexerService.swift; sourceTree = "<group>"; };
+		CE289E3C28ED96F9CFC023D0 /* LLMRouter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LLMRouter.swift; sourceTree = "<group>"; };
+		D3F11FF4D85D34524197D0F4 /* Vordi.icns */ = {isa = PBXFileReference; lastKnownFileType = image.icns; path = Vordi.icns; sourceTree = "<group>"; };
+		D92735525BB7D75241E8F90A /* CLIBackend.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CLIBackend.swift; sourceTree = "<group>"; };
+		D9A3515D754AEB9E26CCA68F /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		D9BCFE2523F037C18D76095A /* PromptEngineerProfile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PromptEngineerProfile.swift; sourceTree = "<group>"; };
+		DA3545FFC8AB388BE813268D /* StandardCleanupProfile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StandardCleanupProfile.swift; sourceTree = "<group>"; };
+		DE2DBCDFD6BEF69A8550DA6B /* vordi_transparent_background.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = vordi_transparent_background.png; sourceTree = "<group>"; };
+		DEA5C9FF9AB15D47EC2EF24F /* NotchPillView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotchPillView.swift; sourceTree = "<group>"; };
+		E2DF892959707055E7041B09 /* Context.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Context.swift; sourceTree = "<group>"; };
+		E4D9152A7458B89441E192B4 /* UserTypeClassifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserTypeClassifier.swift; sourceTree = "<group>"; };
+		E553D56F6E4AEF05933E07D7 /* NotesRichTextEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotesRichTextEditor.swift; sourceTree = "<group>"; };
+		E85A5450D5E1380E9DA4B3E9 /* KnowledgeGraphView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnowledgeGraphView.swift; sourceTree = "<group>"; };
+		EBC82C85D284CD277F726EF1 /* RunModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunModel.swift; sourceTree = "<group>"; };
+		ED538656A5B4F70DFA4888A8 /* FloatingChipWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FloatingChipWindow.swift; sourceTree = "<group>"; };
+		F3A74928BB4BF5C4EBBF31BF /* vordi_light.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = vordi_light.png; sourceTree = "<group>"; };
+		F8E95D48894E3CC2B4F6D96E /* MemoryChatService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemoryChatService.swift; sourceTree = "<group>"; };
+		FC498E736D1087FB9B14187C /* HotKeyListener.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HotKeyListener.swift; sourceTree = "<group>"; };
+		FCCEE66076410F6A7435EAA5 /* AccessibilityGuideView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccessibilityGuideView.swift; sourceTree = "<group>"; };
+		FDB36DB33925A5B691D8B712 /* AudioRecorder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioRecorder.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXGroup section */
+		0E5A6CAB7F210C315CE7B2B3 = {
+			isa = PBXGroup;
+			children = (
+				E15DE28DEF9C7AADDF0289D5 /* Resources */,
+				D828AFF4ECC36763B8C48C58 /* Sources */,
+				BFE34A5D7C1F0266DED62D68 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		16C40B5EB8A63F9366B529D9 /* App */ = {
+			isa = PBXGroup;
+			children = (
+				16049E136D576F6E7155DDD9 /* VordiApp.swift */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
+		339BD57B2C8889B2994B269D /* Components */ = {
+			isa = PBXGroup;
+			children = (
+				6656307D078E5BA576297B46 /* StarRepoCard.swift */,
+			);
+			path = Components;
+			sourceTree = "<group>";
+		};
+		58EE6304B3D3FF3AB4356FC2 /* Memory */ = {
+			isa = PBXGroup;
+			children = (
+				D92735525BB7D75241E8F90A /* CLIBackend.swift */,
+				AF911FC4438406925F1D9AB3 /* CLIRunner.swift */,
+				A1DC552A4CCA5B49E151F47E /* EmbeddingService.swift */,
+				C799B202D09628989E4028D7 /* IndexerService.swift */,
+				CE289E3C28ED96F9CFC023D0 /* LLMRouter.swift */,
+				F8E95D48894E3CC2B4F6D96E /* MemoryChatService.swift */,
+				C316FCB545F9ABA590803E34 /* MemoryStore.swift */,
+			);
+			path = Memory;
+			sourceTree = "<group>";
+		};
+		7D04772BF39EE357A66E2449 /* Services */ = {
+			isa = PBXGroup;
+			children = (
+				FDB36DB33925A5B691D8B712 /* AudioRecorder.swift */,
+				6AF3DD5E48ACC7EB31C537B5 /* ContextProvider.swift */,
+				183AF48D9C154456FA98F609 /* GitHubService.swift */,
+				2FAF42FBDE9CC6D4AC122C25 /* HallucinationGuard.swift */,
+				FC498E736D1087FB9B14187C /* HotKeyListener.swift */,
+				43175D537F9FD08B97B2D62A /* KnowledgeGraphService.swift */,
+				C5109697B9B8ECCAD8D2BA7A /* LLMService.swift */,
+				446AC88C043326902AFD04EA /* LocalModelDetector.swift */,
+				71FA934987805D4FEF4BCE69 /* MagicWordResolver.swift */,
+				A0F54E5E78BE13E40F547ECC /* MagicWordStore.swift */,
+				A5623664E5C75D7A0594F137 /* MicrophoneProbe.swift */,
+				2335149D1EAB1326F66DC304 /* RealtimeTranscriptionService.swift */,
+				908A3074AA6A02FC9B3C09A9 /* RunRecorder.swift */,
+				887E67265EFE4654C3BCC5A6 /* RunStore.swift */,
+				16A5AE6AF5A3ECD86B1C2456 /* TextInjector.swift */,
+				9EA0DCE3120A9C03D41C005D /* TransformerRouter.swift */,
+				E4D9152A7458B89441E192B4 /* UserTypeClassifier.swift */,
+				17C5B17EAA41C309AB9F4CA8 /* UserVocabulary.swift */,
+				19413ECD16A24328128E2EE5 /* VoiceNoteStore.swift */,
+				87966BCEB2D8E8154D5CAA5A /* WhisperService.swift */,
+				58EE6304B3D3FF3AB4356FC2 /* Memory */,
+				D3559D905586709F60DA0F4B /* Profiles */,
+			);
+			path = Services;
+			sourceTree = "<group>";
+		};
+		8DE66CA823AE270661C51931 /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				FCCEE66076410F6A7435EAA5 /* AccessibilityGuideView.swift */,
+				AEEEF48A90CEF8C73C2460EE /* DesignSystem.swift */,
+				B2817E7F6BBFC15CEF33B2B2 /* DevModeSettingsView.swift */,
+				ED538656A5B4F70DFA4888A8 /* FloatingChipWindow.swift */,
+				8E2030425DA18339F3B75813 /* FloatingNotesWindow.swift */,
+				545269499F1DC1CA34A9BCD1 /* InputMonitoringGuideView.swift */,
+				55216EB9E4E46305A5007675 /* InsightsView.swift */,
+				E85A5450D5E1380E9DA4B3E9 /* KnowledgeGraphView.swift */,
+				112F9D5BEE30B9F5C09B0BEA /* MagicWordsSettingsView.swift */,
+				C52A4B39FDE4068BB6AF34AD /* MainDashboardView.swift */,
+				707DE76A41F81D64547A4653 /* MenuBarView.swift */,
+				7BEE7DDBCB4DF78A6A9E90AF /* NotchPillComponents.swift */,
+				DEA5C9FF9AB15D47EC2EF24F /* NotchPillView.swift */,
+				7245DCA746C4265AC50430AF /* NotchPillWindow.swift */,
+				E553D56F6E4AEF05933E07D7 /* NotesRichTextEditor.swift */,
+				6032E8FC2EEE446EEB66E231 /* NotesWorkspaceView.swift */,
+				1A6D59BD85E3A2AC8B5852ED /* RunLogView.swift */,
+				D9A3515D754AEB9E26CCA68F /* SettingsView.swift */,
+				339BD57B2C8889B2994B269D /* Components */,
+			);
+			path = Views;
+			sourceTree = "<group>";
+		};
+		B79F3C1CC84730C0E42DD6DC /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				E2DF892959707055E7041B09 /* Context.swift */,
+				14218800EB8259A71C75CA3F /* MagicWord.swift */,
+				EBC82C85D284CD277F726EF1 /* RunModel.swift */,
+				5C4A8B80959708C5CAF5ACA7 /* TransformerProfile.swift */,
+				2E56B216F1E19CAD1349593F /* VoiceNote.swift */,
+			);
+			path = Models;
+			sourceTree = "<group>";
+		};
+		BFE34A5D7C1F0266DED62D68 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				40B268B6DBB1EDFFDB41F116 /* Vordi.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		CCAE6134AA473FFA445BFFA6 /* AppIcons */ = {
+			isa = PBXGroup;
+			children = (
+				1B4887930577F24C894D56BA /* appstore.png */,
+				6652C756D456B67823D835B7 /* Assets.xcassets */,
+				8BCD1D2B9BC0349E26923A63 /* playstore.png */,
+			);
+			path = AppIcons;
+			sourceTree = "<group>";
+		};
+		D3559D905586709F60DA0F4B /* Profiles */ = {
+			isa = PBXGroup;
+			children = (
+				603F8C5B3C8453E62ED37D50 /* AgenticDeveloperModeProfile.swift */,
+				60CA8FA4FD26162CEAD4B35D /* DeveloperModeProfile.swift */,
+				73CD091220C7A3491A487976 /* MagicWordExpansionProfile.swift */,
+				D9BCFE2523F037C18D76095A /* PromptEngineerProfile.swift */,
+				DA3545FFC8AB388BE813268D /* StandardCleanupProfile.swift */,
+				893D71D4AA4FD27AD94E7DA6 /* VariableRecognitionProfile.swift */,
+			);
+			path = Profiles;
+			sourceTree = "<group>";
+		};
+		D828AFF4ECC36763B8C48C58 /* Sources */ = {
+			isa = PBXGroup;
+			children = (
+				16C40B5EB8A63F9366B529D9 /* App */,
+				B79F3C1CC84730C0E42DD6DC /* Models */,
+				7D04772BF39EE357A66E2449 /* Services */,
+				8DE66CA823AE270661C51931 /* Views */,
+			);
+			path = Sources;
+			sourceTree = "<group>";
+		};
+		E15DE28DEF9C7AADDF0289D5 /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				0CC685C870C777D969955B5C /* github-6980894_640.png */,
+				2660306123EE0B21FE97F13B /* HeaderGradient.svg */,
+				35D94D4B1CF48CD5FFE508F8 /* HeaderGradientGlitter.svg */,
+				649B6A4851CCDD50C11C1FDE /* HomeHeroAbstract.attribution.txt */,
+				30A83A1BC84397568F7DF862 /* HomeHeroAbstract.jpg */,
+				B33BF7E64BAAF219F092C06E /* Info.plist */,
+				A179A61DC37A56262042E310 /* vordi_dark.png */,
+				979135EB0A2D5EAE4B69FC1C /* vordi_dark.svg */,
+				F3A74928BB4BF5C4EBBF31BF /* vordi_light.png */,
+				00491839EBE34A181EEF8132 /* vordi_light.svg */,
+				98A29CBA313987992424AAA2 /* vordi_transparent_background_colored_logo_less_padding.png */,
+				83B325BAEF88931E0E99F83C /* vordi_transparent_background_colored_logo.png */,
+				DE2DBCDFD6BEF69A8550DA6B /* vordi_transparent_background.png */,
+				B9F20AD1290941D8B706EB76 /* Vordi.entitlements */,
+				D3F11FF4D85D34524197D0F4 /* Vordi.icns */,
+				CCAE6134AA473FFA445BFFA6 /* AppIcons */,
+			);
+			path = Resources;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		5EB8A90E87B638AD91786FFD /* Vordi */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 2095DFC3F3B71050309A0D59 /* Build configuration list for PBXNativeTarget "Vordi" */;
+			buildPhases = (
+				29E5751D9C8AB038011126E6 /* Sources */,
+				97E3564FFE93F803FC81B459 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = Vordi;
+			packageProductDependencies = (
+			);
+			productName = Vordi;
+			productReference = 40B268B6DBB1EDFFDB41F116 /* Vordi.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		5A0E707C2D4B18D2092AAF7B /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1500;
+			};
+			buildConfigurationList = E6D33E7C6CBF573053B78F87 /* Build configuration list for PBXProject "Vordi" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = 0E5A6CAB7F210C315CE7B2B3;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				5EB8A90E87B638AD91786FFD /* Vordi */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		97E3564FFE93F803FC81B459 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				8F32F3C70738D0E39E939E44 /* Assets.xcassets in Resources */,
+				B4EE11C5585366F22C1177DB /* HeaderGradient.svg in Resources */,
+				A4F6C1D5AB7E0DC5E34DC038 /* HeaderGradientGlitter.svg in Resources */,
+				E6E5D69ED5C6233BF6FD2E15 /* HomeHeroAbstract.attribution.txt in Resources */,
+				0E208CE6D95237AFB451C0CE /* HomeHeroAbstract.jpg in Resources */,
+				619D328DA903D3B09774C2F6 /* Vordi.icns in Resources */,
+				E7E4CD52475EDFDCEB0BD80E /* appstore.png in Resources */,
+				E77AFC5BE81CB8EECF33808C /* github-6980894_640.png in Resources */,
+				D8A8700C5B6FD6011B45BCD0 /* playstore.png in Resources */,
+				5A3D3A7A8D5F7287BBB0780B /* vordi_dark.png in Resources */,
+				9887FD17360AC5295EC09109 /* vordi_dark.svg in Resources */,
+				3357B9553171F0C9012CBD16 /* vordi_light.png in Resources */,
+				468CDCD48CA8149271133188 /* vordi_light.svg in Resources */,
+				5BA719CF7ADC2EEFEFD29DA9 /* vordi_transparent_background.png in Resources */,
+				ABC3DACAE9605322F1C0F98C /* vordi_transparent_background_colored_logo.png in Resources */,
+				0D04CC2C50A1DB9A1F92844C /* vordi_transparent_background_colored_logo_less_padding.png in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		29E5751D9C8AB038011126E6 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				918CF1AE234D31C81C252F24 /* AccessibilityGuideView.swift in Sources */,
+				4B62B8CFF45D663C96E949F1 /* AgenticDeveloperModeProfile.swift in Sources */,
+				91D809860763228986368378 /* AudioRecorder.swift in Sources */,
+				9142A6E3F9A06434581A5451 /* CLIBackend.swift in Sources */,
+				B82CD7379C2D6B53472916E9 /* CLIRunner.swift in Sources */,
+				4D03854B3E796D3601EFF341 /* Context.swift in Sources */,
+				04BDBD5B8E3B5D6D04BE5ED6 /* ContextProvider.swift in Sources */,
+				0E9769C95254DF29A7DA02D9 /* DesignSystem.swift in Sources */,
+				6A8FE430BD07E97FB95EACAB /* DevModeSettingsView.swift in Sources */,
+				A3DE090C2B7F0741C9EFD509 /* DeveloperModeProfile.swift in Sources */,
+				A22EEB9DE9E17FEA09E47263 /* EmbeddingService.swift in Sources */,
+				0C76095436494D696FAA8EA2 /* FloatingChipWindow.swift in Sources */,
+				67998AED0F3C3893F6B8A031 /* FloatingNotesWindow.swift in Sources */,
+				9CD8FBFFE4E85563E8F0094F /* GitHubService.swift in Sources */,
+				B85EC56E31005E8A85901A0D /* HallucinationGuard.swift in Sources */,
+				BEBE0CCADE58598FF0253E84 /* HotKeyListener.swift in Sources */,
+				3D52DF1447A0279C535A0B83 /* IndexerService.swift in Sources */,
+				633CC693C9CD54CED45703D9 /* InputMonitoringGuideView.swift in Sources */,
+				ECFBE100AE2CEDC5F6E78140 /* InsightsView.swift in Sources */,
+				A12E9012291F5A21328F0162 /* KnowledgeGraphService.swift in Sources */,
+				AB4E6FF5F16127F4C097D730 /* KnowledgeGraphView.swift in Sources */,
+				595062908F19EB2ADE07DF20 /* LLMRouter.swift in Sources */,
+				27F882F94D4BE57BB519E4FF /* LLMService.swift in Sources */,
+				9AA91289C55A0E0084E7CFA8 /* LocalModelDetector.swift in Sources */,
+				F9C2C120617D7DF8AA02E631 /* MagicWord.swift in Sources */,
+				7D9E6E55E7889E36F00C80D0 /* MagicWordExpansionProfile.swift in Sources */,
+				C916651E26475B380B21B012 /* MagicWordResolver.swift in Sources */,
+				62C7C0AA3049AE062EC0B3F4 /* MagicWordStore.swift in Sources */,
+				EFA32ADE38B2FE746E99D3B6 /* MagicWordsSettingsView.swift in Sources */,
+				17436F390943ED0428A98647 /* MainDashboardView.swift in Sources */,
+				7798BE0B891A6DBD8B3E0870 /* MemoryChatService.swift in Sources */,
+				431E9EACD4E65B965443E5F7 /* MemoryStore.swift in Sources */,
+				7088ECD0D9DCA737B074E534 /* MenuBarView.swift in Sources */,
+				8755272A76A3E943D190EB10 /* MicrophoneProbe.swift in Sources */,
+				8E1B69BC20C6546EA818E750 /* NotchPillComponents.swift in Sources */,
+				2EEC3D3353E611386B3320F5 /* NotchPillView.swift in Sources */,
+				AAFEB1C5EF069EC701EF49B3 /* NotchPillWindow.swift in Sources */,
+				ECB19ED0A03582F43219167E /* NotesRichTextEditor.swift in Sources */,
+				C6613981899F49C4F192BDED /* NotesWorkspaceView.swift in Sources */,
+				9356FF99B44FE97AFE801B9B /* PromptEngineerProfile.swift in Sources */,
+				F2C79AF77EAAC346CAFACFFE /* RealtimeTranscriptionService.swift in Sources */,
+				CBDA21AA2596B22EF8D26F3E /* RunLogView.swift in Sources */,
+				5004630536CF5A69AF2FEB03 /* RunModel.swift in Sources */,
+				C5FE79B5F3DFDAF3F2D9D6D6 /* RunRecorder.swift in Sources */,
+				5C586022E8C94DB729FAB8BA /* RunStore.swift in Sources */,
+				1729D8D1CE63C3934D599A43 /* SettingsView.swift in Sources */,
+				ACDFB7F7ABB47D076C6E1A21 /* StandardCleanupProfile.swift in Sources */,
+				28B512231E0D5C3A73492AA3 /* StarRepoCard.swift in Sources */,
+				7ACB7F9379F4F1031DB656D2 /* TextInjector.swift in Sources */,
+				EE037EEBBA27925A9C107622 /* TransformerProfile.swift in Sources */,
+				E69CEBC2C3835BD1CBCAA39D /* TransformerRouter.swift in Sources */,
+				6A0AA29B83F4821DC7AC68D3 /* UserTypeClassifier.swift in Sources */,
+				F8CFBE9B3476C2150684AEE9 /* UserVocabulary.swift in Sources */,
+				380E0CDD574796100219349C /* VariableRecognitionProfile.swift in Sources */,
+				318B02FCADB0B89565436A9F /* VordiApp.swift in Sources */,
+				41CECEFEA266BE6F949B6900 /* VoiceNote.swift in Sources */,
+				97F49CD6574D0894F43506BE /* VoiceNoteStore.swift in Sources */,
+				D499A668C340F1138155A93B /* WhisperService.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		B6AF92D92EB44848F0858EC5 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = Resources/Vordi.entitlements;
+				CODE_SIGN_IDENTITY = "-";
+				COMBINE_HIDPI_IMAGES = YES;
+				ENABLE_HARDENED_RUNTIME = YES;
+				INFOPLIST_FILE = Resources/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"@executable_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.vordi.app;
+				PRODUCT_NAME = Vordi;
+				SDKROOT = macosx;
+			};
+			name = Release;
+		};
+		C0E14BEDC2E62EA8505DCE80 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = Resources/Vordi.entitlements;
+				CODE_SIGN_IDENTITY = "-";
+				COMBINE_HIDPI_IMAGES = YES;
+				ENABLE_HARDENED_RUNTIME = YES;
+				INFOPLIST_FILE = Resources/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"@executable_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.vordi.app;
+				PRODUCT_NAME = Vordi;
+				SDKROOT = macosx;
+			};
+			name = Debug;
+		};
+		C5C23766658C9EE40B1BAE5F /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 21;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				MARKETING_VERSION = 0.6.3;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.9;
+			};
+			name = Release;
+		};
+		F80A524A98714C0E6A6855A9 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 21;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				MARKETING_VERSION = 0.6.3;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.9;
+			};
+			name = Debug;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		2095DFC3F3B71050309A0D59 /* Build configuration list for PBXNativeTarget "Vordi" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				C0E14BEDC2E62EA8505DCE80 /* Debug */,
+				B6AF92D92EB44848F0858EC5 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		E6D33E7C6CBF573053B78F87 /* Build configuration list for PBXProject "Vordi" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				F80A524A98714C0E6A6855A9 /* Debug */,
+				C5C23766658C9EE40B1BAE5F /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 5A0E707C2D4B18D2092AAF7B /* Project object */;
+}

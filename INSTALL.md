@@ -1,6 +1,6 @@
-# 📦 Installing Verba on Another Mac
+# 📦 Installing Vordi on Another Mac
 
-Verba is distributed as a `.dmg`. There are two install paths depending on whether the build is **signed + notarized** by an Apple Developer ID, or **ad-hoc / unsigned** (open-source build).
+Vordi is distributed as a `.dmg`. There are two install paths depending on whether the build is **signed + notarized** by an Apple Developer ID, or **ad-hoc / unsigned** (open-source build).
 
 ---
 
@@ -8,8 +8,8 @@ Verba is distributed as a `.dmg`. There are two install paths depending on wheth
 
 This requires an Apple Developer Program membership ($99/yr). The user experience is seamless:
 
-1. Double-click `Verba-vX.Y.Z.dmg`
-2. Drag `Verba.app` to `/Applications`
+1. Double-click `Vordi-vX.Y.Z.dmg`
+2. Drag `Vordi.app` to `/Applications`
 3. Launch from `/Applications` → accept permission prompts
 4. Done.
 
@@ -29,11 +29,11 @@ This is Gatekeeper quarantine + hardened runtime blocking access — it has noth
 
 ### The one-shot fix (run once after installing)
 
-After dragging `Verba.app` to `/Applications`, open **Terminal** and run:
+After dragging `Vordi.app` to `/Applications`, open **Terminal** and run:
 
 ```bash
-xattr -dr com.apple.quarantine /Applications/Verba.app
-codesign --force --deep --sign - /Applications/Verba.app
+xattr -dr com.apple.quarantine /Applications/Vordi.app
+codesign --force --deep --sign - /Applications/Vordi.app
 ```
 
 What this does:
@@ -46,7 +46,7 @@ What this does:
 Then launch it:
 
 ```bash
-open /Applications/Verba.app
+open /Applications/Vordi.app
 ```
 
 ### First-run permission flow
@@ -62,7 +62,7 @@ open /Applications/Verba.app
 
 Two bugs were fixed in this version:
 
-1. **Missing `com.apple.security.device.audio-input` entitlement.** The project has `ENABLE_HARDENED_RUNTIME: YES` but the entitlements file was empty (`<dict/>`). Under hardened runtime, macOS requires explicit entitlements for each protected resource. No entitlement → no mic prompt, ever. Fixed in `Resources/VoiceFlow.entitlements`.
+1. **Missing `com.apple.security.device.audio-input` entitlement.** The project has `ENABLE_HARDENED_RUNTIME: YES` but the entitlements file was empty (`<dict/>`). Under hardened runtime, macOS requires explicit entitlements for each protected resource. No entitlement → no mic prompt, ever. Fixed in `Resources/Vordi.entitlements`.
 
 2. **Ad-hoc signature instability across machines.** Apps signed with `-` (ad-hoc) get a signature tied to the build machine's state. When copied via DMG, macOS sees a mismatched identity and revokes TCC permissions, causing the "works first time, crashes next time" pattern. Re-signing on the target machine (step 2 above) gives it a stable local identity.
 
@@ -70,18 +70,18 @@ Two bugs were fixed in this version:
 
 ## 🛠️ Troubleshooting
 
-**"Verba can't be opened because Apple cannot check it for malicious software"**
+**"Vordi can't be opened because Apple cannot check it for malicious software"**
 → Right-click the app → Open → Open anyway. Or run the `xattr` command above.
 
 **Mic permission toggle exists in System Settings but mic still doesn't work**
 → Toggle it off and back on. Sometimes:
 ```bash
-tccutil reset Microphone com.voiceflow.app
+tccutil reset Microphone com.vordi.app
 ```
 then relaunch.
 
 **App launches, recording overlay shows, but no transcription**
-→ Check Console.app for `VoiceFlow` logs. Most common cause is a missing or invalid OpenAI API key in Settings.
+→ Check Console.app for `Vordi` logs. Most common cause is a missing or invalid OpenAI API key in Settings.
 
 **App quits after first function click**
 → You're on a stale unsigned build. Re-run the `xattr` + `codesign --sign -` fix and relaunch.

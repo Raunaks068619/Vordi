@@ -6,7 +6,7 @@ import AppKit
 /// Why this exists: macOS's `CGRequestListenEventAccess` silently fails on
 /// ad-hoc-signed apps, and `IOHIDRequestAccess` is our best shot but can
 /// still no-op if TCC has cached a denial. This view gives the user a
-/// deterministic manual fallback: (1) open Settings, (2) reveal VoiceFlow
+/// deterministic manual fallback: (1) open Settings, (2) reveal Vordi
 /// in Finder, (3) drag it in. We poll permission state every 750ms via
 /// PermissionService and auto-dismiss the moment it flips to granted.
 ///
@@ -31,7 +31,7 @@ struct InputMonitoringGuideView: View {
             }
 
             if !permissionService.inputMonitoringState.isGranted {
-                Text("macOS requires Input Monitoring for Verba to detect the Fn hotkey. If the prompt didn't appear automatically, grant it manually in 3 steps:")
+                Text("macOS requires Input Monitoring for Vordi to detect the Fn hotkey. If the prompt didn't appear automatically, grant it manually in 3 steps:")
                     .font(.caption)
                     .foregroundColor(.secondary)
 
@@ -47,8 +47,8 @@ struct InputMonitoringGuideView: View {
 
                     step(
                         number: 2,
-                        title: "Click + and choose Verba from Applications",
-                        action: "Reveal Verba in Finder",
+                        title: "Click + and choose Vordi from Applications",
+                        action: "Reveal Vordi in Finder",
                         systemImage: "magnifyingglass"
                     ) {
                         permissionService.revealAppInFinder()
@@ -56,7 +56,7 @@ struct InputMonitoringGuideView: View {
 
                     step(
                         number: 3,
-                        title: "Toggle it ON — Verba will detect it automatically, no restart needed.",
+                        title: "Toggle it ON — Vordi will detect it automatically, no restart needed.",
                         action: nil,
                         systemImage: "checkmark.circle"
                     ) { }

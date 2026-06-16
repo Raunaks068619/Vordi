@@ -2,14 +2,14 @@
 set -uo pipefail
 
 # -----------------------------------------------------------------------------
-# VoiceFlow — Clean Uninstall
+# Vordi — Clean Uninstall
 # -----------------------------------------------------------------------------
 #
-# Removes EVERYTHING VoiceFlow has placed on disk + wipes the macOS
+# Removes EVERYTHING Vordi has placed on disk + wipes the macOS
 # permission grants so the next install starts from a clean slate.
 #
 # What this nukes:
-#   • The app bundle (/Applications/VoiceFlow.app — both Homebrew + manual)
+#   • The app bundle (/Applications/Vordi.app — both Homebrew + manual)
 #   • UserDefaults / preferences
 #   • Application Support (run logs, magic words registry, audio files,
 #     custom vocabulary, anything you ever dictated)
@@ -17,9 +17,9 @@ set -uo pipefail
 #   • TCC permission grants (Microphone, Accessibility, Input Monitoring)
 #
 # What it does NOT touch:
-#   • Your OpenAI / Groq API keys stored OUTSIDE VoiceFlow (e.g. env vars)
+#   • Your OpenAI / Groq API keys stored OUTSIDE Vordi (e.g. env vars)
 #   • The Homebrew tap itself (you can re-install with the same command)
-#   • Anything in /Library (system-wide install — VoiceFlow doesn't use it)
+#   • Anything in /Library (system-wide install — Vordi doesn't use it)
 #
 # Usage:
 #   ./scripts/uninstall.sh              # interactive (asks before deleting)
@@ -27,11 +27,11 @@ set -uo pipefail
 #
 # After running, restart Mac (recommended — TCC sometimes caches grants
 # in memory) and re-install via:
-#   brew install --cask raunaks068619/voiceflow/voiceflow
+#   brew install --cask raunaks068619/vordi/vordi
 # -----------------------------------------------------------------------------
 
-BUNDLE_ID="com.voiceflow.app"
-APP_NAME="VoiceFlow"
+BUNDLE_ID="com.vordi.app"
+APP_NAME="Vordi"
 APP_PATH="/Applications/${APP_NAME}.app"
 FORCE="${1:-}"
 
@@ -40,14 +40,14 @@ green() { printf "\033[32m%s\033[0m\n" "$*"; }
 yellow() { printf "\033[33m%s\033[0m\n" "$*"; }
 bold()  { printf "\033[1m%s\033[0m\n" "$*"; }
 
-bold "🧹  VoiceFlow uninstall"
+bold "🧹  Vordi uninstall"
 echo "    Bundle ID: ${BUNDLE_ID}"
 echo "    App path:  ${APP_PATH}"
 echo
 
 # Confirm unless --force.
 if [[ "${FORCE}" != "--force" ]]; then
-    yellow "This will DELETE every trace of VoiceFlow:"
+    yellow "This will DELETE every trace of Vordi:"
     echo "  • The app itself"
     echo "  • Run log (recordings, transcripts, prompts)"
     echo "  • Saved API keys, magic words, custom vocabulary, settings"
@@ -65,7 +65,7 @@ fi
 #    process that's holding handles open. `|| true` because pkill returns
 #    non-zero when no process matched, which is fine here.
 echo
-bold "==> 1/5  Stopping VoiceFlow..."
+bold "==> 1/5  Stopping Vordi..."
 pkill -f "${APP_NAME}.app" 2>/dev/null || true
 sleep 1
 
@@ -73,18 +73,18 @@ sleep 1
 #    the cask record); fall back to direct removal for manual installs.
 bold "==> 2/5  Removing app bundle..."
 # Order matters here: ALWAYS try `brew uninstall --cask` first, even if
-# /Applications/VoiceFlow.app is already gone. Otherwise Homebrew keeps
-# its receipt at /opt/homebrew/Caskroom/voiceflow/, and a subsequent
-# `brew install --cask voiceflow` no-ops with "already installed" while
+# /Applications/Vordi.app is already gone. Otherwise Homebrew keeps
+# its receipt at /opt/homebrew/Caskroom/vordi/, and a subsequent
+# `brew install --cask vordi` no-ops with "already installed" while
 # /Applications stays empty — putting the user in a stuck state.
 # `--force` skips the "version not installed" abort when the receipt is
 # already partial; `--zap` would also remove user data, which we handle
 # explicitly in step 3 (don't double-clean to keep the script readable).
 if command -v brew >/dev/null 2>&1; then
-    if brew list --cask voiceflow >/dev/null 2>&1 \
-       || [[ -d "/opt/homebrew/Caskroom/voiceflow" ]] \
-       || [[ -d "/usr/local/Caskroom/voiceflow" ]]; then
-        brew uninstall --cask --force voiceflow 2>/dev/null || true
+    if brew list --cask vordi >/dev/null 2>&1 \
+       || [[ -d "/opt/homebrew/Caskroom/vordi" ]] \
+       || [[ -d "/usr/local/Caskroom/vordi" ]]; then
+        brew uninstall --cask --force vordi 2>/dev/null || true
         green "    ✓ Removed Homebrew receipt"
     fi
 fi
@@ -156,15 +156,15 @@ killall cfprefsd 2>/dev/null || true
 green "    ✓ UserDefaults flushed"
 
 echo
-green "✅ VoiceFlow fully removed."
+green "✅ Vordi fully removed."
 echo
 yellow "Recommended next steps:"
 echo "  1. Restart your Mac (TCC sometimes holds permission grants in"
 echo "     memory until logout). Skip this if you've never granted"
-echo "     VoiceFlow any permissions before."
+echo "     Vordi any permissions before."
 echo "  2. Re-install:"
-echo "       brew install --cask raunaks068619/voiceflow/voiceflow"
+echo "       brew install --cask raunaks068619/vordi/vordi"
 echo
-echo "If brew install reports 'already installed' but /Applications/VoiceFlow.app"
+echo "If brew install reports 'already installed' but /Applications/Vordi.app"
 echo "is missing, run:"
-echo "       brew reinstall --cask voiceflow"
+echo "       brew reinstall --cask vordi"

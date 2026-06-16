@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # -----------------------------------------------------------------------------
-# Verba Release Build Script
+# Vordi Release Build Script
 # -----------------------------------------------------------------------------
 #
 # Usage:
@@ -20,22 +20,22 @@ set -euo pipefail
 #   NOTARIZE_TEAM_ID="TEAM_ID"
 #   NOTARIZE_PASSWORD="app-specific-password"       # from appleid.apple.com
 #     OR
-#   NOTARIZE_KEYCHAIN_PROFILE="voiceflow-notarize"  # after xcrun notarytool store-credentials
+#   NOTARIZE_KEYCHAIN_PROFILE="vordi-notarize"  # after xcrun notarytool store-credentials
 #
 # See scripts/README_SIGNING.md for setup instructions.
 # -----------------------------------------------------------------------------
 
 VERSION=""
 APP_PATH=""
-PROJECT="${XCODE_PROJECT:-VoiceFlow.xcodeproj}"
-SCHEME="${XCODE_SCHEME:-VoiceFlow}"
-APP_NAME="${APP_NAME:-Verba}"
+PROJECT="${XCODE_PROJECT:-Vordi.xcodeproj}"
+SCHEME="${XCODE_SCHEME:-Vordi}"
+APP_NAME="${APP_NAME:-Vordi}"
 APP_BUNDLE_NAME="${APP_BUNDLE_NAME:-${APP_NAME}.app}"
 
 usage() {
   cat <<'EOF'
 Usage:
-  scripts/release_dmg.sh --version <vX.Y.Z> [--app-path <path/to/Verba.app>]
+  scripts/release_dmg.sh --version <vX.Y.Z> [--app-path <path/to/app bundle>]
 
 Environment variables for signed/notarized builds (all optional):
   DEVELOPER_ID                   Full identity name (e.g. "Developer ID Application: Jane Doe (ABC123)")
@@ -126,7 +126,7 @@ fi
 # Sign
 # -----------------------------------------------------------------------------
 
-ENTITLEMENTS="Resources/VoiceFlow.entitlements"
+ENTITLEMENTS="Resources/Vordi.entitlements"
 
 if [[ "${SIGNING_MODE}" == "notarized" || "${SIGNING_MODE}" == "signed_only" ]]; then
   echo "==> Signing with Developer ID: ${DEVELOPER_ID}"

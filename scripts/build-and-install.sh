@@ -3,11 +3,12 @@ set -e
 
 PROJECT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 BUILD_DIR="$PROJECT_DIR/build/DerivedData"
-PROJECT_NAME="VoiceFlow"
-APP_NAME="Verba"
+PROJECT_NAME="Vordi"
+APP_NAME="Vordi"
+APP_DISPLAY_NAME="Vordi"
 INSTALL_DIR="/Applications"
 
-echo "Building $APP_NAME (Release)..."
+echo "Building $APP_DISPLAY_NAME (Release)..."
 xcodebuild \
   -project "$PROJECT_DIR/$PROJECT_NAME.xcodeproj" \
   -scheme "$PROJECT_NAME" \
@@ -21,7 +22,7 @@ if [ ! -d "$BUILT_APP" ]; then
   exit 1
 fi
 
-echo "Killing running $APP_NAME..."
+echo "Killing running $APP_DISPLAY_NAME..."
 pkill -f "$APP_NAME.app" 2>/dev/null || true
 sleep 1
 
@@ -31,10 +32,10 @@ cp -R "$BUILT_APP" "$INSTALL_DIR/$APP_NAME.app"
 
 echo "Signing installed app with local entitlements..."
 codesign --force --deep --options runtime \
-  --entitlements "$PROJECT_DIR/Resources/VoiceFlow.entitlements" \
+  --entitlements "$PROJECT_DIR/Resources/Vordi.entitlements" \
   --sign - "$INSTALL_DIR/$APP_NAME.app"
 
 echo "Launching..."
 open "$INSTALL_DIR/$APP_NAME.app"
 
-echo "Done! $APP_NAME is running."
+echo "Done! $APP_DISPLAY_NAME is running."

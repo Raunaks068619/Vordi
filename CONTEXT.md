@@ -1,17 +1,17 @@
-# Verba — Session Context
+# Vordi — Session Context
 
 > Paste this into a new Cowork chat to resume where we left off.
 > Last updated: April 18, 2026
 
 ---
 
-## What Is Verba
+## What Is Vordi
 
 A macOS-native dictation app. Hold Fn → speak → release → transcribed + polished text is injected into the active text field. Built in pure Swift + SwiftUI, no Electron. Targets macOS 13+.
 
-**Bundle ID**: `com.voiceflow.app`
-**Project location**: `~/Documents/VoiceFlow/`
-**Xcode project**: `VoiceFlow.xcodeproj` (manual pbxproj, no SPM packages)
+**Bundle ID**: `com.vordi.app`
+**Project location**: `~/Documents/Vordi/`
+**Xcode project**: `Vordi.xcodeproj` (manual pbxproj, no SPM packages)
 
 ---
 
@@ -20,7 +20,7 @@ A macOS-native dictation app. Hold Fn → speak → release → transcribed + po
 ```
 Sources/
 ├── App/
-│   └── VoiceFlowApp.swift          # @main scene (MenuBarExtra) + AppDelegate (all orchestration)
+│   └── VordiApp.swift          # @main scene (MenuBarExtra) + AppDelegate (all orchestration)
 │                                     # Also contains: PermissionService, PermissionState, PermissionPane
 ├── Models/
 │   └── RunModel.swift               # Run, RunStatus, CaptureStage, TranscriptionStage, PostProcessingStage, RunSummary
@@ -28,7 +28,7 @@ Sources/
 │   ├── AudioRecorder.swift          # AVAudioEngine-based capture, outputs WAV Data
 │   ├── HotKeyListener.swift         # CGEvent tap + NSEvent global monitor for Fn key
 │   ├── RunRecorder.swift            # RunSession builder — accumulates pipeline stages, flushes to RunStore
-│   ├── RunStore.swift               # Filesystem ring buffer (~/Library/Application Support/VoiceFlow/runs/), @Published summaries
+│   ├── RunStore.swift               # Filesystem ring buffer (~/Library/Application Support/Vordi/runs/), @Published summaries
 │   ├── TextInjector.swift           # CGEvent-based keystroke injection into active text field
 │   └── WhisperService.swift         # Whisper API transcription + LLM post-processing, hallucination blocklist, TranscriptionMetadata
 ├── Views/
@@ -41,8 +41,8 @@ Sources/
 │   └── SettingsView.swift           # Settings window + OnboardingView (inline)
 Resources/
 ├── Info.plist
-├── VoiceFlow.entitlements           # com.apple.security.device.audio-input (CRITICAL — was empty before, caused all mic issues)
-└── VoiceFlow.icns
+├── Vordi.entitlements           # com.apple.security.device.audio-input (CRITICAL — was empty before, caused all mic issues)
+└── Vordi.icns
 ```
 
 ---
@@ -75,7 +75,7 @@ Resources/
 
 ### Run Log
 - Domain: immutable ledger entries (Run) with 3 pipeline stages (Capture → Transcription → PostProcess)
-- Storage: filesystem ring buffer at `~/Library/Application Support/VoiceFlow/runs/`, max 20 runs
+- Storage: filesystem ring buffer at `~/Library/Application Support/Vordi/runs/`, max 20 runs
 - `index.json` for lightweight list rendering, per-run folders with `audio.wav` + `run.json`
 - RunRecorder creates RunSession instances that accumulate stage data
 
@@ -90,25 +90,25 @@ Resources/
 ## Build & Install
 
 ```bash
-cd ~/Documents/VoiceFlow
+cd ~/Documents/Vordi
 
 # Build
-xcodebuild -project VoiceFlow.xcodeproj -scheme VoiceFlow -configuration Release -derivedDataPath build/DerivedData clean build
+xcodebuild -project Vordi.xcodeproj -scheme Vordi -configuration Release -derivedDataPath build/DerivedData clean build
 
-# Install (if /Applications/VoiceFlow.app is user-owned)
-ditto build/DerivedData/Build/Products/Release/VoiceFlow.app /Applications/VoiceFlow.app
-codesign --force --deep --sign - -o runtime --entitlements Resources/VoiceFlow.entitlements /Applications/VoiceFlow.app
+# Install (if /Applications/Vordi.app is user-owned)
+ditto build/DerivedData/Build/Products/Release/Vordi.app /Applications/Vordi.app
+codesign --force --deep --sign - -o runtime --entitlements Resources/Vordi.entitlements /Applications/Vordi.app
 
-# Install (if /Applications/VoiceFlow.app is root-owned — needs admin)
+# Install (if /Applications/Vordi.app is root-owned — needs admin)
 # Use: osascript -e 'do shell script "ditto ... && chown -R $(whoami):staff ..." with administrator privileges'
 
 # Launch
-open /Applications/VoiceFlow.app
+open /Applications/Vordi.app
 ```
 
-**DMG installer**: `~/Documents/VoiceFlow/VoiceFlow-Installer.dmg` (770KB, ad-hoc signed)
+**DMG installer**: `~/Documents/Vordi/Vordi-Installer.dmg` (770KB, ad-hoc signed)
 - Not notarized — testers must right-click → Open → "Open" on first launch
-- Contains VoiceFlow.app + /Applications symlink for drag-and-drop
+- Contains Vordi.app + /Applications symlink for drag-and-drop
 
 ---
 
@@ -119,10 +119,10 @@ open /Applications/VoiceFlow.app
 | Menu bar popup vanishes in fullscreen | NSPopover `.transient` auto-dismisses on focus loss | Replaced with MenuBarExtra (SwiftUI native) |
 | 94.6% CPU at idle | `Timer.publish().autoconnect()` in overlay never stopped | `onAppear`/`onDisappear` lifecycle management |
 | CPU climbs to 63% over time | PermissionService `@Published` set every 750ms (even same value) triggers MenuBarExtra re-render cascade | Guard redundant assignments + slow to 2s + stop when all granted |
-| Mic never granted / not in privacy pane | `VoiceFlow.entitlements` was EMPTY (`<dict/>`) | Added `com.apple.security.device.audio-input` |
+| Mic never granted / not in privacy pane | `Vordi.entitlements` was EMPTY (`<dict/>`) | Added `com.apple.security.device.audio-input` |
 | Mic prompt never fires | No explicit mic request on launch + Fn key doesn't work without Accessibility | Delayed mic request on launch (1s) + fallback in startRecording |
 | Whisper hallucinates Hindi on silence | Mic not granted → audio is silence → Whisper fills in | Extended hallucination blocklist with 20+ Hindi phrases |
-| Onboarding not showing after reinstall | `has_completed_onboarding` persists in UserDefaults across installs | `defaults delete com.voiceflow.app` |
+| Onboarding not showing after reinstall | `has_completed_onboarding` persists in UserDefaults across installs | `defaults delete com.vordi.app` |
 | App root-owned after admin install | `cp -R` with admin privileges → root ownership | `chown -R user:staff` after install |
 
 ---

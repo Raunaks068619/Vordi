@@ -5,22 +5,22 @@ set -euo pipefail
 usage() {
   cat <<'EOF'
 Usage:
-  scripts/release_dmg_unsigned.sh --version <vX.Y.Z> [--app-path <path/to/Verba.app>]
+  scripts/release_dmg_unsigned.sh --version <vX.Y.Z> [--app-path <path/to/app bundle>]
 
 If --app-path is not provided, the script builds Release from Xcode and uses:
-  build/DerivedData/Build/Products/Release/Verba.app
+  build/DerivedData/Build/Products/Release/Vordi.app
 
 Optional environment:
-  XCODE_PROJECT (default: VoiceFlow.xcodeproj)
-  XCODE_SCHEME  (default: VoiceFlow)
+  XCODE_PROJECT (default: Vordi.xcodeproj)
+  XCODE_SCHEME  (default: Vordi)
 EOF
 }
 
 VERSION=""
 APP_PATH=""
-PROJECT="${XCODE_PROJECT:-VoiceFlow.xcodeproj}"
-SCHEME="${XCODE_SCHEME:-VoiceFlow}"
-APP_NAME="${APP_NAME:-Verba}"
+PROJECT="${XCODE_PROJECT:-Vordi.xcodeproj}"
+SCHEME="${XCODE_SCHEME:-Vordi}"
+APP_NAME="${APP_NAME:-Vordi}"
 APP_BUNDLE_NAME="${APP_BUNDLE_NAME:-${APP_NAME}.app}"
 
 while [[ $# -gt 0 ]]; do
@@ -93,7 +93,7 @@ fi
 # This matters: DMG contents get quarantined on download, and a machine-local
 # ad-hoc signature at least prevents the "identity changed" TCC invalidation.
 echo "==> Ad-hoc signing app bundle"
-codesign --force --deep --options runtime --entitlements Resources/VoiceFlow.entitlements --sign - "${STAGE_DIR}/${APP_BUNDLE_NAME}"
+codesign --force --deep --options runtime --entitlements Resources/Vordi.entitlements --sign - "${STAGE_DIR}/${APP_BUNDLE_NAME}"
 
 echo "==> Creating unsigned DMG"
 hdiutil create -volname "${APP_NAME}" -srcfolder "${STAGE_DIR}" -ov -format UDZO "${DMG_PATH}"

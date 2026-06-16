@@ -3,7 +3,7 @@ import AppKit
 
 /// Guided fix flow for the Accessibility permission.
 ///
-/// Why this exists: Accessibility is required for VoiceFlow to inject the
+/// Why this exists: Accessibility is required for Vordi to inject the
 /// transcribed text into the active app (via CGEvent / synthetic keystrokes).
 /// Without it, the Fn hotkey will record audio but the transcribed text has
 /// nowhere to go.
@@ -32,7 +32,7 @@ struct AccessibilityGuideView: View {
             }
 
             if !permissionService.accessibilityState.isGranted {
-                Text("Accessibility lets Verba paste the transcribed text into the active app. If the prompt didn't appear, grant it in 3 steps:")
+                Text("Accessibility lets Vordi paste the transcribed text into the active app. If the prompt didn't appear, grant it in 3 steps:")
                     .font(.caption)
                     .foregroundColor(.secondary)
 
@@ -48,8 +48,8 @@ struct AccessibilityGuideView: View {
 
                     step(
                         number: 2,
-                        title: "Click + and choose Verba from Applications",
-                        action: "Reveal Verba in Finder",
+                        title: "Click + and choose Vordi from Applications",
+                        action: "Reveal Vordi in Finder",
                         systemImage: "magnifyingglass"
                     ) {
                         permissionService.revealAppInFinder()
@@ -57,7 +57,7 @@ struct AccessibilityGuideView: View {
 
                     step(
                         number: 3,
-                        title: "Toggle it ON — Verba will detect it automatically, no restart needed.",
+                        title: "Toggle it ON — Vordi will detect it automatically, no restart needed.",
                         action: nil,
                         systemImage: "checkmark.circle"
                     ) { }

@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # -----------------------------------------------------------------------------
-# VoiceFlow Ship Script
+# Vordi Ship Script
 # -----------------------------------------------------------------------------
 #
 # Thin wrapper that sources .env.signing and runs release_dmg.sh.
@@ -51,13 +51,13 @@ echo "==> Running release build"
 # -----------------------------------------------------------------------------
 
 # release_dmg.sh writes different filenames based on signing mode:
-#   notarized     -> dist/Verba-<VERSION>.dmg
-#   signed_only   -> dist/Verba-<VERSION>-signed.dmg
-#   adhoc         -> dist/Verba-<VERSION>-unsigned.dmg
+#   notarized     -> dist/Vordi-<VERSION>.dmg
+#   signed_only   -> dist/Vordi-<VERSION>-signed.dmg
+#   adhoc         -> dist/Vordi-<VERSION>-unsigned.dmg
 # Whichever one exists, copy it to the stable cask filename.
 SOURCE_DMG=""
 for suffix in "" "-signed" "-unsigned"; do
-  candidate="dist/Verba-${VERSION}${suffix}.dmg"
+  candidate="dist/Vordi-${VERSION}${suffix}.dmg"
   if [[ -f "${candidate}" ]]; then
     SOURCE_DMG="${candidate}"
     break
@@ -69,7 +69,7 @@ if [[ -z "${SOURCE_DMG}" ]]; then
   exit 1
 fi
 
-STABLE_DMG="dist/Verba-Beta.dmg"
+STABLE_DMG="dist/Vordi-Beta.dmg"
 cp "${SOURCE_DMG}" "${STABLE_DMG}"
 SHA=$(shasum -a 256 "${STABLE_DMG}" | cut -d' ' -f1)
 
@@ -82,7 +82,7 @@ cat <<EOF
   SHA-256:     ${SHA}
 
   Next steps:
-    1. Update homebrew-verba/Casks/verba.rb:
+    1. Update homebrew-vordi/Casks/vordi.rb:
          version "${VERSION#v}"
          sha256  "${SHA}"
 
@@ -91,7 +91,7 @@ cat <<EOF
            --title "${VERSION}" --notes "Release notes here"
 
     3. Push the tap:
-         (cd homebrew-voiceflow && git add -A && \\
-          git commit -m "voiceflow ${VERSION#v}" && git push)
+         (cd homebrew-vordi && git add -A && \\
+          git commit -m "vordi ${VERSION#v}" && git push)
 ================================================================
 EOF

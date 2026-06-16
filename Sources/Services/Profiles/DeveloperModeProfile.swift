@@ -1,6 +1,6 @@
 import Foundation
 
-/// "voiceflow create" handler — turns "voiceflow create bash script that
+/// "vordi create" handler — turns "vordi create bash script that
 /// does X" into an executable bash script (or SQL, or regex, or prompt)
 /// pasted into the user's editor.
 ///
@@ -47,7 +47,7 @@ final class DeveloperModeProfile: TransformerProfile {
     ) {
         let stripped = input.triggerStripped
         guard !stripped.isEmpty else {
-            // User said only "voiceflow create" with nothing after.
+            // User said only "vordi create" with nothing after.
             // Return a deterministic stub — better than a useless API call.
             let output = TransformerOutput(
                 finalText: "",

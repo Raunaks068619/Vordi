@@ -5,7 +5,7 @@ import Combine
 ///
 /// Storage layout:
 /// ```
-/// ~/Library/Application Support/VoiceFlow/runs/
+/// ~/Library/Application Support/Vordi/runs/
 /// ├── index.json                         // [RunSummary]
 /// └── 2026-04-16T10-32-45_<uuid>/
 ///     ├── audio.wav
@@ -25,7 +25,7 @@ final class RunStore: ObservableObject {
     private let fileManager = FileManager.default
     private let encoder = JSONEncoder()
     private let decoder = JSONDecoder()
-    private let queue = DispatchQueue(label: "com.voiceflow.runstore", qos: .utility)
+    private let queue = DispatchQueue(label: "com.vordi.runstore", qos: .utility)
 
     /// Maximum retained runs. Always `nil` — capping is permanently
     /// disabled.
@@ -57,7 +57,7 @@ final class RunStore: ObservableObject {
 
     private var runsDirectory: URL {
         let appSupport = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
-        return appSupport.appendingPathComponent("VoiceFlow/runs", isDirectory: true)
+        return appSupport.appendingPathComponent("Vordi/runs", isDirectory: true)
     }
 
     private var indexURL: URL {

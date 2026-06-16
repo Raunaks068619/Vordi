@@ -3,6 +3,7 @@ import SwiftUI
 
 final class FloatingNotesWindow: NSPanel {
     private static let defaultSize = NSSize(width: 540, height: 420)
+    private static let overlayLevel = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.statusWindow)) + 1)
     private let store: VoiceNoteStore
     private let captureOwner = "floating-notes-window"
 
@@ -13,7 +14,7 @@ final class FloatingNotesWindow: NSPanel {
 
         super.init(
             contentRect: NSRect(origin: .zero, size: Self.defaultSize),
-            styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
+            styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView, .nonactivatingPanel],
             backing: .buffered,
             defer: false
         )
@@ -27,9 +28,10 @@ final class FloatingNotesWindow: NSPanel {
         hasShadow = true
         isFloatingPanel = true
         hidesOnDeactivate = false
-        level = .floating
-        collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+        level = Self.overlayLevel
+        collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary, .ignoresCycle]
         isReleasedWhenClosed = false
+        becomesKeyOnlyIfNeeded = false
         isMovableByWindowBackground = true
         standardWindowButton(.closeButton)?.isHidden = true
         standardWindowButton(.miniaturizeButton)?.isHidden = true
@@ -37,7 +39,7 @@ final class FloatingNotesWindow: NSPanel {
         minSize = NSSize(width: 460, height: 340)
         setContentSize(Self.defaultSize)
         center()
-        setFrameAutosaveName("VoiceFlowNotesCompactWindow")
+        setFrameAutosaveName("VordiNotesCompactWindow")
         delegate = self
     }
 
@@ -46,8 +48,11 @@ final class FloatingNotesWindow: NSPanel {
 
     func show() {
         store.beginDictationCapture(owner: captureOwner)
+        alphaValue = 1
+        level = Self.overlayLevel
+        deminiaturize(nil)
+        orderFrontRegardless()
         makeKeyAndOrderFront(nil)
-        NSApp.activate(ignoringOtherApps: true)
     }
 
     deinit {

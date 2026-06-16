@@ -9,7 +9,7 @@ Replace the `FloatingChipWindow` (bottom-of-screen draggable chip) with a single
 Every dimension, color, animation, and state transition is prototyped and finalized in:
 
 ```
-Sources/Resources/notch-preview/voiceflow-notch.html   ← main interactive demo
+Sources/Resources/notch-preview/vordi-notch.html   ← main interactive demo
 Sources/Resources/notch-preview/notch-anatomy.html     ← annotated dimension reference
 ```
 
@@ -49,7 +49,7 @@ Serve them locally with `npx serve .` in that directory (or open in browser dire
 
 | File | Change |
 |------|--------|
-| `Sources/App/VoiceFlowApp.swift` | Swap `floatingChip: FloatingChipWindow?` → `notchPill: NotchPillWindow?`; update every call site; wire Done/Error states |
+| `Sources/App/VordiApp.swift` | Swap `floatingChip: FloatingChipWindow?` → `notchPill: NotchPillWindow?`; update every call site; wire Done/Error states |
 | `Sources/Views/MainDashboardView.swift` | Delete the entire `// MARK: - FloatingChipWindow` section |
 
 ---
@@ -340,8 +340,8 @@ final class NotchPillWindow: NSPanel {
         flash(
             message: "Microphone access denied — check System Settings",
             title: "Microphone access denied",
-            desc: "VoiceFlow needs microphone access to listen. Grant access in System Settings → Privacy.",
-            tip: "Go to System Settings → Privacy & Security → Microphone and enable VoiceFlow.",
+            desc: "Vordi needs microphone access to listen. Grant access in System Settings → Privacy.",
+            tip: "Go to System Settings → Privacy & Security → Microphone and enable Vordi.",
             durationSeconds: durationSeconds
         )
     }
@@ -350,7 +350,7 @@ final class NotchPillWindow: NSPanel {
         flash(
             message: "No input field detected — use ⌘V to paste",
             title: "No input field detected",
-            desc: "VoiceFlow couldn't find an active text field. Use ⌘V to paste the transcription manually.",
+            desc: "Vordi couldn't find an active text field. Use ⌘V to paste the transcription manually.",
             tip: "Click into any text field first, then hold Fn to dictate directly into it.",
             durationSeconds: durationSeconds
         )
@@ -609,7 +609,7 @@ private func handlePillTap() {
 
 ### `VFLogoView` — 5-bar micro icon
 
-Matches the VoiceFlow wordmark proportions. Use `Rectangle` with `Capsule` clip or `Capsule()` fills:
+Matches the Vordi wordmark proportions. Use `Rectangle` with `Capsule` clip or `Capsule()` fills:
 
 ```swift
 // Bar heights in pt: [4, 10, 14, 8, 4]
@@ -778,12 +778,12 @@ Content from the prototype's `mode-idle` panel:
   row: app-icon + transcript snippet + timestamp
   row: app-icon + transcript snippet + timestamp
 ─ divider ──────────────────────────────────────
-[⚙] "Settings"                  [⊞ Open VoiceFlow]
+[⚙] "Settings"                  [⊞ Open Vordi]
 ```
 
 - Data source: read last 3 items from `RunStore.shared.recentRuns` (read-only, no writes from this view)
-- Tapping "Run Log" or "Open VoiceFlow": post `VoiceFlow.OpenMainWindow` / `VoiceFlow.OpenRunLog` via `NotificationCenter` (same pattern as the old chip)
-- Tapping "Settings": post `VoiceFlow.OpenSettings`
+- Tapping "Run Log" or "Open Vordi": post `Vordi.OpenMainWindow` / `Vordi.OpenRunLog` via `NotificationCenter` (same pattern as the old chip)
+- Tapping "Settings": post `Vordi.OpenSettings`
 
 ### Transcript Panel (`.panelTranscript`)
 
@@ -812,7 +812,7 @@ Release Fn to send                     [✕ Cancel]
 ```
 
 - "Try Again": close panel → `model.state = .idle`
-- "View Logs": post `VoiceFlow.OpenRunLog`
+- "View Logs": post `Vordi.OpenRunLog`
 
 ---
 
@@ -831,7 +831,7 @@ private struct PillHitBoundsKey: PreferenceKey {
 
 ---
 
-## 8. AppDelegate Changes (`Sources/App/VoiceFlowApp.swift`)
+## 8. AppDelegate Changes (`Sources/App/VordiApp.swift`)
 
 ### A. Property swap
 
@@ -975,6 +975,6 @@ On Macs without a physical notch, the pill still sits at the top center of the s
 3. Create `NotchPillView.swift` (connects model to components)
 4. Build + check for compilation errors in the three new files
 5. Modify `MainDashboardView.swift` — delete the `FloatingChipWindow` block
-6. Modify `VoiceFlowApp.swift` — swap all call sites
+6. Modify `VordiApp.swift` — swap all call sites
 7. Run the app, press Fn, verify each state transitions correctly
-8. Verify positions on screen with notch guide overlay (toggle in `voiceflow-notch.html`)
+8. Verify positions on screen with notch guide overlay (toggle in `vordi-notch.html`)

@@ -13,6 +13,7 @@ enum HotKeyStartResult: Equatable {
 class HotKeyListener {
     var onKeyDown: (() -> Void)?
     var onKeyUp: (() -> Void)?
+    var onHandsFreeToggle: (() -> Void)?
     /// Fired on Escape (keyCode 53) keydown. AppDelegate uses this to
     /// exit hands-free mode without requiring a second Fn double-tap.
     /// No-op when not in hands-free mode.
@@ -21,6 +22,7 @@ class HotKeyListener {
     private var eventTap: CFMachPort?
     private var runLoopSource: CFRunLoopSource?
     private var isTriggerActive = false
+    private var isHandsFreeChordActive = false
     private let fnKeyCode: Int64 = 63
     private let escapeKeyCode: Int64 = 53
 
@@ -76,6 +78,7 @@ class HotKeyListener {
         eventTap = nil
         runLoopSource = nil
         isTriggerActive = false
+        isHandsFreeChordActive = false
     }
     
     private func handleEvent(proxy: CGEventTapProxy, type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
@@ -102,16 +105,37 @@ class HotKeyListener {
         }
 
         let hasFnFlag = event.flags.contains(.maskSecondaryFn)
-        handleFlagsChanged(keyCode: keyCode, hasFnFlag: hasFnFlag)
+        let hasControlFlag = event.flags.contains(.maskControl)
+        handleFlagsChanged(keyCode: keyCode, hasFnFlag: hasFnFlag, hasControlFlag: hasControlFlag)
 
         return nil
     }
 
-    private func handleFlagsChanged(keyCode: Int64, hasFnFlag: Bool) {
+    private func handleFlagsChanged(keyCode: Int64, hasFnFlag: Bool, hasControlFlag: Bool) {
         // Fn is the ONLY trigger. Right Option previously acted as a fallback
         // but caused accidental activation when users genuinely wanted Option
         // as a modifier. If Fn doesn't register on a given keyboard, the fix
         // is System Settings → Keyboard → Globe/Fn Key Usage, not a fallback.
+        let hasHandsFreeChord = hasFnFlag && hasControlFlag
+        if hasHandsFreeChord {
+            if !isHandsFreeChordActive {
+                isHandsFreeChordActive = true
+                if isTriggerActive {
+                    isTriggerActive = false
+                }
+                DispatchQueue.main.async { [weak self] in
+                    print("Fn+Control detected - toggling hands-free")
+                    self?.onHandsFreeToggle?()
+                }
+            }
+            return
+        }
+
+        if isHandsFreeChordActive && !hasHandsFreeChord {
+            isHandsFreeChordActive = false
+            return
+        }
+
         if keyCode == fnKeyCode {
             // Always trust the fn flag. Press = flag ON, Release = flag OFF.
             // Previous implementation toggled on "raw fn without flag" which caused

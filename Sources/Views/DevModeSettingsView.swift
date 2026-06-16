@@ -38,7 +38,7 @@ struct DevModeSettingsView: View {
     var screenshotContextEnabled: Bool = true
 
     // Trigger tester
-    @State private var triggerInput: String = "verba create insert mock rows for users table"
+    @State private var triggerInput: String = "vordi create insert mock rows for users table"
     @State private var probeOutput: String = ""
 
     var body: some View {
@@ -89,7 +89,7 @@ struct DevModeSettingsView: View {
 
             toggleRow(
                 title: "Enable Dev Mode triggers",
-                subtitle: "Allow phrases like \"verba create...\" and \"verba prompt...\" to override polish.",
+                subtitle: "Allow phrases like \"vordi create...\" and \"vordi prompt...\" to override polish.",
                 isOn: $devModeEnabled,
                 badge: nil
             )
@@ -345,9 +345,9 @@ struct DevModeSettingsView: View {
     // MARK: - Logic
 
     private func triggerLabel(for transcript: String) -> String {
-        if TriggerWords.isDevCreate(transcript) { return "verba create → DeveloperModeProfile" }
-        if TriggerWords.isPromptEngineer(transcript) { return "verba prompt → PromptEngineerProfile" }
-        if TriggerWords.isRewrite(transcript) { return "verba rewrite → RewriteProfile" }
+        if TriggerWords.isDevCreate(transcript) { return "vordi create → DeveloperModeProfile" }
+        if TriggerWords.isPromptEngineer(transcript) { return "vordi prompt → PromptEngineerProfile" }
+        if TriggerWords.isRewrite(transcript) { return "vordi rewrite → RewriteProfile" }
         return "(none — would route to standard cleanup)"
     }
 

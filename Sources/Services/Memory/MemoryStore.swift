@@ -1,20 +1,19 @@
 import Foundation
 import SQLite3
 
-/// Searchable, indexed view of VoiceFlow dictations and optional local
-/// AI-agent sessions.
+/// Searchable, indexed view of Vordi dictations.
 ///
-/// MemoryStore is a derived index. VoiceFlow runs remain durable in
-/// RunStore; Claude/Codex/Gemini sessions remain in their own local stores.
+/// MemoryStore is a derived index. Vordi runs remain durable in
+/// RunStore.
 /// If this SQLite database is deleted or migrated, Sync rebuilds it.
 final class MemoryStore {
     static let shared = MemoryStore()
 
-    private let queue = DispatchQueue(label: "com.voiceflow.memorystore", qos: .utility)
+    private let queue = DispatchQueue(label: "com.vordi.memorystore", qos: .utility)
     private var db: OpaquePointer?
     private(set) var isOpen: Bool = false
 
-    private static let currentSchemaVersion: Int = 2
+    private static let currentSchemaVersion: Int = 3
 
     private init() {
         open()
@@ -31,7 +30,7 @@ final class MemoryStore {
     var storeURL: URL {
         let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
         return appSupport
-            .appendingPathComponent("VoiceFlow", isDirectory: true)
+            .appendingPathComponent("Vordi", isDirectory: true)
             .appendingPathComponent("memory.db")
     }
 
@@ -207,16 +206,9 @@ final class MemoryStore {
         let toolNames: [String]
         let llmCostUSD: Double
 
-        var isAgentSession: Bool {
-            sourceType == "agent_session"
-        }
-
         var sourceDisplayName: String {
             switch sourceApp {
-            case "voiceflow": return AppBrand.name
-            case AgentSource.claudeCode.rawValue: return AgentSource.claudeCode.displayName
-            case AgentSource.codex.rawValue: return AgentSource.codex.displayName
-            case AgentSource.geminiCLI.rawValue: return AgentSource.geminiCLI.displayName
+            case "vordi": return AppBrand.name
             default: return sourceApp
             }
         }
@@ -238,18 +230,6 @@ final class MemoryStore {
         let runID: String
         let vec: [Float]
         let model: String
-    }
-
-    struct SourceCounts: Equatable {
-        let voiceFlow: Int
-        let claudeCode: Int
-        let codex: Int
-        let geminiCLI: Int
-        let unknownProjectGemini: Int
-
-        var agentTotal: Int {
-            claudeCode + codex + geminiCLI
-        }
     }
 
     struct FolderReference: Equatable {
@@ -275,7 +255,7 @@ final class MemoryStore {
         upsertMemoryItem(
             id: id,
             sourceType: "dictation",
-            sourceApp: "voiceflow",
+            sourceApp: "vordi",
             externalID: id,
             folderPath: nil,
             folderDisplayName: nil,
@@ -292,30 +272,6 @@ final class MemoryStore {
             toolNames: [],
             llmCostUSD: llmCostUSD ?? 0,
             transcriptText: transcriptText
-        )
-    }
-
-    func upsertAgentSession(_ session: AgentSession) {
-        upsertMemoryItem(
-            id: session.memoryItemID,
-            sourceType: "agent_session",
-            sourceApp: session.source.rawValue,
-            externalID: session.externalID,
-            folderPath: session.folderPath,
-            folderDisplayName: session.folderDisplayName,
-            title: session.title,
-            createdAt: session.createdAt,
-            updatedAt: session.updatedAt,
-            appName: nil,
-            bundleID: nil,
-            profile: nil,
-            wordCount: Self.wordCount(in: session.transcriptText),
-            durationSeconds: 0,
-            status: nil,
-            model: session.model,
-            toolNames: session.toolNames,
-            llmCostUSD: 0,
-            transcriptText: session.transcriptText
         )
     }
 
@@ -431,13 +387,9 @@ final class MemoryStore {
     }
 
     /// Remove every imported external AI-agent session from the corpus.
-    /// Memory is scoped to VoiceFlow's own dictations; this clears rows
-    /// that older builds (with the agent-context toggle) may have written.
+    /// Memory is scoped to Vordi's own dictations; this clears rows that
+    /// older builds may have written.
     func purgeAgentSessions() {
-        deleteStaleAgentSessions(validItemIDs: [])
-    }
-
-    func deleteStaleAgentSessions(validItemIDs: Set<String>) {
         queue.sync {
             var stmt: OpaquePointer?
             defer { sqlite3_finalize(stmt) }
@@ -447,9 +399,7 @@ final class MemoryStore {
             var staleIDs: [String] = []
             while sqlite3_step(stmt) == SQLITE_ROW {
                 let id = String(cString: sqlite3_column_text(stmt, 0))
-                if !validItemIDs.contains(id) {
-                    staleIDs.append(id)
-                }
+                staleIDs.append(id)
             }
             for id in staleIDs {
                 deleteItem(id: id)
@@ -541,30 +491,6 @@ final class MemoryStore {
             guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return 0 }
             sqlite3_bind_int(stmt, 1, includeAgentContext ? 1 : 0)
             return sqlite3_step(stmt) == SQLITE_ROW ? Int(sqlite3_column_int(stmt, 0)) : 0
-        }
-    }
-
-    func agentSessionCount() -> Int {
-        queue.sync {
-            var stmt: OpaquePointer?
-            defer { sqlite3_finalize(stmt) }
-            guard sqlite3_prepare_v2(db, "SELECT COUNT(*) FROM memory_items WHERE source_type = 'agent_session';", -1, &stmt, nil) == SQLITE_OK else {
-                return 0
-            }
-            return sqlite3_step(stmt) == SQLITE_ROW ? Int(sqlite3_column_int(stmt, 0)) : 0
-        }
-    }
-
-    func sourceCounts() -> SourceCounts {
-        queue.sync {
-            let counts = countRowsBySource()
-            return SourceCounts(
-                voiceFlow: counts["voiceflow"] ?? 0,
-                claudeCode: counts[AgentSource.claudeCode.rawValue] ?? 0,
-                codex: counts[AgentSource.codex.rawValue] ?? 0,
-                geminiCLI: counts[AgentSource.geminiCLI.rawValue] ?? 0,
-                unknownProjectGemini: unknownProjectGeminiCount()
-            )
         }
     }
 
@@ -1064,31 +990,6 @@ final class MemoryStore {
             .filter { $0.count >= 2 }
         guard !tokens.isEmpty else { return "" }
         return tokens.map { "\($0)*" }.joined(separator: " ")
-    }
-
-    private func countRowsBySource() -> [String: Int] {
-        var stmt: OpaquePointer?
-        defer { sqlite3_finalize(stmt) }
-        let sql = "SELECT source_app, COUNT(*) FROM memory_items GROUP BY source_app;"
-        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return [:] }
-
-        var counts: [String: Int] = [:]
-        while sqlite3_step(stmt) == SQLITE_ROW {
-            counts[String(cString: sqlite3_column_text(stmt, 0))] = Int(sqlite3_column_int(stmt, 1))
-        }
-        return counts
-    }
-
-    private func unknownProjectGeminiCount() -> Int {
-        var stmt: OpaquePointer?
-        defer { sqlite3_finalize(stmt) }
-        let sql = """
-            SELECT COUNT(*) FROM memory_items
-            WHERE source_app = ? AND folder_path IS NULL;
-        """
-        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return 0 }
-        bindText(stmt, 1, AgentSource.geminiCLI.rawValue)
-        return sqlite3_step(stmt) == SQLITE_ROW ? Int(sqlite3_column_int(stmt, 0)) : 0
     }
 
     private static func wordCount(in text: String) -> Int {

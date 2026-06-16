@@ -29,9 +29,9 @@ secrets.swift
 # Temporary outputs
 tmp/
 staging/
-voiceflow_dmg_staging/
+vordi_dmg_staging/
 build/
 dist/
 
 # Homebrew tap — lives in its own git repo, don't double-track
-homebrew-voiceflow/
+homebrew-vordi/

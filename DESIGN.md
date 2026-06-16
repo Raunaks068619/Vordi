@@ -1,12 +1,12 @@
-# Verba Design System
+# Vordi Design System
 
-This is the product UI source of truth for Verba. It is derived from the local reference set at `/Users/raunaksingh/Desktop/wisprflow-ui`, which contains 47 Wispr Flow macOS screenshots captured on 2026-05-25.
+This is the product UI source of truth for Vordi. It is derived from the local reference set at `/Users/raunaksingh/Desktop/wisprflow-ui`, which contains 47 Wispr Flow macOS screenshots captured on 2026-05-25.
 
-Use the visual language, spacing, controls, and state patterns. Do not ship copied Wispr Flow logos, screenshots, text, or photographic assets. Recreate any imagery as Verba-branded assets with the same calm, dark, warm, photographic treatment.
+Use the visual language, spacing, controls, and state patterns. Do not ship copied Wispr Flow logos, screenshots, text, or photographic assets. Recreate any imagery as Vordi-branded assets with the same calm, dark, warm, photographic treatment.
 
 ## Summary
 
-Verba should feel like a polished native macOS productivity tool: warm off-white surfaces, quiet navigation, black primary actions, soft rounded cards, compact type, and minimal color. Color is functional, not decorative. The interface should be calm enough for repeated daily use.
+Vordi should feel like a polished native macOS productivity tool: warm off-white surfaces, quiet navigation, black primary actions, soft rounded cards, compact type, and minimal color. Color is functional, not decorative. The interface should be calm enough for repeated daily use.
 
 The Swift implementation lives in `Sources/Views/DesignSystem.swift`. Base tokens still live in `Theme` inside `Sources/Views/MainDashboardView.swift`; `DesignSystem.swift` extends them with the screenshot-derived components and measurements.
 
@@ -47,7 +47,7 @@ Use warm neutrals first.
 - Selected/focus accent: violet, used for selected mic/language/focus states only
 - Promo tint: pale lavender for trial or plan chips
 
-Do not make orange the global UI accent. Orange is only for the `fn` badge and a few Verba-specific highlights.
+Do not make orange the global UI accent. Orange is only for the `fn` badge and a few Vordi-specific highlights.
 
 ## Typography
 

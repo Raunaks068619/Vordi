@@ -1,6 +1,6 @@
-# Verba Onboarding Plan
+# Vordi Onboarding Plan
 
-> First launch today dumps users into a settings pane. That's the single biggest install-to-active drop-off point we have. This plan ports FreeFlow's onboarding architecture to Verba's language-first identity.
+> First launch today dumps users into a settings pane. That's the single biggest install-to-active drop-off point we have. This plan ports FreeFlow's onboarding architecture to Vordi's language-first identity.
 
 **Core thesis:** onboarding is the product's first impression. A user who successfully dictates their first sentence in under 90 seconds becomes a power user; one who bounces off permission prompts uninstalls in a day.
 
@@ -10,7 +10,7 @@
 
 FreeFlow's onboarding is a **linear enum state machine** with a "Continue" gate that's only unlocked when the current step is satisfied. Each step owns its own view, its own satisfied-predicate, and (for side-effect steps) its own polling loop. Nothing is nested; the whole flow is one big `switch step` in a `SetupView`.
 
-We steal that shape. Where Verba diverges from FreeFlow is **language configuration** — it's our reason to exist, so it gets its own onboarding step, not a post-onboarding preference.
+We steal that shape. Where Vordi diverges from FreeFlow is **language configuration** — it's our reason to exist, so it gets its own onboarding step, not a post-onboarding preference.
 
 ---
 
@@ -116,7 +116,7 @@ VStack(spacing: 0) {
 Pure marketing. One headline, one subhead, one CTA. No state.
 
 ```
-[Verba logo, 64pt]
+[Vordi logo, 64pt]
 "Hold Fn. Speak Hindi or English. Done."
 Built for the 600M people who code-switch.
                                     [Get Started]
@@ -183,7 +183,7 @@ Continue unlocks when BOTH are green.
 
 ### Step 4: Language + Output Style
 
-This is where Verba's identity shows. Two sections in one step:
+This is where Vordi's identity shows. Two sections in one step:
 
 ```
 What languages do you speak?
@@ -231,7 +231,7 @@ This step converts. The moment the user sees their own words come back, they get
 ```
 You're all set.
 
-Verba lives in your menu bar.
+Vordi lives in your menu bar.
 Hold Fn anywhere to dictate.
 
       [↑ points to menu bar icon]
@@ -247,7 +247,7 @@ Hold Fn anywhere to dictate.
 
 ### Gate onboarding on first launch
 
-In `VoiceFlowApp.applicationDidFinishLaunching`:
+In `VordiApp.applicationDidFinishLaunching`:
 
 ```swift
 if !UserDefaults.standard.bool(forKey: "onboarding_completed") {

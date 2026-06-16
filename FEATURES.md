@@ -1,4 +1,4 @@
-# Verba — Features
+# Vordi — Features
 
 A macOS-native dictation app: hold **Fn → speak → release**, and polished text is
 injected into the active text field. Pure Swift + SwiftUI, no Electron,
@@ -74,8 +74,8 @@ context-aware. (`ContextProvider`, `Context` model)
 
 ## 6. Memory & Knowledge Graph
 
-Local, on-device memory over **Verba's own transcriptions** (scoped to
-Verba data only — external AI-agent syncing was removed; see
+Local, on-device memory over **Vordi's own transcriptions** (scoped to
+Vordi data only — external AI-agent syncing was removed; see
 `docs/future-agent-memory-app.md`).
 
 - **Transcription corpus** — SQLite store with full-text search (FTS5).
@@ -121,7 +121,7 @@ Verba data only — external AI-agent syncing was removed; see
   recording state (waveform, pulsing dots), spring slide-in.
   (`NotchPillView`, `NotchPillWindow`, `NotchPillComponents`)
 - **Menu bar app** — `MenuBarExtra` dropdown for quick access and status.
-  (`MenuBarView`, `VoiceFlowApp`)
+  (`MenuBarView`, `VordiApp`)
 - **Floating chip window** — lightweight floating status/affordance.
   (`FloatingChipWindow`)
 - **Main dashboard** — primary window with sidebar navigation.
@@ -140,7 +140,7 @@ Verba data only — external AI-agent syncing was removed; see
   Monitoring grants. (`AccessibilityGuideView`, `InputMonitoringGuideView`,
   `PERMISSIONS.md`, `ONBOARDING_PLAN.md`)
 - **Permission service** — runtime permission state + prompting.
-  (`VoiceFlowApp` / `PermissionService`)
+  (`VordiApp` / `PermissionService`)
 
 ## 13. Design system
 
@@ -154,5 +154,5 @@ Verba data only — external AI-agent syncing was removed; see
 
 - **Removed (2026-06-06):** external AI-agent session syncing (Claude Code,
   Codex, Gemini CLI) from Memory. Memory + Ask Memory are now scoped to
-  Verba's own transcriptions. The importer code is preserved for a possible
+  Vordi's own transcriptions. The importer code is preserved for a possible
   future standalone app — see `docs/future-agent-memory-app.md`.

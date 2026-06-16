@@ -1,0 +1,29 @@
+<svg width="808" height="176" viewBox="0 0 808 176" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="vf_base_gradient" x1="0" y1="0" x2="808" y2="176" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#020206"/>
+      <stop offset="0.52" stop-color="#090928"/>
+      <stop offset="1" stop-color="#030308"/>
+    </linearGradient>
+    <radialGradient id="vf_violet_glow" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(436.32 184.8) rotate(-90) scale(581.76 581.76)">
+      <stop offset="0" stop-color="#6C5CFF" stop-opacity="0.84"/>
+      <stop offset="0.38" stop-color="#3834AD" stop-opacity="0.50"/>
+      <stop offset="1" stop-color="#000000" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="vf_blue_glow" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(420.16 49.28) rotate(-90) scale(468.64 468.64)">
+      <stop offset="0" stop-color="#252E85" stop-opacity="0.62"/>
+      <stop offset="0.42" stop-color="#171B52" stop-opacity="0.24"/>
+      <stop offset="1" stop-color="#000000" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="vf_surface_falloff" x1="0" y1="88" x2="808" y2="88" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#18150D" stop-opacity="0.88"/>
+      <stop offset="0.5" stop-color="#18150D" stop-opacity="0.18"/>
+      <stop offset="1" stop-color="#18150D" stop-opacity="0.74"/>
+    </linearGradient>
+  </defs>
+  <rect width="808" height="176" rx="20" fill="#18150D"/>
+  <rect width="808" height="176" rx="20" fill="url(#vf_base_gradient)"/>
+  <rect width="808" height="176" rx="20" fill="url(#vf_violet_glow)" style="mix-blend-mode:screen"/>
+  <rect width="808" height="176" rx="20" fill="url(#vf_blue_glow)" style="mix-blend-mode:screen"/>
+  <rect width="808" height="176" rx="20" fill="url(#vf_surface_falloff)"/>
+</svg>

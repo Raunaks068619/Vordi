@@ -4,4 +4,4 @@ Source: https://unsplash.com/photos/abstract-warm-light-and-dark-blurred-backgro
 Author: Liana S (@cherstve_pechivo)
 License: Unsplash License
 
-Downloaded as a cropped, optimized local app resource for the VoiceFlow Home hero.
+Downloaded as a cropped, optimized local app resource for the Vordi Home hero.

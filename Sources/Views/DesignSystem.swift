@@ -218,10 +218,10 @@ extension Theme {
 // MARK: - App Brand ────────────────────────────────────────────────────────────
 
 enum AppBrand {
-    static let name = "Verba"
-    static let legacyName = "VoiceFlow"
-    static let logoImageName = "verba_transparent_background"
-    static let coloredLogoImageName = "verba_transparent_background_colored_logo_less_padding"
+    static let name = "Vordi"
+    static let legacyName = "Vordi"
+    static let logoImageName = "vordi_transparent_background"
+    static let coloredLogoImageName = "vordi_transparent_background_colored_logo_less_padding"
 
     static var logoImage: NSImage? {
         image(named: logoImageName)
@@ -299,20 +299,20 @@ struct VFBrandLogo: View {
 }
 
 struct VFMenuBarBrandIcon: View {
+    // The brand glyph is the 5-bar waveform mark. We draw it directly as a
+    // monochrome template at menu-bar scale instead of templating the square
+    // app-icon PNG — that asset's opaque square fills solid white when used as
+    // a template, producing an oversized white block in the menu bar.
+    private static let barHeights: [CGFloat] = [6, 11, 15, 10, 6]
+
     var body: some View {
-        Group {
-            if let image = AppBrand.templateLogoImage {
-                Image(nsImage: image)
-                    .resizable()
-                    .renderingMode(.template)
-                    .interpolation(.high)
-                    .scaledToFit()
-            } else {
-                Image(systemName: "waveform")
-                    .font(.system(size: 17, weight: .semibold))
+        HStack(alignment: .center, spacing: 1.6) {
+            ForEach(Self.barHeights.indices, id: \.self) { index in
+                Capsule()
+                    .frame(width: 2, height: Self.barHeights[index])
             }
         }
-        .frame(width: 20, height: 18)
+        .frame(width: 18, height: 16, alignment: .center)
         .foregroundStyle(.primary)
         .accessibilityLabel(AppBrand.name)
     }

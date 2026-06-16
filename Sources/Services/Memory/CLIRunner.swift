@@ -161,7 +161,7 @@ final class CLIRunner {
                 process.standardError = stderrPipe
                 // Always attach stdin and close it after launch. Several AI
                 // CLIs append piped stdin to the prompt when stdin appears
-                // open; inheriting Codex/VoiceFlow's own stdin can make a
+                // open; inheriting Codex/Vordi's own stdin can make a
                 // headless probe wait for EOF. An empty pipe gives the child
                 // a deterministic EOF in both Terminal and GUI launches.
                 process.standardInput = stdinPipe

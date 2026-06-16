@@ -5,7 +5,7 @@ import Foundation
 /// these spellings) AND the polish LLM prompt (preserves them as-typed).
 ///
 /// **Mental model**: TextExpander dictionary, but for transcription accuracy.
-/// Storing "Raunak, VoiceFlow, Shopsense, Fynd" makes Whisper less likely to
+/// Storing "Raunak, Vordi, Shopsense, Fynd" makes Whisper less likely to
 /// emit "Ronaka" / "vo'isalopa" / "Shop sense" / "Find" for those words.
 ///
 /// **Why injection in both layers**:
@@ -58,7 +58,7 @@ enum UserVocabulary {
         guard joined.count > maxPromptInjectionChars else { return joined }
 
         // Truncate at the LAST comma boundary inside the cap so we never
-        // split a term mid-word ("Voice" instead of "VoiceFlow"). If
+        // split a term mid-word ("Voice" instead of "Vordi"). If
         // somehow there's no comma (one giant pasted blob), fall back to
         // hard char truncation.
         let head = String(joined.prefix(maxPromptInjectionChars))
@@ -88,10 +88,10 @@ enum UserVocabulary {
     // Edge cases handled:
     //   - Word boundaries enforced — "groove" doesn't match "Groq"
     //     (would otherwise be distance 2 from "groov")
-    //   - Multi-word vocab terms ("Voice Flow") match across whitespace
-    //     in the input ("voice flow" / "VoiceFlow" / "voiceflow")
+    //   - Multi-word vocab terms ("Vordi Studio") match across whitespace
+    //     in the input ("vordi studio" / "Vordi Studio")
     //   - When the same input span matches multiple vocab terms, the
-    //     LONGER term wins (so "VoiceFlow Studio" beats "VoiceFlow")
+    //     LONGER term wins (so "Vordi Studio" beats "Vordi")
 
     /// Apply the user's vocabulary as case-insensitive + fuzzy
     /// find-and-replace. Returns the input unchanged when there are no
@@ -103,7 +103,7 @@ enum UserVocabulary {
 
         // Sort by length DESC so longer canonical forms win when two
         // terms could both match the same input span (e.g. user has
-        // "Voice" + "VoiceFlow" — we want "VoiceFlow" to win).
+        // "Voice" + "Vordi" — we want "Vordi" to win).
         let sortedVocab = vocab.sorted { $0.count > $1.count }
 
         var result = text
@@ -158,8 +158,8 @@ enum UserVocabulary {
 
     /// Try to match the canonical token sequence starting at chars[start].
     /// Returns the number of characters consumed on success, or nil on
-    /// no match. Allows whitespace between input tokens (so "VoiceFlow"
-    /// and "voice flow" both match canonical "VoiceFlow").
+    /// no match. Allows whitespace between input tokens for multi-word
+    /// canonical terms.
     private static func matchAt(
         chars: [Character],
         start: Int,
@@ -174,7 +174,7 @@ enum UserVocabulary {
                 }
                 // For SINGLE-token canonical, we never reach here. For
                 // multi-token, expecting at least some whitespace OR a
-                // direct concatenation ("voice" "flow" → "voiceflow")
+                // direct concatenation ("voice" "flow" → "vordi")
                 // both work — we already consumed any whitespace above.
             }
 
@@ -188,7 +188,7 @@ enum UserVocabulary {
             let inputToken = String(chars[tokenStart..<tokenEnd]).lowercased()
 
             // For all-tokens-concatenated canonical (e.g. canonical
-            // tokens = ["voice", "flow"], user input = "voiceflow"),
+            // tokens = ["voice", "flow"], user input = "vordi"),
             // try matching the WHOLE remaining canonical against this
             // single input token.
             if idx == 0 && canonicalTokens.count > 1 {

@@ -1,7 +1,7 @@
 import Foundation
 
 /// A single phrase → expansion mapping. Stored as JSON in
-/// `~/Library/Application Support/VoiceFlow/magicwords.json`.
+/// `~/Library/Application Support/Vordi/magicwords.json`.
 ///
 /// **Mental model**: like TextExpander snippets, but voice-triggered.
 /// User says "get pods recommendation" → gets `kubectl get pods -n zenith ...`

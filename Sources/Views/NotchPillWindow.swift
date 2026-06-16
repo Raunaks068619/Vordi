@@ -16,8 +16,55 @@ enum NotchPillState: Equatable {
     case panelError(title: String, desc: String, tip: String)
 }
 
+/// Swipeable pages inside the open hover panel.
+enum NotchPanelMode: String, CaseIterable {
+    case transcriptions
+    case notes
+    case memory
+    case stats
+
+    var title: String {
+        switch self {
+        case .transcriptions: return "Latest transcriptions"
+        case .notes: return "Notes"
+        case .memory: return "Memory"
+        case .stats: return "Today"
+        }
+    }
+
+    var panelHeight: CGFloat {
+        switch self {
+        case .transcriptions: return NotchPillScreenGeometry.expandedPanelHeight
+        case .notes: return 152
+        case .memory: return 126
+        case .stats: return 100
+        }
+    }
+
+    var next: NotchPanelMode {
+        let all = Self.allCases
+        let index = all.firstIndex(of: self) ?? 0
+        return all[(index + 1) % all.count]
+    }
+
+    var previous: NotchPanelMode {
+        let all = Self.allCases
+        let index = all.firstIndex(of: self) ?? 0
+        return all[(index + all.count - 1) % all.count]
+    }
+}
+
 final class NotchPillModel: ObservableObject {
+    private static let panelModeDefaultsKey = "notch.panelMode"
+
     @Published var state: NotchPillState = .idle
+    @Published var activePanelMode: NotchPanelMode = NotchPanelMode(
+        rawValue: UserDefaults.standard.string(forKey: panelModeDefaultsKey) ?? ""
+    ) ?? .transcriptions {
+        didSet {
+            UserDefaults.standard.set(activePanelMode.rawValue, forKey: Self.panelModeDefaultsKey)
+        }
+    }
     @Published var audioLevel: Float = 0
     @Published var hasAllPermissions: Bool = true
     @Published var hardwareNotchSize: CGSize = NotchPillScreenGeometry.fallbackNotchSize
@@ -25,6 +72,11 @@ final class NotchPillModel: ObservableObject {
     @Published var liveTranscript: String = ""
 
     var lastError: (title: String, desc: String, tip: String)?
+
+    /// Set by the window. Driven by the SwiftUI surface's `.onContinuousHover`
+    /// so hover detection keeps working even though the window is a fixed,
+    /// oversized canvas around the morphing pill.
+    var onHoverChanged: ((Bool) -> Void)?
 }
 
 enum NotchPillScreenGeometry {
@@ -32,11 +84,12 @@ enum NotchPillScreenGeometry {
     static let externalDockSize = CGSize(width: 116, height: 8)
     static let surfaceHeightExtension: CGFloat = 2
     static let defaultVisibleExpansion: CGFloat = 63
-    static let maxSurfaceWidth: CGFloat = 420
+    static let maxSurfaceWidth: CGFloat = 456
+    static let openPanelWidthExpansion: CGFloat = 32
     static let expandedPanelHeight: CGFloat = 164
     static let listeningPanelHeight: CGFloat = 62
     static let errorPanelHeight: CGFloat = 136
-    static let morphDuration: TimeInterval = 0.20
+    static let morphDuration: TimeInterval = 0.50
 
     private static let lanePadding: CGFloat = 10
     private static let statusTrailingPadding: CGFloat = 18
@@ -95,7 +148,8 @@ enum NotchPillScreenGeometry {
         state: NotchPillState,
         notchSize: CGSize,
         isExternalDock: Bool,
-        liveTranscript: String
+        liveTranscript: String,
+        panelMode: NotchPanelMode = .transcriptions
     ) -> CGSize {
         let rowHeight = rowHeight(state: state, notchSize: notchSize, isExternalDock: isExternalDock)
         let defaultPillWidth = defaultPillWidth(
@@ -117,9 +171,22 @@ enum NotchPillScreenGeometry {
         let width = min(maxSurfaceWidth, pillWidth + backgroundSideExpansion(state: state, isExternalDock: isExternalDock) * 2)
         let height = rowHeight
             + inlineTranscriptHeight(state: state, liveTranscript: liveTranscript)
-            + expandedPanelHeightValue(for: state)
+            + expandedPanelHeightValue(for: state, panelMode: panelMode)
 
         return CGSize(width: ceil(width), height: ceil(height))
+    }
+
+    /// The window is STATIC at this maximum size — it is never resized as the
+    /// pill morphs. All shape morphing happens in SwiftUI inside this fixed
+    /// canvas, so the animating corners are never clipped by a moving window
+    /// edge (the root cause of the "radius snaps to 0 mid-collapse" bug).
+    /// Mirrors the comparison island's static-window approach.
+    static func maxWindowSize(notchSize: CGSize, isExternalDock: Bool) -> CGSize {
+        let row = notchSize.height + surfaceHeightExtension
+        return CGSize(
+            width: maxSurfaceWidth,
+            height: ceil(row + expandedPanelHeight + 8)
+        )
     }
 
     static func rowHeight(
@@ -185,7 +252,13 @@ enum NotchPillScreenGeometry {
                 + measuredStatusTextWidth(statusLabel(for: state))
                 + statusTrailingPadding
             let laneWidth = max(leftContentWidth, rightContentWidth(for: state)) + stateWidthBreathingRoom
-            return max(defaultPillWidth, ceil(centerGapWidth + laneWidth * 2))
+            let baseWidth = max(defaultPillWidth, ceil(centerGapWidth + laneWidth * 2))
+            switch state {
+            case .panelHover, .panelTranscript, .panelError:
+                return min(maxSurfaceWidth, baseWidth + openPanelWidthExpansion)
+            default:
+                return baseWidth
+            }
         }
     }
 
@@ -208,8 +281,11 @@ enum NotchPillScreenGeometry {
         0
     }
 
-    private static func expandedPanelHeightValue(for state: NotchPillState) -> CGFloat {
-        if case .panelHover = state { return expandedPanelHeight }
+    private static func expandedPanelHeightValue(
+        for state: NotchPillState,
+        panelMode: NotchPanelMode
+    ) -> CGFloat {
+        if case .panelHover = state { return panelMode.panelHeight }
         if case .panelTranscript = state { return listeningPanelHeight }
         if case .panelError = state { return errorPanelHeight }
         return 0
@@ -278,7 +354,6 @@ final class NotchPillHostingView: NSHostingView<NotchPillView> {
 
 final class NotchPillCanvasView: NSView {
     weak var model: NotchPillModel?
-    var onHoverChanged: ((Bool) -> Void)?
 
     init(frame frameRect: NSRect, model: NotchPillModel) {
         self.model = model
@@ -293,32 +368,33 @@ final class NotchPillCanvasView: NSView {
         layer?.backgroundColor = NSColor.clear.cgColor
     }
 
+    /// The window is a fixed oversized canvas; only the visible morphing pill
+    /// should absorb clicks. Everything outside it (the transparent slack the
+    /// static window keeps so the shape never gets clipped) passes clicks
+    /// through to whatever is underneath.
+    private var currentPillRect: NSRect {
+        guard let model else { return bounds }
+        let size = NotchPillScreenGeometry.surfaceSize(
+            state: model.state,
+            notchSize: model.hardwareNotchSize,
+            isExternalDock: model.isExternalDock,
+            liveTranscript: model.liveTranscript,
+            panelMode: model.activePanelMode
+        )
+        return NSRect(
+            x: bounds.midX - size.width / 2,
+            y: bounds.maxY - size.height,
+            width: size.width,
+            height: size.height
+        ).insetBy(dx: -2, dy: -2)
+    }
+
     override func hitTest(_ point: NSPoint) -> NSView? {
-        guard bounds.contains(point) else { return nil }
+        guard currentPillRect.contains(point) else { return nil }
         return super.hitTest(point) ?? self
     }
 
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
-
-    override func updateTrackingAreas() {
-        super.updateTrackingAreas()
-        trackingAreas.forEach { removeTrackingArea($0) }
-        addTrackingArea(NSTrackingArea(
-            rect: bounds,
-            options: [.mouseEnteredAndExited, .activeAlways, .inVisibleRect],
-            owner: self,
-            userInfo: nil
-        ))
-    }
-
-    override func mouseEntered(with event: NSEvent) {
-        onHoverChanged?(true)
-    }
-
-    override func mouseExited(with event: NSEvent) {
-        onHoverChanged?(false)
-    }
-
 }
 
 final class NotchPillWindow: NSPanel {
@@ -326,18 +402,21 @@ final class NotchPillWindow: NSPanel {
 
     private static let minimumAudioUpdateInterval: TimeInterval = 1.0 / 20.0
     private static let hoverPanelClosePollInterval: TimeInterval = 1.0 / 30.0
+    private static let mousePassthroughPollInterval: TimeInterval = 1.0 / 30.0
     private static let hoverRegionOutset: CGFloat = 2
 
     private var cancellables = Set<AnyCancellable>()
     private var flashTimer: Timer?
     private var hoverPanelCloseTimer: Timer?
+    private var mousePassthroughTimer: Timer?
     private var lastAudioLevelUpdate: Date = .distantPast
     private weak var anchoredScreen: NSScreen?
     private weak var canvasView: NotchPillCanvasView?
 
     init() {
-        let initialSize = NotchPillScreenGeometry.defaultSurfaceSize(
-            for: NotchPillScreenGeometry.fallbackNotchSize
+        let initialSize = NotchPillScreenGeometry.maxWindowSize(
+            notchSize: NotchPillScreenGeometry.fallbackNotchSize,
+            isExternalDock: false
         )
 
         super.init(
@@ -372,7 +451,10 @@ final class NotchPillWindow: NSPanel {
         let canvas = NotchPillCanvasView(frame: NSRect(origin: .zero, size: initialSize), model: model)
         canvas.autoresizingMask = [.width, .height]
         canvas.addSubview(hosting)
-        canvas.onHoverChanged = { [weak self] hovering in
+
+        // Hover is driven by the SwiftUI surface's `.onContinuousHover` (robust
+        // against the fixed oversized window), routed through the model.
+        model.onHoverChanged = { [weak self] hovering in
             self?.handleCanvasHover(hovering)
         }
 
@@ -392,12 +474,17 @@ final class NotchPillWindow: NSPanel {
             self.alphaValue = 1
             self.orderFrontRegardless()
             self.level = .statusBar
+            self.startMousePassthroughMonitor()
+            self.syncMousePassthrough()
         }
     }
 
     func hide() {
         DispatchQueue.main.async { [weak self] in
-            self?.orderOut(nil)
+            guard let self else { return }
+            self.stopMousePassthroughMonitor()
+            self.ignoresMouseEvents = true
+            self.orderOut(nil)
         }
     }
 
@@ -466,7 +553,7 @@ final class NotchPillWindow: NSPanel {
             durationSeconds: durationSeconds
         ) {
             NotificationCenter.default.post(
-                name: Notification.Name("VoiceFlow.DismissChipWarning"),
+                name: Notification.Name("Vordi.DismissChipWarning"),
                 object: nil
             )
         }
@@ -481,7 +568,7 @@ final class NotchPillWindow: NSPanel {
             durationSeconds: durationSeconds
         ) {
             NotificationCenter.default.post(
-                name: Notification.Name("VoiceFlow.DismissChipWarning"),
+                name: Notification.Name("Vordi.DismissChipWarning"),
                 object: nil
             )
         }
@@ -590,16 +677,18 @@ final class NotchPillWindow: NSPanel {
     }
 
     private func observeSurfaceBounds() {
-        Publishers.Merge4(
+        Publishers.MergeMany(
             model.$state.map { _ in () }.eraseToAnyPublisher(),
             model.$hardwareNotchSize.map { _ in () }.eraseToAnyPublisher(),
             model.$isExternalDock.map { _ in () }.eraseToAnyPublisher(),
-            model.$liveTranscript.map { _ in () }.eraseToAnyPublisher()
+            model.$liveTranscript.map { _ in () }.eraseToAnyPublisher(),
+            model.$activePanelMode.map { _ in () }.eraseToAnyPublisher()
         )
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in
                 self?.resizeToCurrentSurface()
                 self?.syncHoverPanelCloseMonitor()
+                self?.syncMousePassthrough()
             }
             .store(in: &cancellables)
     }
@@ -608,7 +697,7 @@ final class NotchPillWindow: NSPanel {
         applyFrame(on: providedScreen, animated: true)
     }
 
-    private func applyFrame(on providedScreen: NSScreen? = nil, animated: Bool) {
+    private func applyFrame(on providedScreen: NSScreen? = nil, animated _: Bool) {
         let screen = providedScreen
             ?? anchoredScreen
             ?? preferredScreen()
@@ -619,24 +708,19 @@ final class NotchPillWindow: NSPanel {
         if model.isExternalDock != isExternalDock {
             model.isExternalDock = isExternalDock
         }
-        let windowSize = currentSurfaceSize()
+
+        // STATIC window: always the fixed max canvas, anchored top-center on the
+        // notch. We never animate or resize the NSWindow — the pill morphs only
+        // in SwiftUI inside it, so the shape's corners are never clipped by a
+        // moving window edge. Reposition only (screen / notch-size change).
+        let windowSize = NotchPillScreenGeometry.maxWindowSize(
+            notchSize: model.hardwareNotchSize,
+            isExternalDock: isExternalDock
+        )
         let targetFrame = surfaceFrame(for: windowSize, on: screen)
-
-        guard animated, isVisible, frame != targetFrame else {
-            contentView?.frame = NSRect(origin: .zero, size: windowSize)
-            setFrame(targetFrame, display: true)
-            canvasView?.updateTrackingAreas()
-            return
-        }
-
-        NSAnimationContext.runAnimationGroup { context in
-            context.duration = NotchPillScreenGeometry.morphDuration
-            context.timingFunction = CAMediaTimingFunction(controlPoints: 0.16, 1.0, 0.30, 1.0)
-            self.animator().setFrame(targetFrame, display: true)
-        } completionHandler: { [weak self] in
-            self?.contentView?.frame = NSRect(origin: .zero, size: windowSize)
-            self?.canvasView?.updateTrackingAreas()
-        }
+        guard frame != targetFrame else { return }
+        contentView?.frame = NSRect(origin: .zero, size: windowSize)
+        setFrame(targetFrame, display: true)
     }
 
     private func preferredScreen() -> NSScreen? {
@@ -672,8 +756,8 @@ final class NotchPillWindow: NSPanel {
         }
     }
 
-    private func openHoverPanelIfMouseInside() {
-        guard isMouseInsideHoverRegion(for: model.state) else { return }
+    private func openHoverPanelIfMouseInside(at point: NSPoint = NSEvent.mouseLocation) {
+        guard isMouseInsideHoverRegion(for: model.state, at: point) else { return }
         model.state = .panelHover
     }
 
@@ -710,7 +794,50 @@ final class NotchPillWindow: NSPanel {
         hoverPanelCloseTimer = nil
     }
 
-    private func isMouseInsideHoverRegion(for state: NotchPillState) -> Bool {
+    private func startMousePassthroughMonitor() {
+        guard mousePassthroughTimer == nil else { return }
+
+        let timer = Timer(timeInterval: Self.mousePassthroughPollInterval, repeats: true) { [weak self] _ in
+            self?.syncMousePassthrough()
+        }
+
+        mousePassthroughTimer = timer
+        RunLoop.main.add(timer, forMode: .common)
+    }
+
+    private func stopMousePassthroughMonitor() {
+        mousePassthroughTimer?.invalidate()
+        mousePassthroughTimer = nil
+    }
+
+    private func syncMousePassthrough() {
+        guard isVisible else {
+            ignoresMouseEvents = true
+            return
+        }
+
+        let mouseLocation = NSEvent.mouseLocation
+        let shouldAcceptMouse = isMouseInsideHoverRegion(for: model.state, at: mouseLocation)
+        let shouldIgnoreMouse = !shouldAcceptMouse
+
+        if ignoresMouseEvents != shouldIgnoreMouse {
+            ignoresMouseEvents = shouldIgnoreMouse
+        }
+
+        if shouldAcceptMouse {
+            switch model.state {
+            case .idle, .proximity:
+                openHoverPanelIfMouseInside(at: mouseLocation)
+            default:
+                break
+            }
+        }
+    }
+
+    private func isMouseInsideHoverRegion(
+        for state: NotchPillState,
+        at point: NSPoint = NSEvent.mouseLocation
+    ) -> Bool {
         let screen = anchoredScreen ?? preferredScreen()
         guard let screen else { return false }
 
@@ -718,12 +845,13 @@ final class NotchPillWindow: NSPanel {
             state: state,
             notchSize: model.hardwareNotchSize,
             isExternalDock: model.isExternalDock,
-            liveTranscript: model.liveTranscript
+            liveTranscript: model.liveTranscript,
+            panelMode: model.activePanelMode
         )
         let hoverFrame = surfaceFrame(for: size, on: screen)
             .insetBy(dx: -Self.hoverRegionOutset, dy: -Self.hoverRegionOutset)
 
-        return hoverFrame.contains(NSEvent.mouseLocation)
+        return hoverFrame.contains(point)
     }
 
     private func surfaceFrame(for size: NSSize, on screen: NSScreen) -> NSRect {
@@ -736,17 +864,9 @@ final class NotchPillWindow: NSPanel {
         applyFrame()
     }
 
-    private func currentSurfaceSize() -> NSSize {
-        NotchPillScreenGeometry.surfaceSize(
-            state: model.state,
-            notchSize: model.hardwareNotchSize,
-            isExternalDock: model.isExternalDock,
-            liveTranscript: model.liveTranscript
-        )
-    }
-
     deinit {
         hoverPanelCloseTimer?.invalidate()
+        mousePassthroughTimer?.invalidate()
         flashTimer?.invalidate()
     }
 }

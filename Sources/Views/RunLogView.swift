@@ -283,7 +283,7 @@ struct RunRowView: View {
     /// decoupled from the recording/transcription orchestration layer.
     private func retryTranscript() {
         NotificationCenter.default.post(
-            name: Notification.Name("VoiceFlow.RetryRun"),
+            name: Notification.Name("Vordi.RetryRun"),
             object: nil,
             userInfo: ["runID": summary.id]
         )

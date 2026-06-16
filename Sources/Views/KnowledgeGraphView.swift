@@ -21,8 +21,6 @@ import AppKit
 /// pre-emptively.
 struct KnowledgeGraphView: View {
     private static let graphFrameRate: TimeInterval = 1.0 / 18.0
-    private static let fullLabelNodeThreshold = 45
-    private static let crowdedLabelLimit = 36
 
     @StateObject private var service = KnowledgeGraphService.shared
     @StateObject private var simulation = ForceSimulation()
@@ -415,20 +413,25 @@ struct KnowledgeGraphView: View {
     }
 
     private func shouldDrawLabel(for body: ForceSimulation.Body, at index: Int, highlighted: Bool) -> Bool {
-        if highlighted || body.isHovered { return true }
-        if simulation.bodies.count <= Self.fullLabelNodeThreshold { return true }
-        if zoom <= 0.75 { return index < 18 }
-        return index < Self.crowdedLabelLimit
+        // Always label every node. The graph is meant to look full; labels
+        // shrink with zoom (see drawLabel) so a dense, zoomed-out view stays
+        // legible rather than hiding the long tail of nodes.
+        return true
     }
 
     private func drawLabel(_ label: String, highlighted: Bool, at point: CGPoint, radius: CGFloat, in ctx: GraphicsContext) {
+        // Scale label text with zoom so a full, zoomed-out graph shrinks its
+        // labels (less overlap) while zooming in makes them readable. Clamped
+        // so they never vanish or balloon. Highlighted/hovered labels get a
+        // small bump and always render at a comfortably readable floor.
+        let fontSize = max(highlighted ? 9 : 6.5, min(13, 11 * zoom))
         let labelText = Text(label)
-            .font(.system(size: 11, weight: highlighted ? .semibold : .medium))
+            .font(.system(size: fontSize, weight: highlighted ? .semibold : .medium))
             .foregroundColor(Theme.textPrimary)
-        let labelAt = CGPoint(x: point.x, y: point.y + radius + 12)
+        let labelAt = CGPoint(x: point.x, y: point.y + radius + fontSize * 0.5 + 5)
         let resolved = ctx.resolve(labelText)
         let textSize = resolved.measure(in: CGSize(width: 200, height: 40))
-        let padX: CGFloat = 6
+        let padX: CGFloat = max(3, fontSize * 0.5)
         let padY: CGFloat = 2
         let pillRect = CGRect(
             x: labelAt.x - textSize.width / 2 - padX,
@@ -900,17 +903,77 @@ private struct ConnectedChipList: View {
     let items: [String]
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        ConnectedChipFlowLayout(spacing: 6) {
             ForEach(items, id: \.self) { item in
                 Text(item)
                     .font(.system(size: 10, weight: .medium))
                     .foregroundColor(Theme.textPrimary)
+                    .lineLimit(1)
                     .padding(.horizontal, 8)
                     .padding(.vertical, 4)
                     .background(Capsule().fill(Theme.surfaceElevated))
                     .overlay(Capsule().strokeBorder(Theme.divider, lineWidth: 1))
             }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+private struct ConnectedChipFlowLayout: Layout {
+    var spacing: CGFloat = 6
+
+    func sizeThatFits(
+        proposal: ProposedViewSize,
+        subviews: Subviews,
+        cache: inout ()
+    ) -> CGSize {
+        let maxWidth = proposal.width ?? .infinity
+        let (size, _) = computeLayout(maxWidth: maxWidth, subviews: subviews)
+        return size
+    }
+
+    func placeSubviews(
+        in bounds: CGRect,
+        proposal: ProposedViewSize,
+        subviews: Subviews,
+        cache: inout ()
+    ) {
+        let (_, placements) = computeLayout(maxWidth: bounds.width, subviews: subviews)
+        for (index, point) in placements.enumerated() {
+            subviews[index].place(
+                at: CGPoint(x: bounds.minX + point.x, y: bounds.minY + point.y),
+                proposal: .unspecified
+            )
+        }
+    }
+
+    private func computeLayout(
+        maxWidth: CGFloat,
+        subviews: Subviews
+    ) -> (CGSize, [CGPoint]) {
+        var rowWidth: CGFloat = 0
+        var rowHeight: CGFloat = 0
+        var totalHeight: CGFloat = 0
+        var widest: CGFloat = 0
+        var placements: [CGPoint] = []
+
+        for subview in subviews {
+            let size = subview.sizeThatFits(.unspecified)
+            if rowWidth > 0 && rowWidth + spacing + size.width > maxWidth {
+                totalHeight += rowHeight + spacing
+                widest = max(widest, rowWidth)
+                rowWidth = 0
+                rowHeight = 0
+            }
+
+            let x = rowWidth == 0 ? 0 : rowWidth + spacing
+            placements.append(CGPoint(x: x, y: totalHeight))
+            rowWidth = x + size.width
+            rowHeight = max(rowHeight, size.height)
+        }
+
+        widest = max(widest, rowWidth)
+        return (CGSize(width: widest, height: totalHeight + rowHeight), placements)
     }
 }
 

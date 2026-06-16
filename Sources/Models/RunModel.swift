@@ -33,7 +33,7 @@ struct Run: Codable, Identifiable {
     let profileUsed: String?
 
     /// Free-form trace of what the profile decided. Renders as a list in
-    /// the run-detail view's "How VoiceFlow handled this" section.
+    /// the run-detail view's "How Vordi handled this" section.
     let profileTrace: [String]?
 
     /// Estimated dollar cost of all LLM calls in this run (transcription

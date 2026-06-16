@@ -1,0 +1,1118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Vordi — Voice typing that lives in your notch</title>
+<meta name="description" content="Vordi is a local-first voice typing app for macOS. A Dynamic Island that listens, a chip you can put anywhere, and a memory that turns your voice into something you know." />
+<meta property="og:title" content="Vordi — Voice typing that lives in your notch" />
+<meta property="og:description" content="Hold fn. Speak. Release. Clean text, anywhere on your Mac." />
+<style>
+  :root {
+    /* ---- dark starry mesh (from VFBlueMeshHeroBackground) ---- */
+    --void: oklch(13% 0.028 280);
+    --void-deep: oklch(9% 0.03 278);
+    --ink-0: oklch(10.5% 0.03 278);
+    --panel: oklch(17% 0.022 280);
+    --panel-2: oklch(21% 0.024 280);
+    --hair: oklch(100% 0 0 / 0.08);
+    --hair-strong: oklch(100% 0 0 / 0.14);
+
+    --cream: oklch(95.5% 0.012 85);
+    --cream-soft: oklch(78% 0.012 80);
+    --cream-faint: oklch(62% 0.014 280);
+
+    /* ---- brand + state colors (exact from NotchPillPalette / Theme) ---- */
+    --violet: oklch(58% 0.2 295);       /* #7C4AED-ish */
+    --violet-lite: oklch(68% 0.18 293); /* #9C73F6 */
+    --violet-glow: oklch(64% 0.21 290); /* #6C5CFF */
+    --blue: oklch(63% 0.19 248);        /* #0E8FFF */
+    --cyan: oklch(85% 0.13 205);        /* #2EE8FF */
+    --magenta: oklch(68% 0.27 340);     /* #FF47E6 */
+    --thinking: oklch(58% 0.26 305);    /* #B32EFF */
+    --success: oklch(78% 0.16 158);     /* #47DD8A */
+    --warning: oklch(82% 0.15 88);      /* #FACA38 */
+    --failure: oklch(64% 0.21 27);      /* #F24D40 */
+    --orange: oklch(73% 0.17 55);       /* #FF8C1A */
+
+    --serif: Georgia, 'Times New Roman', serif;
+    --sans: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', system-ui, sans-serif;
+    --mono: ui-monospace, 'SF Mono', SFMono-Regular, Menlo, monospace;
+    --e-out: cubic-bezier(0.16, 1, 0.3, 1);
+    --e-spring: cubic-bezier(0.34, 1.32, 0.52, 1);
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    font-family: var(--sans);
+    background: var(--void-deep);
+    color: var(--cream);
+    -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
+  }
+  ::selection { background: var(--violet); color: white; }
+  a { color: inherit; }
+  img { display: block; max-width: 100%; }
+
+  /* fixed atmosphere */
+  #stars { position: fixed; inset: 0; z-index: 0; pointer-events: none; }
+  .aurora {
+    position: fixed; z-index: 0; pointer-events: none; inset: 0;
+    background:
+      radial-gradient(60% 50% at 52% 8%, oklch(40% 0.16 268 / 0.55), transparent 70%),
+      radial-gradient(70% 60% at 50% 108%, oklch(56% 0.22 290 / 0.55), transparent 72%),
+      radial-gradient(40% 40% at 85% 30%, oklch(48% 0.18 330 / 0.22), transparent 70%);
+  }
+  .grain { position: fixed; inset: 0; z-index: 1; pointer-events: none; opacity: 0.5; mix-blend-mode: overlay;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.4'/%3E%3C/svg%3E"); }
+  main, nav, footer { position: relative; z-index: 2; }
+
+  /* voice orb — follows you through the scroll */
+  #orb { position: fixed; z-index: 3; pointer-events: none; width: 200px; height: 200px; left: 0; top: 0; will-change: transform; }
+
+  /* dither-prism hero shader (componentry-inspired, vanilla WebGL2) */
+  .hero { position: relative; }
+  #dither { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 0; opacity: 0; transition: opacity 1.2s ease; }
+  #dither.ready { opacity: 1; }
+  .hero-fade { position: absolute; inset: 0; z-index: 0; pointer-events: none;
+    background: linear-gradient(180deg, oklch(11% 0.03 278 / 0.55) 0%, transparent 22%, transparent 58%, var(--void-deep) 100%); }
+  .hero > *:not(#dither):not(.hero-fade) { position: relative; z-index: 1; }
+
+  /* magnet lines accent */
+  .index { position: relative; }
+  #magnet { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 0; pointer-events: none; opacity: 0.75; }
+  .index .shell { position: relative; z-index: 1; }
+
+  /* ---------- reveal ---------- */
+  [data-reveal] { opacity: 0; transform: translateY(32px); transition: opacity 1s var(--e-out), transform 1s var(--e-out); transition-delay: var(--d, 0s); }
+  [data-reveal].in { opacity: 1; transform: none; }
+  [data-reveal="scale"] { transform: translateY(20px) scale(0.97); }
+  @media (prefers-reduced-motion: reduce) {
+    [data-reveal] { opacity: 1 !important; transform: none !important; }
+    * { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; }
+  }
+
+  /* ---------- nav ---------- */
+  nav {
+    position: fixed; inset: 0 0 auto 0; z-index: 60;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 16px clamp(18px, 4vw, 52px);
+    transition: background 0.45s, box-shadow 0.45s, padding 0.45s, backdrop-filter 0.45s;
+  }
+  nav.scrolled { background: oklch(11% 0.03 278 / 0.7); backdrop-filter: blur(18px) saturate(1.4); box-shadow: 0 1px 0 var(--hair); padding-top: 11px; padding-bottom: 11px; }
+  .brand { display: flex; align-items: center; gap: 11px; text-decoration: none; }
+  .brand img { width: 30px; height: 30px; border-radius: 8px; box-shadow: 0 4px 18px oklch(58% 0.2 290 / 0.45); }
+  .brand b { font-family: var(--serif); font-style: italic; font-size: 23px; font-weight: 400; letter-spacing: -0.01em; }
+  .nav-links { display: flex; gap: 26px; align-items: center; font-size: 14px; }
+  .nav-links a:not(.btn) { text-decoration: none; color: var(--cream-soft); transition: color 0.2s; }
+  .nav-links a:not(.btn):hover { color: var(--cream); }
+  @media (max-width: 760px) { .nav-links a:not(.btn) { display: none; } }
+
+  .btn {
+    --bg: var(--cream); --fg: var(--void-deep);
+    display: inline-flex; align-items: center; gap: 9px; cursor: pointer;
+    background: var(--bg); color: var(--fg) !important; border: none;
+    border-radius: 999px; padding: 11px 21px; font: inherit; font-size: 14px; font-weight: 600; text-decoration: none;
+    transition: transform 0.3s var(--e-out), box-shadow 0.3s, filter 0.2s;
+  }
+  .btn:hover { transform: translateY(-2px); box-shadow: 0 12px 30px -10px oklch(58% 0.2 290 / 0.6); }
+  .btn.lg { padding: 16px 30px; font-size: 16px; }
+  .btn.violet { --bg: var(--violet); --fg: white; }
+  .btn .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--violet); flex: none; }
+  .btn.violet .dot { background: white; }
+
+  /* ---------- shell ---------- */
+  .shell { width: min(1200px, 100% - clamp(36px, 8vw, 120px)); margin-inline: auto; }
+  h1, h2, h3 { font-weight: 700; letter-spacing: -0.035em; line-height: 1.02; }
+  h2 { font-size: clamp(34px, 5.2vw, 70px); }
+  em.s { font-family: var(--serif); font-style: italic; font-weight: 400; letter-spacing: -0.02em; }
+  .kicker { display: inline-flex; align-items: center; gap: 9px; font-size: 12.5px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--cream-faint); margin-bottom: 22px; }
+  .kicker::before { content: ''; width: 22px; height: 1px; background: var(--violet-lite); }
+  .lede { font-size: clamp(16px, 1.5vw, 19px); line-height: 1.6; color: var(--cream-soft); max-width: 54ch; }
+
+  /* ---------- HERO ---------- */
+  .hero { min-height: 100svh; display: grid; align-content: center; justify-items: center; text-align: center; padding: clamp(130px, 18vh, 200px) 22px 80px; }
+  .hero-badge {
+    display: inline-flex; align-items: center; gap: 10px; font-size: 13px; color: var(--cream-soft);
+    border: 1px solid var(--hair-strong); border-radius: 999px; padding: 7px 16px;
+    background: oklch(20% 0.03 280 / 0.4); backdrop-filter: blur(10px); margin-bottom: clamp(26px, 4vh, 42px);
+  }
+  .hero-badge .pip { width: 7px; height: 7px; border-radius: 50%; background: var(--cyan); box-shadow: 0 0 10px var(--cyan); animation: pip 2.4s ease-in-out infinite; }
+  @keyframes pip { 0%,100% { opacity: 1; } 50% { opacity: 0.35; } }
+  .hero h1 { font-size: clamp(46px, 8.8vw, 128px); max-width: 14ch; }
+  .hero h1 .line { display: block; overflow: hidden; }
+  .hero h1 .line > span { display: inline-block; transform: translateY(110%); animation: rise 1.1s var(--e-out) forwards; animation-delay: var(--rd, 0s); }
+  @keyframes rise { to { transform: none; } }
+  .hero-sub { margin-top: clamp(22px, 3vh, 32px); opacity: 0; animation: fade 1s var(--e-out) 0.6s forwards; }
+  .hero-sub { font-size: clamp(17px, 1.7vw, 21px); line-height: 1.55; color: var(--cream-soft); max-width: 50ch; }
+  @keyframes fade { to { opacity: 1; } }
+  .fnkey { display: inline-block; font-family: var(--mono); font-size: 0.8em; font-weight: 700; background: var(--orange); color: var(--void-deep); border-radius: 6px; padding: 2px 8px 3px; transform: translateY(-2px); }
+  .hero-ctas { margin-top: clamp(30px, 4vh, 42px); display: flex; gap: 14px; flex-wrap: wrap; justify-content: center; align-items: center; opacity: 0; animation: fade 1s var(--e-out) 0.8s forwards; }
+  .brew { font-family: var(--mono); font-size: 13.5px; display: inline-flex; align-items: center; gap: 12px; border: 1px solid var(--hair-strong); background: oklch(20% 0.03 280 / 0.4); border-radius: 999px; padding: 13px 20px; cursor: pointer; color: var(--cream-soft); transition: border-color 0.2s, color 0.2s; }
+  .brew:hover { border-color: var(--violet-lite); color: var(--cream); }
+  .brew .ok { color: var(--success); font-family: var(--sans); font-size: 12px; font-weight: 600; }
+
+  /* mac screen mock with notch */
+  .stage { margin-top: clamp(56px, 9vh, 100px); width: min(880px, 94vw); opacity: 0; animation: fade 1.1s var(--e-out) 1s forwards; }
+  .macscreen {
+    position: relative; border-radius: 22px; padding-top: 0;
+    background: linear-gradient(180deg, oklch(16% 0.02 280), oklch(12% 0.02 280));
+    border: 1px solid var(--hair-strong);
+    box-shadow: 0 40px 120px -40px oklch(58% 0.2 290 / 0.5), inset 0 1px 0 oklch(100% 0 0 / 0.06);
+    overflow: hidden;
+  }
+  .macbar { height: 30px; display: flex; align-items: center; padding: 0 14px; gap: 7px; border-bottom: 1px solid var(--hair); }
+  .macbar i { width: 11px; height: 11px; border-radius: 50%; background: oklch(30% 0.02 280); }
+  .macbody { padding: clamp(26px, 5vw, 56px) clamp(20px, 4vw, 44px) clamp(34px, 6vw, 60px); text-align: left; }
+  .typed-target { font-size: clamp(16px, 2.2vw, 22px); line-height: 1.6; color: var(--cream); min-height: 3.2em; max-width: 38ch; }
+  .typed-target .car { display: inline-block; width: 2px; height: 1.1em; background: var(--cyan); vertical-align: text-bottom; animation: blink 1s steps(1) infinite; }
+  @keyframes blink { 50% { opacity: 0; } }
+  .typed-hint { margin-top: 22px; display: flex; align-items: center; gap: 11px; font-size: 13px; color: var(--cream-faint); }
+  .keycap { font-family: var(--mono); font-weight: 700; font-size: 12px; background: oklch(26% 0.02 280); border: 1px solid var(--hair-strong); border-bottom-width: 3px; border-radius: 7px; padding: 4px 10px; color: var(--cream-soft); }
+  .keycap.fn { background: var(--orange); border-color: oklch(64% 0.17 52); color: var(--void-deep); }
+
+  /* ============ THE DYNAMIC ISLAND ============ */
+  .island {
+    position: relative; display: inline-flex; align-items: center; justify-content: center; gap: 9px;
+    background: #000; border-radius: 18px; height: 34px; padding: 0 15px;
+    width: var(--w, 150px);
+    box-shadow: 0 0 0 1px oklch(100% 0 0 / 0.05), 0 10px 40px -8px var(--gc, transparent), inset 0 0 14px var(--gi, transparent);
+    transition: width 0.55s var(--e-spring), border-radius 0.55s var(--e-spring), box-shadow 0.5s ease;
+  }
+  /* notch-anchored variant sits flush at top center of mac screen */
+  .island.notch { position: absolute; top: 0; left: 50%; transform: translateX(-50%); border-radius: 0 0 18px 18px; height: 32px; z-index: 5; }
+  .island .mark { display: inline-flex; align-items: flex-end; gap: 1.8px; height: 14px; }
+  .island .mark i { width: 2px; border-radius: 1px; background: oklch(95% 0 0 / 0.92); }
+  .island .mark i:nth-child(1){height:5px}.island .mark i:nth-child(2){height:9px}.island .mark i:nth-child(3){height:12px}.island .mark i:nth-child(4){height:8px}.island .mark i:nth-child(5){height:5px}
+  .island .label { font-size: 11px; font-weight: 600; color: oklch(90% 0 0 / 0.9); white-space: nowrap; }
+  .island .wave, .island .dots, .island .check { display: none; }
+  .island .wave { align-items: center; gap: 2px; height: 16px; }
+  .island .wave i { width: 2.5px; border-radius: 2px; background: linear-gradient(var(--blue), var(--cyan)); height: 5px; box-shadow: 0 0 5px var(--blue), 0 0 9px oklch(85% 0.13 205 / 0.4); }
+  .island .dots { align-items: center; gap: 4px; height: 14px; }
+  .island .dots i { width: 4px; height: 4px; border-radius: 50%; background: linear-gradient(var(--thinking), var(--magenta)); animation: tdot 0.9s ease-in-out infinite; }
+  .island .dots i:nth-child(2){animation-delay:0.12s}.island .dots i:nth-child(3){animation-delay:0.24s}
+  @keyframes tdot { 0%,100%{transform:translateY(2px);opacity:0.5} 50%{transform:translateY(-2px);opacity:1} }
+  .island .check { color: var(--success); }
+
+  /* state machine */
+  .island[data-state="idle"]      { --w: 150px; --gc: oklch(63% 0.19 248 / 0.25); --gi: oklch(63% 0.19 248 / 0.15); }
+  .island[data-state="listening"] { --w: 178px; --gc: oklch(63% 0.19 248 / 0.6);  --gi: oklch(63% 0.19 248 / 0.3); }
+  .island[data-state="thinking"]  { --w: 150px; --gc: oklch(58% 0.26 305 / 0.6);  --gi: oklch(58% 0.26 305 / 0.3); }
+  .island[data-state="done"]      { --w: 132px; --gc: oklch(78% 0.16 158 / 0.55); --gi: oklch(78% 0.16 158 / 0.28); }
+  .island[data-state="handsfree"] { --w: 190px; --gc: oklch(73% 0.17 55 / 0.55);  --gi: oklch(73% 0.17 55 / 0.28); }
+  .island[data-state="error"]     { --w: 176px; --gc: oklch(64% 0.21 27 / 0.55);  --gi: oklch(64% 0.21 27 / 0.28); }
+  .island[data-state="idle"] .mark, .island[data-state="idle"] .label { display: inline-flex; }
+  .island[data-state="listening"] .mark, .island[data-state="listening"] .label, .island[data-state="listening"] .wave { display: inline-flex; }
+  .island[data-state="thinking"] .label, .island[data-state="thinking"] .dots { display: inline-flex; }
+  .island[data-state="done"] .label, .island[data-state="done"] .check { display: inline-flex; }
+  .island[data-state="handsfree"] .mark, .island[data-state="handsfree"] .label, .island[data-state="handsfree"] .wave { display: inline-flex; }
+  .island[data-state="handsfree"] .wave i { background: linear-gradient(var(--orange), oklch(80% 0.13 60)); box-shadow: 0 0 5px var(--orange); }
+  .island[data-state="error"] .label { display: inline-flex; color: oklch(80% 0.12 30); }
+  .island[data-state="error"]::before { content: '!'; font-weight: 800; font-size: 13px; color: var(--failure); }
+
+  /* island showcase */
+  .island-show { padding: clamp(100px, 16vh, 200px) 0; }
+  .island-grid { display: grid; grid-template-columns: 1fr 1fr; gap: clamp(40px, 6vw, 90px); align-items: center; }
+  @media (max-width: 920px) { .island-grid { grid-template-columns: 1fr; } }
+  .island-canvas {
+    position: relative; min-height: 500px; border-radius: 26px;
+    background: radial-gradient(120% 100% at 50% 0%, oklch(20% 0.04 280), oklch(11% 0.03 278));
+    border: 1px solid var(--hair-strong); display: grid; align-content: center; justify-items: center; overflow: hidden;
+    padding: 56px 20px 92px; box-shadow: inset 0 1px 0 oklch(100% 0 0 / 0.05);
+  }
+  .island-canvas .island { transform: scale(1.5); transition: width 0.55s var(--e-spring), border-radius 0.55s var(--e-spring), box-shadow 0.5s ease, transform 0.4s var(--e-spring); }
+  .island-canvas .island.expanded { flex-direction: column; height: auto; padding: 0; width: 270px !important; border-radius: 22px; align-items: stretch; gap: 0; transform: scale(1.04); }
+  .state-chips { position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%); display: flex; gap: 7px; flex-wrap: wrap; justify-content: center; max-width: 94%; z-index: 4; padding: 8px; border-radius: 16px; background: oklch(11% 0.03 278 / 0.72); backdrop-filter: blur(10px); }
+  .state-chip { font-size: 12px; padding: 7px 13px; border-radius: 999px; border: 1px solid var(--hair-strong); background: oklch(18% 0.03 280 / 0.7); color: var(--cream-soft); cursor: pointer; transition: all 0.25s; }
+  .state-chip.on { background: var(--violet); border-color: var(--violet); color: white; }
+  .island-feats { display: grid; gap: 0; margin-top: 30px; }
+  .ifeat { display: grid; grid-template-columns: 30px 1fr; gap: 16px; padding: 18px 0; border-top: 1px solid var(--hair); }
+  .ifeat .ic { width: 30px; height: 30px; border-radius: 9px; display: grid; place-items: center; font-size: 14px; }
+  .ifeat strong { display: block; font-size: 15.5px; margin-bottom: 4px; letter-spacing: -0.01em; }
+  .ifeat p { font-size: 14px; line-height: 1.6; color: var(--cream-soft); }
+
+  /* expanded panel internals */
+  .panel-head { display: flex; align-items: center; gap: 9px; padding: 11px 14px; border-bottom: 1px solid oklch(100% 0 0 / 0.07); }
+  .panel-head .bdot { width: 6px; height: 6px; border-radius: 50%; background: var(--blue); box-shadow: 0 0 8px var(--blue); }
+  .panel-head .ttl { font-size: 11px; font-weight: 600; color: oklch(86% 0.05 248); }
+  .panel-head .wave { display: inline-flex; margin-left: auto; }
+  .panel-rows { padding: 9px; display: grid; gap: 6px; }
+  .prow { display: flex; align-items: center; gap: 8px; padding: 6px 9px; border-radius: 7px; background: oklch(100% 0 0 / 0.035); border: 1px solid oklch(100% 0 0 / 0.05); }
+  .prow .pi { font-size: 10px; }
+  .prow .pt { font-size: 11px; color: oklch(80% 0 0 / 0.7); flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .prow .pm { font-size: 9px; color: oklch(60% 0 0 / 0.6); }
+  .panel-dots { display: flex; gap: 5px; justify-content: center; padding: 8px; }
+  .panel-dots i { width: 4px; height: 4px; border-radius: 50%; background: oklch(100% 0 0 / 0.16); }
+  .panel-dots i.on { background: oklch(100% 0 0 / 0.66); }
+
+  /* ============ FLOATING CHIP ============ */
+  .chip-sec { padding: clamp(90px, 14vh, 180px) 0; }
+  .chip-head { text-align: center; max-width: 60ch; margin: 0 auto clamp(46px, 7vh, 76px); }
+  .chip-head .lede { margin: 20px auto 0; }
+  .chip-arena {
+    position: relative; height: 360px; border-radius: 26px; overflow: hidden;
+    background: radial-gradient(100% 120% at 50% 120%, oklch(22% 0.05 290), oklch(11% 0.03 278));
+    border: 1px solid var(--hair-strong);
+  }
+  .chip-arena .hint { position: absolute; top: 18px; left: 50%; transform: translateX(-50%); font-size: 12.5px; color: var(--cream-faint); }
+  .chip-arena .grab { position: absolute; bottom: 10px; right: 16px; font-size: 11px; color: var(--cream-faint); }
+  .fchip {
+    position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+    display: inline-flex; align-items: center; gap: 7px; height: 40px; padding: 0 7px;
+    background: #212022; border-radius: 999px; border: 1px solid oklch(100% 0 0 / 0.22);
+    box-shadow: 0 14px 40px -10px oklch(0% 0 0 / 0.7); cursor: grab; user-select: none;
+    transition: box-shadow 0.3s;
+  }
+  .fchip:active { cursor: grabbing; }
+  .fchip .side { width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; color: white; font-size: 12px; opacity: 0; width: 0; transition: opacity 0.24s, width 0.24s var(--e-spring); }
+  .fchip:hover .side { opacity: 0.7; width: 24px; }
+  .fchip .core { min-width: 30px; height: 28px; border-radius: 999px; display: inline-flex; align-items: center; justify-content: center; gap: 7px; padding: 0 12px; transition: all 0.3s var(--e-spring); }
+  .fchip .core img { width: 17px; height: 17px; border-radius: 4px; }
+  .fchip .cwave { display: none; align-items: center; gap: 2px; height: 16px; }
+  .fchip .cwave i { width: 2px; border-radius: 1px; background: white; height: 4px; }
+  .fchip .clabel { display: none; font-size: 12px; font-weight: 600; color: oklch(90% 0 0 / 0.86); }
+  .fchip .ccheck { display: none; color: var(--success); font-size: 12px; }
+  .fchip[data-cstate="recording"] .core img, .fchip[data-cstate="processing"] .core img, .fchip[data-cstate="done"] .core img, .fchip[data-cstate="handsfree"] .core img { display: none; }
+  .fchip[data-cstate="recording"] .cwave { display: inline-flex; }
+  .fchip[data-cstate="processing"] .cwave { display: inline-flex; }
+  .fchip[data-cstate="processing"] .cwave i { background: oklch(100% 0 0 / 0.5); animation: shim 1s ease-in-out infinite; }
+  .fchip[data-cstate="processing"] .cwave i:nth-child(2){animation-delay:.1s}.fchip[data-cstate="processing"] .cwave i:nth-child(3){animation-delay:.2s}.fchip[data-cstate="processing"] .cwave i:nth-child(4){animation-delay:.3s}.fchip[data-cstate="processing"] .cwave i:nth-child(5){animation-delay:.4s}.fchip[data-cstate="processing"] .cwave i:nth-child(6){animation-delay:.5s}.fchip[data-cstate="processing"] .cwave i:nth-child(7){animation-delay:.6s}
+  @keyframes shim { 0%,100%{opacity:.35;height:5px} 50%{opacity:.9;height:11px} }
+  .fchip[data-cstate="done"] .clabel, .fchip[data-cstate="done"] .ccheck { display: inline-flex; }
+  .fchip[data-cstate="handsfree"] .cwave { display: inline-flex; }
+  .fchip[data-cstate="handsfree"] .cwave i { background: var(--orange); }
+  .fchip[data-cstate="handsfree"] .clabel { display: inline-flex; font-size: 9px; letter-spacing: 0.08em; }
+  .fchip[data-cstate="handsfree"] .hf-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--orange); box-shadow: 0 0 10px var(--orange); animation: pip 1.6s ease-in-out infinite; }
+  .hf-dot { display: none; }
+  .chip-states { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; margin-top: 28px; }
+
+  /* ============ generic alternating feature ============ */
+  .feat-rows { display: grid; gap: clamp(80px, 13vh, 160px); padding: clamp(60px, 9vh, 120px) 0; }
+  .frow { display: grid; grid-template-columns: 1fr 1fr; gap: clamp(36px, 6vw, 88px); align-items: center; }
+  .frow.flip .fcopy { order: 2; }
+  @media (max-width: 900px) { .frow, .frow.flip { grid-template-columns: 1fr; } .frow.flip .fcopy { order: 0; } }
+  .frow h3 { font-size: clamp(28px, 3.6vw, 46px); }
+  .frow h3 em.s { color: var(--violet-lite); }
+  .frow p { margin-top: 18px; font-size: 16px; line-height: 1.65; color: var(--cream-soft); max-width: 46ch; }
+
+  /* product surface mock (app dark theme) */
+  .surface {
+    border-radius: 18px; overflow: hidden; border: 1px solid var(--hair-strong);
+    background: oklch(9% 0.012 70);
+    box-shadow: 0 40px 100px -50px oklch(58% 0.2 290 / 0.5);
+  }
+  .surface .sbar { height: 30px; display: flex; align-items: center; gap: 7px; padding: 0 13px; border-bottom: 1px solid var(--hair); }
+  .surface .sbar i { width: 10px; height: 10px; border-radius: 50%; background: oklch(28% 0.01 70); }
+  .surface .sbar span { font-size: 11px; color: var(--cream-faint); margin-left: 8px; }
+
+  /* transforms */
+  .xform { padding: 18px; display: grid; gap: 14px; background: oklch(8% 0.012 70); }
+  .xform-tabs { display: flex; gap: 6px; flex-wrap: wrap; }
+  .xtab { font-size: 13px; padding: 8px 14px; border-radius: 9px; border: 1px solid var(--hair); background: transparent; color: var(--cream-soft); cursor: pointer; transition: all 0.2s; }
+  .xtab.on { background: oklch(17% 0.02 280); border-color: var(--violet); color: var(--cream); }
+  .xtab.on::after { content: ''; }
+  .xform-raw { font-family: var(--mono); font-size: 12.5px; color: var(--cream-faint); line-height: 1.7; padding-bottom: 14px; border-bottom: 1px solid var(--hair); }
+  .xform-raw b { color: var(--cream-soft); }
+  .xform-out { font-size: clamp(16px, 1.9vw, 21px); line-height: 1.55; min-height: 3em; letter-spacing: -0.01em; }
+  .xform-out .car { display: inline-block; width: 2px; height: 1.05em; background: var(--violet-lite); vertical-align: text-bottom; animation: blink 1s steps(1) infinite; }
+
+  /* magic words list */
+  .mw { background: oklch(8% 0.012 70); padding: 8px; }
+  .mw-row { display: flex; align-items: center; gap: 12px; padding: 13px 14px; border-radius: 11px; transition: background 0.2s; }
+  .mw-row:hover { background: oklch(14% 0.015 280); }
+  .mw-row + .mw-row { border-top: 1px solid var(--hair); }
+  .mw-trig { font-family: var(--mono); font-size: 13px; color: var(--violet-lite); white-space: nowrap; }
+  .mw-arrow { color: var(--cream-faint); }
+  .mw-exp { font-size: 13px; color: var(--cream-soft); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .mw-tag { font-size: 9px; text-transform: uppercase; letter-spacing: 0.06em; padding: 3px 7px; border-radius: 5px; background: oklch(20% 0.03 280); color: var(--cream-faint); }
+  .mw-sw { width: 34px; height: 20px; border-radius: 999px; background: var(--violet); position: relative; flex: none; }
+  .mw-sw.off { background: oklch(30% 0.01 70); }
+  .mw-sw::after { content: ''; position: absolute; top: 2px; right: 2px; width: 16px; height: 16px; border-radius: 50%; background: white; }
+  .mw-sw.off::after { right: auto; left: 2px; }
+
+  /* memory graph */
+  .graph-wrap { position: relative; border-radius: 18px; overflow: hidden; border: 1px solid var(--hair-strong); background: oklch(9% 0.018 280); aspect-ratio: 4/3.3; }
+  .graph-wrap canvas { width: 100%; height: 100%; display: block; }
+  .graph-chip { position: absolute; left: 16px; bottom: 16px; right: 16px; background: oklch(16% 0.03 290 / 0.85); backdrop-filter: blur(10px); border: 1px solid oklch(45% 0.1 295 / 0.4); border-radius: 13px; padding: 13px 16px; font-size: 13px; line-height: 1.5; }
+  .graph-chip b { color: var(--violet-lite); }
+
+  /* notes editor mock */
+  .notes-surface { display: grid; grid-template-columns: 46px 1fr; min-height: 300px; background: oklch(11% 0.012 60); }
+  .notes-rail { border-right: 1px solid var(--hair); display: flex; flex-direction: column; align-items: center; gap: 16px; padding: 16px 0; color: var(--cream-faint); }
+  .notes-rail i { font-size: 15px; }
+  .notes-main { padding: 22px 26px; }
+  .notes-main h4 { font-size: 19px; letter-spacing: -0.02em; margin-bottom: 14px; }
+  .notes-main p { font-size: 14.5px; line-height: 1.75; color: var(--cream-soft); margin-bottom: 12px; }
+  .notes-main .hl { background: oklch(58% 0.2 295 / 0.25); border-radius: 3px; padding: 0 3px; }
+
+  /* insights */
+  .stats { padding: clamp(80px, 12vh, 150px) 0; }
+  .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1px; background: var(--hair); border: 1px solid var(--hair); border-radius: 20px; overflow: hidden; }
+  .stat { background: oklch(11% 0.018 280); padding: clamp(26px, 4vw, 44px) clamp(22px, 3vw, 36px); }
+  .stat .v { font-size: clamp(40px, 5vw, 68px); font-weight: 700; letter-spacing: -0.04em; line-height: 1; }
+  .stat .v em.s { color: var(--violet-lite); font-size: 0.6em; }
+  .stat .l { margin-top: 10px; font-size: 14px; color: var(--cream-soft); }
+
+  /* marquee */
+  .marquee-wrap { padding: clamp(36px, 6vh, 70px) 0; border-block: 1px solid var(--hair); overflow: hidden; }
+  .mq-label { text-align: center; font-size: 12.5px; color: var(--cream-faint); margin-bottom: 26px; }
+  .marquee { display: flex; width: max-content; animation: scrollx 38s linear infinite; }
+  .marquee-wrap:hover .marquee { animation-play-state: paused; }
+  @keyframes scrollx { to { transform: translateX(-50%); } }
+  .marquee span { font-size: clamp(24px, 3.2vw, 40px); font-weight: 700; letter-spacing: -0.025em; white-space: nowrap; padding: 0 clamp(20px, 3vw, 38px); display: inline-flex; align-items: center; gap: clamp(40px, 6vw, 76px); color: var(--cream); }
+  .marquee span::after { content: ''; width: 7px; height: 7px; border-radius: 50%; background: var(--violet-lite); flex: none; }
+  .marquee span:nth-child(even) { font-family: var(--serif); font-style: italic; font-weight: 400; color: var(--cream-soft); }
+
+  /* feature index */
+  .index { padding: clamp(90px, 14vh, 170px) 0; }
+  .index-head { max-width: 60ch; margin-bottom: clamp(44px, 7vh, 72px); }
+  .index-list { border-top: 1px solid var(--hair); }
+  .irow { display: grid; grid-template-columns: 56px 220px 1fr; gap: clamp(16px, 3vw, 42px); padding: clamp(20px, 3vh, 30px) 0; border-bottom: 1px solid var(--hair); align-items: baseline; transition: background 0.3s; }
+  .irow:hover { background: oklch(100% 0 0 / 0.02); }
+  @media (max-width: 760px) { .irow { grid-template-columns: 44px 1fr; } .irow .what { grid-column: 2; } }
+  .irow .n { font-family: var(--mono); font-size: 13px; color: var(--violet-lite); }
+  .irow .name { font-size: clamp(17px, 2vw, 21px); font-weight: 650; letter-spacing: -0.015em; }
+  .irow .what { font-size: 14.5px; line-height: 1.65; color: var(--cream-soft); }
+  .irow .what b { color: var(--cream); font-weight: 600; }
+
+  /* privacy */
+  .privacy { border-block: 1px solid var(--hair); padding: clamp(70px, 10vh, 110px) 0; text-align: center; }
+  .privacy h2 { max-width: 22ch; margin-inline: auto; }
+  .privacy .lede { margin: 22px auto 0; }
+  .pmarks { margin-top: 38px; display: flex; gap: clamp(18px, 4vw, 44px); justify-content: center; flex-wrap: wrap; font-size: 14px; color: var(--cream-soft); }
+  .pmarks span { display: inline-flex; align-items: center; gap: 9px; }
+  .pmarks i { width: 6px; height: 6px; border-radius: 50%; background: var(--violet-lite); }
+
+  /* final */
+  .final { text-align: center; padding: clamp(110px, 17vh, 220px) 22px; position: relative; }
+  .final img.logo { width: 78px; height: 78px; border-radius: 20px; margin: 0 auto clamp(30px, 5vh, 48px); box-shadow: 0 24px 70px -20px oklch(58% 0.2 290 / 0.7); }
+  .final h2 { font-size: clamp(42px, 7.5vw, 104px); max-width: 13ch; margin-inline: auto; }
+  .final h2 em.s { color: var(--violet-lite); }
+  .final .lede { margin: 24px auto 0; }
+  .final-ctas { margin-top: 42px; display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; }
+
+  footer { padding: 44px clamp(18px, 4vw, 52px) 52px; display: flex; justify-content: space-between; align-items: center; gap: 20px; flex-wrap: wrap; font-size: 13.5px; color: var(--cream-faint); border-top: 1px solid var(--hair); }
+  footer .links { display: flex; gap: 22px; }
+  footer a { text-decoration: none; color: var(--cream-soft); }
+  footer a:hover { color: var(--cream); }
+</style>
+</head>
+<body>
+
+<canvas id="stars"></canvas>
+<div class="aurora"></div>
+<div class="grain"></div>
+<canvas id="orb" aria-hidden="true"></canvas>
+
+<nav id="nav">
+  <a class="brand" href="#"><img src="assets/vordi-dark.png" alt="Vordi logo" /><b>Vordi</b></a>
+  <div class="nav-links">
+    <a href="#island">The Island</a>
+    <a href="#chip">The Chip</a>
+    <a href="#memory">Memory</a>
+    <a href="#features">Features</a>
+    <a href="https://github.com/Raunaks068619/Vordi">GitHub</a>
+    <a class="btn" href="https://github.com/Raunaks068619/Vordi/releases/latest"><span class="dot"></span>Download</a>
+  </div>
+</nav>
+
+<main>
+<!-- ============ HERO ============ -->
+<header class="hero">
+  <canvas id="dither" aria-hidden="true"></canvas>
+  <div class="hero-fade"></div>
+  <div class="hero-badge"><span class="pip"></span>v0.6 · Local-first voice typing · macOS 13+</div>
+  <h1>
+    <span class="line"><span style="--rd:.05s">Voice typing</span></span>
+    <span class="line"><span style="--rd:.13s">that lives in</span></span>
+    <span class="line"><span style="--rd:.21s">your <em class="s">notch.</em></span></span>
+  </h1>
+  <p class="hero-sub">Hold <span class="fnkey">fn</span>, speak, release. A Dynamic Island listens, thinks, and types clean text into whatever app you're in. Everything stays on your Mac.</p>
+  <div class="hero-ctas">
+    <a class="btn lg violet" href="https://github.com/Raunaks068619/Vordi/releases/latest"><span class="dot"></span>Download for macOS</a>
+    <button class="brew" data-copy="brew install --cask raunaks068619/vordi/vordi">$ brew install vordi<span class="ok" hidden>copied</span></button>
+  </div>
+
+  <div class="stage">
+    <div class="macscreen">
+      <div class="island notch" id="heroIsland" data-state="idle">
+        <span class="mark"><i></i><i></i><i></i><i></i><i></i></span>
+        <span class="label">Ready</span>
+        <span class="wave"><i></i><i></i><i></i><i></i><i></i></span>
+        <span class="dots"><i></i><i></i><i></i></span>
+        <span class="check"><svg width="15" height="15" viewBox="0 0 15 15" fill="none"><path d="M3 8l3 3 6-7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+      </div>
+      <div class="macbar"><i></i><i></i><i></i></div>
+      <div class="macbody">
+        <div class="typed-target"><span id="heroTyped"></span><span class="car"></span></div>
+        <div class="typed-hint"><span class="keycap fn">fn</span><span>held down anywhere on macOS, right now</span></div>
+      </div>
+    </div>
+  </div>
+</header>
+
+<!-- ============ THE DYNAMIC ISLAND (MOAT) ============ -->
+<section class="island-show" id="island">
+  <div class="shell island-grid">
+    <div data-reveal>
+      <div class="kicker">The moat</div>
+      <h2>A Dynamic Island,<br>but it <em class="s">listens.</em></h2>
+      <p class="lede" style="margin-top:20px">One black pill near your notch, morphing through every moment of a dictation with a single spring. It never steals focus, never opens a window. Watch it run, or pick a state.</p>
+      <div class="island-feats">
+        <div class="ifeat" data-reveal><div class="ic" style="background:oklch(63% 0.19 248 / 0.18);color:var(--blue)">◉</div><div><strong>Live waveform while you speak</strong><p>Five blue-to-cyan bars react to your voice in real time, with a soft glow that breathes under the pill.</p></div></div>
+        <div class="ifeat" data-reveal style="--d:.06s"><div class="ic" style="background:oklch(58% 0.26 305 / 0.18);color:var(--thinking)">∴</div><div><strong>Thinking, then done</strong><p>Phase-shifted violet dots while the model cleans your text, then a green tick. The whole thing is one continuous morph.</p></div></div>
+        <div class="ifeat" data-reveal style="--d:.12s"><div class="ic" style="background:oklch(73% 0.17 55 / 0.18);color:var(--orange)">◍</div><div><strong>Hover to expand</strong><p>A panel drops down with your recent transcriptions, notes, memory and stats, swipeable across four modes.</p></div></div>
+      </div>
+    </div>
+    <div class="island-canvas" data-reveal="scale">
+      <div class="island" id="showIsland" data-state="idle">
+        <span class="mark"><i></i><i></i><i></i><i></i><i></i></span>
+        <span class="label">Ready</span>
+        <span class="wave"><i></i><i></i><i></i><i></i><i></i></span>
+        <span class="dots"><i></i><i></i><i></i></span>
+        <span class="check"><svg width="15" height="15" viewBox="0 0 15 15" fill="none"><path d="M3 8l3 3 6-7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+      </div>
+      <div class="state-chips" id="stateChips">
+        <button class="state-chip on" data-s="idle">Ready</button>
+        <button class="state-chip" data-s="listening">Listening</button>
+        <button class="state-chip" data-s="thinking">Thinking</button>
+        <button class="state-chip" data-s="done">Done</button>
+        <button class="state-chip" data-s="handsfree">Hands-free</button>
+        <button class="state-chip" data-s="error">Error</button>
+        <button class="state-chip" data-s="expanded">Expanded</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ THE FLOATING CHIP (MOAT) ============ -->
+<section class="chip-sec" id="chip">
+  <div class="shell">
+    <div class="chip-head" data-reveal>
+      <div class="kicker" style="justify-content:center">Put it anywhere</div>
+      <h2>A chip you can <em class="s">drag</em> anywhere.</h2>
+      <p class="lede">Prefer the island off-screen? The floating chip is a draggable frosted-glass widget that snaps wherever you leave it, shrinking to a waveform while you speak and a tick when it's done. Grab it.</p>
+    </div>
+    <div class="chip-arena" data-reveal="scale">
+      <span class="hint">drag me anywhere in this box</span>
+      <div class="fchip" id="fchip" data-cstate="idle">
+        <span class="side left">⟲</span>
+        <span class="core">
+          <span class="hf-dot"></span>
+          <img src="assets/vordi-dark.png" alt="" />
+          <span class="cwave"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>
+          <span class="ccheck">✓</span>
+          <span class="clabel">Done</span>
+        </span>
+        <span class="side right">⚙</span>
+      </div>
+      <span class="grab">persists its position across launches</span>
+    </div>
+    <div class="chip-states" id="chipStates">
+      <button class="state-chip on" data-c="idle">Idle</button>
+      <button class="state-chip" data-c="recording">Recording</button>
+      <button class="state-chip" data-c="processing">Processing</button>
+      <button class="state-chip" data-c="done">Done</button>
+      <button class="state-chip" data-c="handsfree">Hands-free</button>
+    </div>
+  </div>
+</section>
+
+<!-- ============ TRANSFORMS ============ -->
+<section class="feat-rows">
+  <div class="shell frow">
+    <div class="fcopy">
+      <div class="kicker" data-reveal>Output transforms</div>
+      <h3 data-reveal style="--d:.04s">One voice, shaped <em class="s">four ways.</em></h3>
+      <p data-reveal style="--d:.08s">Per-workflow LLM cleanup rewrites the same raw transcript into exactly the register you need. Verbatim for accuracy, Clean for messages, Hinglish for how you actually talk, full English for everyone else. Developer and Prompt Engineer profiles tune it further.</p>
+    </div>
+    <div class="surface" data-reveal="scale" style="--d:.06s">
+      <div class="sbar"><i></i><i></i><i></i><span>Vordi · Output mode</span></div>
+      <div class="xform">
+        <div class="xform-tabs" id="xtabs">
+          <button class="xtab on" data-x="0">Verbatim</button>
+          <button class="xtab" data-x="1">Clean</button>
+          <button class="xtab" data-x="2">Hinglish</button>
+          <button class="xtab" data-x="3">English</button>
+        </div>
+        <div class="xform-raw"><b>Heard:</b> uh so basically bata dena team ko ki demo kal hoga umm and everyone join on time</div>
+        <div class="xform-out"><span id="xout"></span><span class="car"></span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ MARQUEE ============ -->
+<div class="marquee-wrap">
+  <p class="mq-label">Types into the focused field of any app. No plugins, no integrations.</p>
+  <div class="marquee" id="marquee">
+    <span>Slack</span><span>Cursor</span><span>Notes</span><span>Mail</span><span>Safari</span><span>Terminal</span><span>Xcode</span><span>Messages</span><span>Notion</span><span>Figma</span>
+  </div>
+</div>
+
+<!-- ============ MAGIC WORDS ============ -->
+<section class="feat-rows">
+  <div class="shell frow flip">
+    <div class="fcopy">
+      <div class="kicker" data-reveal>Magic Words</div>
+      <h3 data-reveal style="--d:.04s">Say it once,<br>type it <em class="s">forever.</em></h3>
+      <p data-reveal style="--d:.08s">Spoken triggers expand into snippets, commands and canned text during cleanup, so they land naturally in the sentence. Prefix matches append whatever you say after the trigger. Built-in app actions launch Codex, Claude or ChatGPT by voice.</p>
+    </div>
+    <div class="surface" data-reveal="scale" style="--d:.06s">
+      <div class="sbar"><i></i><i></i><i></i><span>Vordi · Magic Words</span></div>
+      <div class="mw">
+        <div class="mw-row"><span class="mw-trig">"git wip"</span><span class="mw-arrow">→</span><span class="mw-exp">git add -A && git commit -m "wip" && git push</span><span class="mw-tag">terminal</span><span class="mw-sw"></span></div>
+        <div class="mw-row"><span class="mw-trig">"describe pods"</span><span class="mw-arrow">→</span><span class="mw-exp">kubectl describe pods</span><span class="mw-tag">k8s</span><span class="mw-sw"></span></div>
+        <div class="mw-row"><span class="mw-trig">"my address"</span><span class="mw-arrow">→</span><span class="mw-exp">Unit 4, Indiqube Mantri, Malad West, Mumbai 400064</span><span class="mw-tag">snippet</span><span class="mw-sw"></span></div>
+        <div class="mw-row"><span class="mw-trig">"open codex"</span><span class="mw-arrow">→</span><span class="mw-exp">Launches Codex, then pastes your prompt</span><span class="mw-tag">action</span><span class="mw-sw"></span></div>
+        <div class="mw-row"><span class="mw-trig">"todo"</span><span class="mw-arrow">→</span><span class="mw-exp">// TODO(raunak):</span><span class="mw-tag">code</span><span class="mw-sw off"></span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ MEMORY ============ -->
+<section class="feat-rows" id="memory">
+  <div class="shell frow">
+    <div class="fcopy">
+      <div class="kicker" data-reveal>Memory & Knowledge Graph</div>
+      <h3 data-reveal style="--d:.04s">Everything you said becomes <em class="s">something you know.</em></h3>
+      <p data-reveal style="--d:.08s">Every dictation joins a local SQLite corpus with full-text search and on-device embeddings. People, projects, tools and ideas link into a living graph. Ask Memory answers questions over your own history with hybrid retrieval and cited sources, routed through a local LLM if you want.</p>
+    </div>
+    <div data-reveal="scale" style="--d:.06s">
+      <div class="graph-wrap">
+        <canvas id="graph"></canvas>
+        <div class="graph-chip"><b>Ask Memory:</b> "What did I decide about the v0.6 release?" → answered from your own transcripts, with sources.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ NOTES ============ -->
+<section class="feat-rows">
+  <div class="shell frow flip">
+    <div class="fcopy">
+      <div class="kicker" data-reveal>Notes & Scratchpad</div>
+      <h3 data-reveal style="--d:.04s">A place for the <em class="s">longer</em> thoughts.</h3>
+      <p data-reveal style="--d:.08s">Dictate straight into a rich-text notes workspace, or pop out a detachable floating editor that stays on top while you work. Voice notes are stored locally and searchable alongside everything else.</p>
+    </div>
+    <div class="surface" data-reveal="scale" style="--d:.06s">
+      <div class="sbar"><i></i><i></i><i></i><span>Vordi · Floating Notes</span></div>
+      <div class="notes-surface">
+        <div class="notes-rail"><i>✎</i><i>◷</i><i>★</i><i>⌫</i></div>
+        <div class="notes-main">
+          <h4>Release notes — v0.6</h4>
+          <p>Memory now scoped to <span class="hl">Vordi's own transcriptions</span>. The agent-sync importer is parked for a future standalone app.</p>
+          <p>Ship the cask bump and the notarized DMG by Friday. Double-check the <span class="hl">HotKeyListener</span> fallback to Right Option when fn is owned by macOS.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ INSIGHTS / STATS ============ -->
+<section class="stats">
+  <div class="shell">
+    <div class="kicker" data-reveal>Insights</div>
+    <h2 data-reveal style="--d:.04s; margin-bottom: clamp(36px,5vh,56px)">Know your own <em class="s">voice.</em></h2>
+    <div class="stats-grid" data-reveal>
+      <div class="stat"><div class="v" data-count="3.2" data-suffix="x"><em class="s"></em>0</div><div class="l">Faster than typing, on average</div></div>
+      <div class="stat"><div class="v" data-count="142" data-suffix="k">0</div><div class="l">Words dictated, lifetime</div></div>
+      <div class="stat"><div class="v" data-count="4">0</div><div class="l">Output modes, two processing modes</div></div>
+      <div class="stat"><div class="v" data-count="100" data-suffix="%">0</div><div class="l">On-device storage, your own keys</div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ FEATURE INDEX ============ -->
+<section class="index" id="features">
+  <canvas id="magnet" aria-hidden="true"></canvas>
+  <div class="shell">
+    <div class="index-head" data-reveal>
+      <div class="kicker">The full spec</div>
+      <h2>Everything <em class="s">in the box.</em></h2>
+      <p class="lede" style="margin-top:18px">Pure Swift and SwiftUI, no Electron. A menu-bar app with no Dock icon by design.</p>
+    </div>
+    <div class="index-list">
+      <div class="irow" data-reveal><span class="n">01</span><span class="name">Core dictation</span><span class="what"><b>Push-to-talk with fn</b> (Right Option fallback), global hotkey capture system-wide, keystroke injection into any focused field, microphone probing and health checks.</span></div>
+      <div class="irow" data-reveal><span class="n">02</span><span class="name">Transcription</span><span class="what"><b>Whisper via Groq</b> for fast English, OpenAI for multilingual and Hinglish, a streaming realtime path, local model support, and a hallucination guard that strips Whisper's known ghost phrases.</span></div>
+      <div class="irow" data-reveal><span class="n">03</span><span class="name">Transformer profiles</span><span class="what"><b>LLM cleanup per workflow:</b> standard, Developer mode, Agentic developer mode for AI-coding prompts, Prompt Engineer mode, variable-name recognition, and a custom vocabulary that biases output toward your terms.</span></div>
+      <div class="irow" data-reveal><span class="n">04</span><span class="name">The Dynamic Island</span><span class="what"><b>A morphing notch pill</b> with live waveform, thinking dots, done tick, hands-free pulse, error states, and a hover panel across transcriptions, notes, memory and stats.</span></div>
+      <div class="irow" data-reveal><span class="n">05</span><span class="name">Floating chip</span><span class="what"><b>A draggable frosted-glass widget</b> that persists its position, with recording, processing, done, hands-free and contextual warning states.</span></div>
+      <div class="irow" data-reveal><span class="n">06</span><span class="name">Magic Words</span><span class="what"><b>Spoken command aliases</b> with editable triggers, prefix matching, snippet expansion, and built-in app actions, all applied during cleanup.</span></div>
+      <div class="irow" data-reveal><span class="n">07</span><span class="name">Context capture</span><span class="what"><b>Knows what you were doing:</b> frontmost app and window, selected text via Accessibility, optional window screenshot for context-aware cleanup. Privacy-gated, opt-in by default.</span></div>
+      <div class="irow" data-reveal><span class="n">08</span><span class="name">Memory</span><span class="what"><b>Local knowledge graph + Ask Memory chat</b> over your transcripts: FTS5 search, on-device embeddings, hybrid retrieval with cited sources, local LLM routing via LM Studio or Ollama.</span></div>
+      <div class="irow" data-reveal><span class="n">09</span><span class="name">Run Log</span><span class="what"><b>A local audit trail for every dictation:</b> audio, raw STT, prompts, final text, model, latency and errors, with playback.</span></div>
+      <div class="irow" data-reveal><span class="n">10</span><span class="name">Notes</span><span class="what"><b>Rich-text notes workspace,</b> a detachable floating editor, and stored voice notes, all local.</span></div>
+      <div class="irow" data-reveal><span class="n">11</span><span class="name">Insights</span><span class="what"><b>Usage dashboard:</b> lifetime stats, streaks, app breakdown, and an AI-inferred work profile.</span></div>
+      <div class="irow" data-reveal><span class="n">12</span><span class="name">Onboarding</span><span class="what"><b>Guided permission flow</b> for Microphone, Accessibility and Input Monitoring, with runtime permission state tracking.</span></div>
+      <div class="irow" data-reveal><span class="n">13</span><span class="name">Open source</span><span class="what"><b>MIT licensed.</b> Homebrew cask, DMG releases, and a signed-and-notarized release pipeline.</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ PRIVACY ============ -->
+<section class="privacy">
+  <div class="shell">
+    <h2 data-reveal>Your voice stays <em class="s">on your Mac.</em></h2>
+    <p class="lede" data-reveal style="--d:.08s">Run logs, memory, embeddings and notes live in Application Support, never a server. Cloud transcription uses your own keys; local models need none.</p>
+    <div class="pmarks" data-reveal style="--d:.16s">
+      <span><i></i>Local-first storage</span>
+      <span><i></i>Your own API keys</span>
+      <span><i></i>Local LLM support</span>
+      <span><i></i>Opt-in context capture</span>
+      <span><i></i>MIT licensed</span>
+    </div>
+  </div>
+</section>
+
+<!-- ============ FINAL ============ -->
+<section class="final">
+  <img class="logo" src="assets/vordi-dark.png" alt="Vordi logo" data-reveal="scale" />
+  <h2 data-reveal style="--d:.05s">Stop typing.<br>Start <em class="s">talking.</em></h2>
+  <p class="lede" data-reveal style="--d:.12s">Free and open source. Installed in under a minute.</p>
+  <div class="final-ctas" data-reveal style="--d:.18s">
+    <a class="btn lg violet" href="https://github.com/Raunaks068619/Vordi/releases/latest"><span class="dot"></span>Download for macOS</a>
+    <button class="brew" data-copy="brew install --cask raunaks068619/vordi/vordi">$ brew install vordi<span class="ok" hidden>copied</span></button>
+  </div>
+</section>
+</main>
+
+<footer>
+  <span class="brand" style="gap:9px"><img src="assets/vordi-dark.png" alt="" style="width:22px;height:22px;border-radius:6px"/> Vordi · voice typing for macOS</span>
+  <div class="links">
+    <a href="https://github.com/Raunaks068619/Vordi">GitHub</a>
+    <a href="https://github.com/Raunaks068619/Vordi/releases">Releases</a>
+    <a href="https://github.com/Raunaks068619/Vordi/blob/main/PERMISSIONS.md">Permissions</a>
+    <a href="https://github.com/Raunaks068619/Vordi/blob/main/LICENSE">MIT</a>
+  </div>
+</footer>
+
+<script>
+(() => {
+  const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const $ = s => document.querySelector(s);
+  const $$ = s => [...document.querySelectorAll(s)];
+
+  /* ---- nav ---- */
+  const nav = $('#nav');
+  addEventListener('scroll', () => nav.classList.toggle('scrolled', scrollY > 24), { passive: true });
+
+  /* ---- reveals ---- */
+  const io = new IntersectionObserver(es => {
+    for (const e of es) if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); }
+  }, { threshold: 0.16, rootMargin: '0px 0px -8% 0px' });
+  $$('[data-reveal]').forEach(el => io.observe(el));
+
+  /* ---- brew copy ---- */
+  $$('.brew').forEach(b => b.addEventListener('click', async () => {
+    try { await navigator.clipboard.writeText(b.dataset.copy); } catch {}
+    const ok = b.querySelector('.ok'); ok.hidden = false; setTimeout(() => ok.hidden = true, 1500);
+  }));
+
+  /* ---- starfield ---- */
+  const cv = $('#stars'), cx = cv.getContext('2d');
+  let SW, SH, stars = [], mx = 0, my = 0, tmx = 0, tmy = 0;
+  function initStars() {
+    const dpr = Math.min(devicePixelRatio || 1, 2);
+    SW = cv.clientWidth = innerWidth; SH = cv.clientHeight = innerHeight;
+    cv.width = SW * dpr; cv.height = SH * dpr; cx.setTransform(dpr,0,0,dpr,0,0);
+    const n = Math.min(220, Math.floor(SW * SH / 9000));
+    stars = Array.from({length: n}, (_, i) => ({
+      x: ((i * 0.7548776662) % 1) * SW,
+      y: ((i * 0.5698402909) % 1) * SH,
+      z: 0.3 + ((i * 0.123) % 1) * 0.7,
+      r: 0.4 + ((i * 0.318) % 1) * 1.3,
+      tw: (i * 0.41) % (Math.PI * 2),
+      hue: (i % 7 === 0) ? 295 : (i % 5 === 0 ? 248 : 280)
+    }));
+  }
+  let st0 = 0;
+  function drawStars(ts) {
+    const t = (ts - st0) / 1000;
+    mx += (tmx - mx) * 0.05; my += (tmy - my) * 0.05;
+    cx.clearRect(0, 0, SW, SH);
+    for (const s of stars) {
+      const tw = 0.45 + 0.55 * (0.5 + 0.5 * Math.sin(t * 1.1 + s.tw));
+      const px = s.x + mx * s.z * 26, py = s.y + my * s.z * 26;
+      cx.beginPath();
+      cx.fillStyle = `oklch(${85 + s.z*10}% ${s.hue===280?0.02:0.14} ${s.hue} / ${tw * s.z * 0.9})`;
+      cx.arc(px, py, s.r * s.z, 0, 7); cx.fill();
+    }
+    if (!reduced) requestAnimationFrame(drawStars);
+  }
+  initStars();
+  if (!reduced) requestAnimationFrame(ts => { st0 = ts; drawStars(ts); });
+  else { st0 = 0; drawStars(0); }
+  addEventListener('resize', initStars);
+  addEventListener('pointermove', e => { tmx = (e.clientX / innerWidth - 0.5) * 2; tmy = (e.clientY / innerHeight - 0.5) * 2; }, { passive: true });
+
+  /* ---- hero island + typing loop ---- */
+  const heroIsland = $('#heroIsland'), heroTyped = $('#heroTyped');
+  const lines = [
+    'Ship the release notes and the notarized DMG by Friday.',
+    'Refactor HotKeyListener to fall back to Right Option when fn is owned by macOS.',
+    'Tell the team the demo moved to Friday 3pm, deck is in the usual folder.'
+  ];
+  function type(el, text, done) {
+    let i = 0; el.textContent = '';
+    (function tick(){ if (i <= text.length) { el.textContent = text.slice(0,i); i += (Math.random()<0.25?2:1); setTimeout(tick, 26 + Math.random()*38); } else done && done(); })();
+  }
+  const heroLabel = heroIsland.querySelector('.label');
+  function setHero(state, label) { heroIsland.dataset.state = state; heroLabel.textContent = label; }
+  let hl = 0;
+  function heroLoop() {
+    setHero('listening', 'Listening');
+    type(heroTyped, lines[hl % lines.length], () => {
+      setHero('thinking', 'Thinking');
+      setTimeout(() => {
+        setHero('done', 'Done');
+        setTimeout(() => { setHero('idle', 'Ready'); hl++; setTimeout(heroLoop, 1600); }, 1400);
+      }, 1100);
+    });
+  }
+  if (reduced) { heroTyped.textContent = lines[0]; heroIsland.dataset.state = 'idle'; }
+  else setTimeout(heroLoop, 1400);
+
+  /* ---- live waveform driver for any visible .wave ---- */
+  function driveWaves(ts) {
+    const t = ts / 1000;
+    $$('.island[data-state="listening"] .wave i, .island[data-state="handsfree"] .wave i, .fchip[data-cstate="recording"] .cwave i').forEach((bar, i) => {
+      const h = 4 + Math.abs(Math.sin(t * 6 + i * 0.7)) * Math.abs(Math.sin(t * 2.3 + i)) * 12;
+      bar.style.height = h.toFixed(1) + 'px';
+    });
+    if (!reduced) requestAnimationFrame(driveWaves);
+  }
+  if (!reduced) requestAnimationFrame(driveWaves);
+
+  /* ---- island showcase: chips + auto cycle ---- */
+  const showIsland = $('#showIsland'), chips = $$('#stateChips .state-chip');
+  const expandedHTML = `
+    <div class="panel-head"><span class="bdot"></span><span class="ttl">Listening</span><span class="wave"><i></i><i></i><i></i><i></i><i></i></span></div>
+    <div class="panel-rows">
+      <div class="prow"><span class="pi" style="color:var(--success)">✓</span><span class="pt">Ship the release notes by Friday</span><span class="pm">2m</span></div>
+      <div class="prow"><span class="pi" style="color:var(--success)">✓</span><span class="pt">Refactor HotKeyListener fallback</span><span class="pm">14m</span></div>
+      <div class="prow"><span class="pi" style="color:var(--cream-faint)">○</span><span class="pt">(no transcript)</span><span class="pm">1h</span></div>
+    </div>
+    <div class="panel-dots"><i class="on"></i><i></i><i></i><i></i></div>`;
+  const baseHTML = showIsland.innerHTML;
+  function setShow(s) {
+    chips.forEach(c => c.classList.toggle('on', c.dataset.s === s));
+    if (s === 'expanded') {
+      showIsland.classList.add('expanded'); showIsland.dataset.state = 'listening'; showIsland.innerHTML = expandedHTML;
+    } else {
+      showIsland.classList.remove('expanded'); showIsland.innerHTML = baseHTML;
+      showIsland.querySelector('.label').textContent = { idle:'Ready', listening:'Listening', thinking:'Thinking', done:'Done', handsfree:'Hands free', error:'Permissions' }[s] || 'Ready';
+      showIsland.dataset.state = s;
+    }
+  }
+  let showAuto = null, showIdx = 0;
+  const cycle = ['idle','listening','thinking','done','handsfree','error','expanded'];
+  function startAuto() { if (showAuto || reduced) return; showAuto = setInterval(() => { showIdx = (showIdx + 1) % cycle.length; setShow(cycle[showIdx]); }, 2600); }
+  chips.forEach(c => c.addEventListener('click', () => { clearInterval(showAuto); showAuto = 'stop'; setShow(c.dataset.s); }));
+  const showIO = new IntersectionObserver(es => { es.forEach(e => { if (e.isIntersecting && showAuto !== 'stop') startAuto(); else if (!e.isIntersecting && showAuto && showAuto !== 'stop') { clearInterval(showAuto); showAuto = null; } }); }, { threshold: 0.3 });
+  showIO.observe($('.island-canvas'));
+
+  /* ---- floating chip: states + drag ---- */
+  const fchip = $('#fchip'), arena = $('.chip-arena'), cStates = $$('#chipStates .state-chip');
+  function setChip(c) { cStates.forEach(b => b.classList.toggle('on', b.dataset.c === c)); fchip.dataset.cstate = c; if (c === 'done') fchip.querySelector('.clabel').textContent = 'Done'; if (c === 'handsfree') fchip.querySelector('.clabel').textContent = 'HANDS FREE'; }
+  cStates.forEach(b => b.addEventListener('click', () => { clearInterval(chipAuto); chipAuto = 'stop'; setChip(b.dataset.c); }));
+  let chipAuto = null, chipIdx = 0;
+  const cCycle = ['idle','recording','processing','done','handsfree'];
+  const chipIO = new IntersectionObserver(es => { es.forEach(e => { if (e.isIntersecting && !chipAuto && chipAuto !== 'stop' && !reduced) chipAuto = setInterval(() => { chipIdx = (chipIdx+1)%cCycle.length; setChip(cCycle[chipIdx]); }, 2400); }); }, { threshold: 0.3 });
+  chipIO.observe(arena);
+  // drag
+  let dragging = false, ox = 0, oy = 0;
+  fchip.addEventListener('pointerdown', e => { dragging = true; fchip.setPointerCapture(e.pointerId); const r = fchip.getBoundingClientRect(), a = arena.getBoundingClientRect(); ox = e.clientX - r.left; oy = e.clientY - r.top; fchip.style.transition = 'none'; clearInterval(chipAuto); chipAuto = 'stop'; });
+  fchip.addEventListener('pointermove', e => { if (!dragging) return; const a = arena.getBoundingClientRect(); let x = e.clientX - a.left - ox + fchip.offsetWidth/2, y = e.clientY - a.top - oy + fchip.offsetHeight/2; x = Math.max(fchip.offsetWidth/2+6, Math.min(a.width - fchip.offsetWidth/2 - 6, x)); y = Math.max(fchip.offsetHeight/2+6, Math.min(a.height - fchip.offsetHeight/2 - 6, y)); fchip.style.left = x+'px'; fchip.style.top = y+'px'; });
+  fchip.addEventListener('pointerup', () => { dragging = false; fchip.style.transition = ''; });
+
+  /* ---- transforms ---- */
+  const xout = $('#xout'), xtabs = $$('#xtabs .xtab');
+  const outs = [
+    'uh so basically bata dena team ko ki demo kal hoga umm and everyone join on time',
+    'Tell the team the demo is tomorrow, and everyone should join on time.',
+    'Team ko bata dena ki demo kal hoga, aur sab time pe join kar lena.',
+    'Please inform the team that the demo is tomorrow, and everyone should join on time.'
+  ];
+  let xTimer = null, xAuto = null, xCur = 0;
+  function setX(i, user) {
+    xCur = i; xtabs.forEach((t, j) => t.classList.toggle('on', j === i)); clearTimeout(xTimer);
+    if (reduced) { xout.textContent = outs[i]; return; }
+    let k = 0; xout.textContent = '';
+    (function tick(){ if (k <= outs[i].length) { xout.textContent = outs[i].slice(0,k); k += 2; xTimer = setTimeout(tick, 14); } })();
+    if (user) { clearInterval(xAuto); xAuto = null; }
+  }
+  xtabs.forEach((t, i) => t.addEventListener('click', () => setX(i, true)));
+  const xIO = new IntersectionObserver(es => { if (es[0].isIntersecting) { setX(0); if (!reduced && !xAuto) xAuto = setInterval(() => setX((xCur+1)%4), 4000); xIO.disconnect(); } }, { threshold: 0.4 });
+  xIO.observe($('.xform'));
+
+  /* ---- marquee (componentry "velocity scroll": speed reacts to scroll velocity) ---- */
+  const mq = $('#marquee'); mq.innerHTML += mq.innerHTML;
+  if (!reduced) {
+    mq.style.animation = 'none';
+    let mqX = 0, half = 0, lastY = scrollY, vel = 0, base = 0.55;
+    const measure = () => { half = mq.scrollWidth / 2; };
+    measure(); addEventListener('resize', measure);
+    addEventListener('scroll', () => { vel += Math.min(40, Math.abs(scrollY - lastY)) * 0.6; lastY = scrollY; }, { passive: true });
+    (function mqTick(){ vel *= 0.9; mqX -= base + vel * 0.12; if (half && -mqX >= half) mqX += half; mq.style.transform = `translateX(${mqX}px)`; requestAnimationFrame(mqTick); })();
+  }
+
+  /* ---- count up (scroll-driven; robust against IO throttling) ---- */
+  function runCount(el) {
+    const target = parseFloat(el.dataset.count), suf = el.dataset.suffix || '', dec = (target % 1 !== 0) ? 1 : 0;
+    if (reduced) { el.textContent = target.toFixed(dec) + suf; return; }
+    let t0 = null; const dur = 1300;
+    (function step(ts){ if (t0 === null) t0 = ts; const p = Math.min(1, (ts-t0)/dur), e2 = 1 - Math.pow(1-p, 3); el.textContent = (target*e2).toFixed(dec) + suf; if (p < 1) requestAnimationFrame(step); })(performance.now());
+  }
+  const counters = $$('.stat .v');
+  function checkCounters() {
+    const vh = innerHeight || document.documentElement.clientHeight || 800;
+    for (let i = counters.length - 1; i >= 0; i--) {
+      const el = counters[i], r = el.getBoundingClientRect();
+      if (r.top < vh * 0.92 && r.bottom > 0) { runCount(el); counters.splice(i, 1); }
+    }
+    if (!counters.length) { removeEventListener('scroll', checkCounters); removeEventListener('resize', checkCounters); }
+  }
+  addEventListener('scroll', checkCounters, { passive: true });
+  addEventListener('resize', checkCounters, { passive: true });
+  checkCounters();
+
+  /* ---- knowledge graph ---- */
+  const gc = $('#graph'), gx = gc.getContext('2d');
+  const ents = [
+    {l:'v0.6 release', t:'project'}, {l:'Raunak', t:'person'}, {l:'Whisper', t:'tool'},
+    {l:'demo Friday', t:'concept'}, {l:'HotKeyListener', t:'command'}, {l:'Memory', t:'project'},
+    {l:'pricing slide', t:'concept'}, {l:'Groq', t:'tool'}, {l:'notch pill', t:'concept'},
+    {l:'Ask Memory', t:'tool'}, {l:'run log', t:'concept'}, {l:'Hinglish', t:'concept'}
+  ];
+  const tc = { person:'#FF6B6B', project:'#4ECDC4', tool:'#45B7D1', concept:'#FFA07A', command:'#98D8C8', place:'#F7DC6F', other:'#BB86FC' };
+  let GN = [], GE = [], GW, GH, gdpr;
+  function initGraph() {
+    gdpr = Math.min(devicePixelRatio || 1, 2); GW = gc.clientWidth; GH = gc.clientHeight;
+    gc.width = GW*gdpr; gc.height = GH*gdpr; gx.setTransform(gdpr,0,0,gdpr,0,0);
+    GN = ents.map((e, i) => ({ ...e, x: GW*(0.12+0.76*(((i+1)*0.7548776662)%1)), y: GH*(0.12+0.74*(((i+1)*0.5698402909)%1)), r: e.t==='project'||e.t==='person'?5:3.4, ph: i*0.8, hub: e.t==='project'||e.t==='person' }));
+    GE = [];
+    for (let i=0;i<GN.length;i++){ const a=GN[i]; GN.map((b,j)=>({j,d:Math.hypot(a.x-b.x,a.y-b.y)})).filter(o=>o.j!==i).sort((p,q)=>p.d-q.d).slice(0,2).forEach(o=>{ if(!GE.some(e=>e[0]===o.j&&e[1]===i)) GE.push([i,o.j]); }); }
+  }
+  let g0 = 0;
+  function drawGraph(ts) {
+    const t = (ts-g0)/1000; gx.clearRect(0,0,GW,GH);
+    const P = GN.map(n => ({ x: n.x + Math.sin(t*0.45+n.ph)*8, y: n.y + Math.cos(t*0.38+n.ph*1.2)*8 }));
+    gx.lineWidth = 1;
+    GE.forEach(([a,b],i) => { const g = 0.5+0.5*Math.sin(t*0.8+i*1.6); gx.strokeStyle = `oklch(62% 0.16 290 / ${0.1+g*0.22})`; gx.beginPath(); gx.moveTo(P[a].x,P[a].y); gx.lineTo(P[b].x,P[b].y); gx.stroke(); });
+    GN.forEach((n,i) => { const p = P[i]; gx.fillStyle = tc[n.t]||tc.other; if (n.hub) { gx.shadowColor = tc[n.t]; gx.shadowBlur = 12; } gx.beginPath(); gx.arc(p.x,p.y,n.r,0,7); gx.fill(); gx.shadowBlur = 0;
+      gx.fillStyle = n.hub ? 'oklch(95% 0.01 280 / 0.95)' : 'oklch(72% 0.01 280 / 0.78)'; gx.font = `${n.hub?600:400} ${n.hub?12.5:11}px ${getComputedStyle(document.body).fontFamily}`; gx.fillText(n.l, p.x+n.r+6, p.y+4); });
+    if (!reduced) requestAnimationFrame(drawGraph);
+  }
+  const gIO = new IntersectionObserver(es => { if (es[0].isIntersecting) { initGraph(); requestAnimationFrame(ts => { g0 = ts; drawGraph(ts); }); gIO.disconnect(); } }, { threshold: 0.2 });
+  gIO.observe(gc);
+  addEventListener('resize', () => { if (GN.length) initGraph(); });
+
+  /* =========================================================
+     DITHER-PRISM HERO  (componentry dither-prism-hero, ported to vanilla WebGL2)
+     FBM flow -> tri-color gradient -> prismatic RGB separation
+     -> 8x8 Bayer ordered dithering + quantization -> vignette
+     ========================================================= */
+  (function dither() {
+    const cvs = $('#dither'); if (!cvs) return;
+    const gl = cvs.getContext('webgl2', { antialias: false, powerPreference: 'high-performance', alpha: false, preserveDrawingBuffer: true });
+    if (!gl) return; // graceful: starfield + aurora still carry the hero
+    const VERT = `#version 300 es
+      in vec2 p; void main(){ gl_Position = vec4(p, 0.0, 1.0); }`;
+    const FRAG = `#version 300 es
+      precision highp float; out vec4 o;
+      uniform vec2 uRes; uniform float uTime; uniform vec2 uMouse; uniform float uMI;
+      uniform vec3 uC1, uC2, uC3;
+      float hash(vec2 p){ p = fract(p*vec2(123.34,456.21)); p += dot(p, p+45.32); return fract(p.x*p.y); }
+      float noise(vec2 p){ vec2 i=floor(p), f=fract(p); float a=hash(i),b=hash(i+vec2(1,0)),c=hash(i+vec2(0,1)),d=hash(i+vec2(1,1));
+        vec2 u=f*f*(3.0-2.0*f); return mix(a,b,u.x)+(c-a)*u.y*(1.0-u.x)+(d-b)*u.x*u.y; }
+      float fbm(vec2 p){ float v=0.0, a=0.5; for(int i=0;i<6;i++){ v+=a*noise(p); p=p*2.02+vec2(1.7,9.2); a*=0.5; } return v; }
+      float bayer(vec2 fc){
+        float m[64] = float[64](
+          0.,32.,8.,40.,2.,34.,10.,42., 48.,16.,56.,24.,50.,18.,58.,26.,
+          12.,44.,4.,36.,14.,46.,6.,38., 60.,28.,52.,20.,62.,30.,54.,22.,
+          3.,35.,11.,43.,1.,33.,9.,41., 51.,19.,59.,27.,49.,17.,57.,25.,
+          15.,47.,7.,39.,13.,45.,5.,37., 63.,31.,55.,23.,61.,29.,53.,21.);
+        int x = int(mod(fc.x,8.0)), y = int(mod(fc.y,8.0));
+        return (m[y*8+x]+0.5)/64.0;
+      }
+      void main(){
+        vec2 uv = gl_FragCoord.xy / uRes;
+        vec2 p = uv; p.x *= uRes.x/uRes.y;
+        float t = uTime*0.045;
+        float md = distance(uv, uMouse);
+        p += (uv - uMouse) * exp(-md*4.0) * 0.06 * uMI;          // lens distortion near cursor
+        float f = fbm(p*2.6 + vec2(t, -t*0.6) + fbm(p*1.4 + t*0.2)*0.6);   // flowing field
+        vec3 col = mix(uC1, uC2, smoothstep(0.18, 0.72, f));      // tri-color gradient
+        col = mix(col, uC3, smoothstep(0.55, 1.0, f + 0.18*sin(t*2.4 + p.x*3.0)));
+        float ang = f*6.2831 + t*1.5;                            // prismatic separation
+        vec2 dir = vec2(cos(ang), sin(ang)) * (0.014 + 0.03*exp(-md*5.0)*uMI);
+        float fr = fbm((p+dir)*2.6 + t), fb = fbm((p-dir)*2.6 + t);
+        col.r *= 0.72 + 0.55*fr; col.b *= 0.72 + 0.55*fb;
+        col += uC2 * 0.18 * exp(-md*6.0) * uMI;                  // cursor glow
+        col += uC3 * 0.05 * pow(max(0.0, sin(f*9.0 + t*3.0)), 3.0);   // iridescence sparkle
+        col *= 1.0 - 0.62*pow(distance(uv, vec2(0.5,0.46)), 1.7); // vignette
+        col = max(col, 0.0);
+        float d = bayer(gl_FragCoord.xy);                        // ordered dithering + quantize
+        float levels = 7.0;
+        col = floor(col*levels + d) / levels;
+        o = vec4(col, 1.0);
+      }`;
+    function sh(type, src){ const s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s); return s; }
+    const prog = gl.createProgram();
+    gl.attachShader(prog, sh(gl.VERTEX_SHADER, VERT));
+    gl.attachShader(prog, sh(gl.FRAGMENT_SHADER, FRAG));
+    gl.linkProgram(prog);
+    if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) return;
+    gl.useProgram(prog);
+    const buf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 3,-1, -1,3]), gl.STATIC_DRAW);
+    const loc = gl.getAttribLocation(prog, 'p'); gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
+    const U = n => gl.getUniformLocation(prog, n);
+    const uRes = U('uRes'), uTime = U('uTime'), uMouse = U('uMouse'), uMI = U('uMI'), uC1 = U('uC1'), uC2 = U('uC2'), uC3 = U('uC3');
+    gl.uniform3f(uC1, 0.045, 0.035, 0.11);   // deep indigo base
+    gl.uniform3f(uC2, 0.34, 0.20, 0.72);     // violet  (#6C5CFF family)
+    gl.uniform3f(uC3, 0.10, 0.32, 0.78);     // blue    (#0E8FFF family)
+    let dpr, mX = 0.5, mY = 0.5, tMX = 0.5, tMY = 0.5, mi = 0.0, vis = true;
+    function size(){ dpr = Math.min(devicePixelRatio || 1, 2); const w = cvs.clientWidth, h = cvs.clientHeight; cvs.width = w*dpr; cvs.height = h*dpr; gl.viewport(0,0,cvs.width,cvs.height); gl.uniform2f(uRes, cvs.width, cvs.height); }
+    size(); addEventListener('resize', size);
+    addEventListener('pointermove', e => { tMX = e.clientX/innerWidth; tMY = 1 - e.clientY/innerHeight; mi = 1; }, { passive: true });
+    const dvis = new IntersectionObserver(es => vis = es[0].isIntersecting, { threshold: 0 });
+    dvis.observe(cvs);
+    requestAnimationFrame(() => cvs.classList.add('ready'));
+    let start = 0;
+    function frame(ts){ if (!start) start = ts; if (vis) { mX += (tMX-mX)*0.06; mY += (tMY-mY)*0.06; mi += (0-mi)*0.01;
+      gl.uniform1f(uTime, (ts-start)/1000); gl.uniform2f(uMouse, mX, mY); gl.uniform1f(uMI, Math.max(0.25, mi)); gl.drawArrays(gl.TRIANGLES, 0, 3); }
+      requestAnimationFrame(frame); }
+    if (reduced) { gl.uniform1f(uTime, 12); gl.uniform2f(uMouse, 0.5, 0.5); gl.uniform1f(uMI, 0.3); gl.drawArrays(gl.TRIANGLES, 0, 3); }
+    else requestAnimationFrame(frame);
+  })();
+
+  /* =========================================================
+     VOICE ORB — follows you through the scroll, shifts mode per section
+     ========================================================= */
+  (function orb() {
+    const cvs = $('#orb'); if (!cvs) return;
+    const c = cvs.getContext('2d');
+    let dpr = Math.min(devicePixelRatio || 1, 2), S = 200;
+    function size(){ dpr = Math.min(devicePixelRatio || 1, 2); cvs.width = S*dpr; cvs.height = S*dpr; c.setTransform(dpr,0,0,dpr,0,0); }
+    size();
+    // section -> mode color (hue tuned to the island state palette)
+    const modes = [
+      { sel: '.hero',        hue: 250, name: 'idle' },
+      { sel: '#island',      hue: 235, name: 'listening' },
+      { sel: '#chip',        hue: 295, name: 'processing' },
+      { sel: '.feat-rows',   hue: 320, name: 'magic' },
+      { sel: '#memory',      hue: 290, name: 'memory' },
+      { sel: '.stats',       hue: 158, name: 'done' },
+      { sel: '.index',       hue: 250, name: 'spec' },
+      { sel: '.final',       hue: 250, name: 'cta' }
+    ];
+    // resolve all section rects lazily
+    let curHue = 250, tgtHue = 250, level = 0.3, tx = 0.5, ty = 0.5;
+    const lerp = (a,b,n) => a + (b-a)*n;
+    const shortAngle = (a,b) => { let d = (b-a) % 360; if (d > 180) d -= 360; if (d < -180) d += 360; return a + d*0.06; };
+    function updateTarget(){
+      const vh = innerHeight || 800, mid = scrollY + vh*0.5, docH = document.body.scrollHeight;
+      // which section is centered
+      let found = modes[0];
+      for (const m of modes){ const el = document.querySelector(m.sel); if (!el) continue; const r = el.getBoundingClientRect(); const top = r.top + scrollY, bot = top + r.height; if (mid >= top && mid < bot) { found = m; break; } }
+      tgtHue = found.hue;
+      // path: orb weaves left<->right as you descend, stays clear of center text
+      const prog = Math.min(1, Math.max(0, scrollY / Math.max(1, docH - vh)));
+      const side = Math.sin(prog * Math.PI * 3.0);          // -1..1 weave
+      tx = 0.5 + side * 0.40;
+      ty = 0.30 + 0.45 * (0.5 + 0.5*Math.sin(prog * Math.PI * 2.2));
+      // hero: park to the lower-right, clear of the headline
+      if (scrollY < vh*0.6) { tx = lerp(0.82, 0.86, scrollY/(vh*0.6)); ty = 0.82; }
+    }
+    let px = 0.78, py = 0.74, t0 = 0;
+    function draw(ts){
+      if (!t0) t0 = ts; const t = (ts-t0)/1000;
+      updateTarget();
+      curHue = shortAngle(curHue, tgtHue);
+      level = lerp(level, 0.35 + 0.4*(0.5+0.5*Math.sin(t*3.1)), 0.08);
+      px = lerp(px, tx, 0.05); py = lerp(py, ty, 0.05);
+      const vw = innerWidth, vh = innerHeight || 800;
+      const R = Math.max(58, Math.min(96, vw*0.07));
+      S = R*2.6;
+      if (cvs.width !== Math.round(S*dpr)) size();
+      cvs.style.transform = `translate(${(px*vw - S/2).toFixed(1)}px, ${(py*vh - S/2).toFixed(1)}px)`;
+      c.clearRect(0,0,S,S);
+      const cxp = S/2, cyp = S/2;
+      const hue = curHue;
+      // outer glow
+      const g = c.createRadialGradient(cxp,cyp,R*0.2, cxp,cyp,R*1.3);
+      g.addColorStop(0, `oklch(70% 0.2 ${hue} / 0.5)`);
+      g.addColorStop(0.5, `oklch(55% 0.2 ${hue} / 0.18)`);
+      g.addColorStop(1, `oklch(50% 0.2 ${hue} / 0)`);
+      c.fillStyle = g; c.beginPath(); c.arc(cxp,cyp,R*1.3,0,7); c.fill();
+      // wobbling blob body
+      c.beginPath();
+      const N = 64;
+      for (let i=0;i<=N;i++){ const a = i/N*Math.PI*2;
+        const wob = 1 + 0.05*Math.sin(a*3 + t*1.6) + 0.04*Math.sin(a*5 - t*2.1) + level*0.12*Math.sin(a*2 + t*4);
+        const rr = R*0.62*wob; const x = cxp + Math.cos(a)*rr, y = cyp + Math.sin(a)*rr;
+        i ? c.lineTo(x,y) : c.moveTo(x,y);
+      }
+      c.closePath();
+      const bg = c.createRadialGradient(cxp-R*0.2,cyp-R*0.25,R*0.1, cxp,cyp,R*0.7);
+      bg.addColorStop(0, `oklch(82% 0.16 ${hue} / 0.95)`);
+      bg.addColorStop(1, `oklch(46% 0.22 ${hue} / 0.9)`);
+      c.fillStyle = bg; c.shadowColor = `oklch(60% 0.2 ${hue} / 0.8)`; c.shadowBlur = 24; c.fill(); c.shadowBlur = 0;
+      // fresnel rim
+      c.strokeStyle = `oklch(92% 0.1 ${hue} / 0.5)`; c.lineWidth = 1.2; c.stroke();
+      // waveform ring
+      const bars = 40;
+      for (let i=0;i<bars;i++){ const a = i/bars*Math.PI*2 + t*0.4;
+        const amp = (0.5+0.5*Math.sin(t*6 + i*0.9))*(0.4+level);
+        const r1 = R*0.92, r2 = R*(0.92 + 0.16*amp);
+        c.strokeStyle = `oklch(90% 0.12 ${hue} / ${0.25+amp*0.5})`; c.lineWidth = 2;
+        c.beginPath(); c.moveTo(cxp+Math.cos(a)*r1, cyp+Math.sin(a)*r1); c.lineTo(cxp+Math.cos(a)*r2, cyp+Math.sin(a)*r2); c.stroke();
+      }
+      // specular highlight
+      c.fillStyle = 'oklch(100% 0 0 / 0.45)'; c.beginPath(); c.ellipse(cxp-R*0.22, cyp-R*0.26, R*0.14, R*0.09, -0.5, 0, 7); c.fill();
+      if (!reduced) requestAnimationFrame(draw);
+    }
+    addEventListener('resize', size);
+    if (reduced) { updateTarget(); px=tx; py=ty; draw(0); }
+    else requestAnimationFrame(draw);
+  })();
+
+  /* =========================================================
+     MAGNET LINES — grid of strokes that point toward the cursor
+     (componentry "magnet-lines", vanilla canvas) behind the feature index
+     ========================================================= */
+  (function magnet() {
+    const cvs = $('#magnet'); if (!cvs || reduced) return;
+    const c = cvs.getContext('2d'); let W, H, dpr, pts = [], mxp = -999, myp = -999, vis = false;
+    function build(){ dpr = Math.min(devicePixelRatio || 1, 2); W = cvs.clientWidth; H = cvs.clientHeight; cvs.width = W*dpr; cvs.height = H*dpr; c.setTransform(dpr,0,0,dpr,0,0);
+      const gap = 44; pts = []; for (let y=gap/2; y<H; y+=gap) for (let x=gap/2; x<W; x+=gap) pts.push({x,y,a:-2.4,ta:-2.4}); }
+    build();
+    function tick(){ const r = cvs.getBoundingClientRect(); const on = r.top < (innerHeight||800) && r.bottom > 0;
+      if (on) { c.clearRect(0,0,W,H); if (W !== cvs.clientWidth || H !== cvs.clientHeight) build();
+        for (const p of pts){ const dx = mxp-p.x, dy = myp-p.y, d = Math.hypot(dx,dy);
+          if (d < 9000) { p.ta = Math.atan2(dy,dx); let diff=(p.ta-p.a); while(diff>Math.PI)diff-=2*Math.PI; while(diff<-Math.PI)diff+=2*Math.PI; p.a += diff*0.2; }
+          const inten = Math.max(0.12, Math.min(0.85, 150/(d+60))); const len = 12 + inten*14;
+          c.strokeStyle = `oklch(72% 0.17 290 / ${inten})`; c.lineWidth = 1.5; c.beginPath();
+          c.moveTo(p.x - Math.cos(p.a)*len*0.5, p.y - Math.sin(p.a)*len*0.5);
+          c.lineTo(p.x + Math.cos(p.a)*len*0.5, p.y + Math.sin(p.a)*len*0.5); c.stroke();
+          c.fillStyle = `oklch(80% 0.14 290 / ${inten*0.7})`; c.beginPath(); c.arc(p.x + Math.cos(p.a)*len*0.5, p.y + Math.sin(p.a)*len*0.5, 1.4, 0, 7); c.fill(); } }
+      requestAnimationFrame(tick); }
+    requestAnimationFrame(tick);
+    addEventListener('resize', build);
+    addEventListener('pointermove', e => { const r = cvs.getBoundingClientRect(); mxp = e.clientX - r.left; myp = e.clientY - r.top; }, { passive: true });
+  })();
+
+  /* ---- magnetic CTA buttons (componentry "magnetic-dock" feel) ---- */
+  if (!reduced && matchMedia('(pointer:fine)').matches) {
+    $$('.btn').forEach(b => {
+      b.addEventListener('pointermove', e => { const r = b.getBoundingClientRect(); const x = e.clientX - r.left - r.width/2, y = e.clientY - r.top - r.height/2; b.style.transform = `translate(${x*0.25}px, ${(y*0.25 - 2).toFixed(1)}px)`; });
+      b.addEventListener('pointerleave', () => { b.style.transform = ''; });
+    });
+  }
+})();
+</script>
+</body>
+</html>

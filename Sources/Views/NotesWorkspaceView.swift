@@ -383,10 +383,11 @@ struct NotesWorkspaceView: View {
     private var dashboardPageHeader: some View {
         HStack(alignment: .center) {
             HStack(spacing: Theme.Space.sm) {
-                Text("Scratchpad")
+                Text("Notes")
                     .font(.vfPageTitle)
                     .foregroundColor(Theme.textPrimary)
                 VFBadge(label: "Beta", style: .feature)
+                notesCommandHint
             }
 
             Spacer()
@@ -395,6 +396,25 @@ struct NotesWorkspaceView: View {
                 startDraftAndOpenFloatingNotes()
             }
         }
+    }
+
+    private var notesCommandHint: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "mic.fill")
+                .font(.system(size: 10, weight: .semibold))
+            Text("Say \"open Vordi Notes\"")
+                .font(.vfCaption)
+                .lineLimit(1)
+        }
+        .foregroundColor(Theme.textSecondary)
+        .padding(.horizontal, 9)
+        .frame(height: 24)
+        .background(Capsule(style: .continuous).fill(Theme.surfaceElevated))
+        .overlay {
+            Capsule(style: .continuous)
+                .strokeBorder(Theme.divider, lineWidth: 1)
+        }
+        .help("Say \"open Vordi Notes and type ...\" to create a note with dictated text.")
     }
 
     private var dashboardHero: some View {

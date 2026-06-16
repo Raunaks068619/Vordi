@@ -8,7 +8,7 @@ class TextInjector {
     private var lastInjectedAt: TimeInterval = 0
     private static let directPasteClipboardRestoreDelay: TimeInterval = 0.45
 
-    /// Delivered when injection is suppressed for ANY reason — VoiceFlow
+    /// Delivered when injection is suppressed for ANY reason — Vordi
     /// is foreground, no text input focused, etc. The transcript is on
     /// the clipboard so the user can paste manually. AppDelegate uses
     /// this hook to surface the clipboard fallback state.
@@ -75,14 +75,26 @@ class TextInjector {
     }
 
     private func injectNormalizedText(_ normalized: String, targetBundleIdentifier: String?) {
-        reactivateTargetIfVoiceFlowOwnsFocus(targetBundleIdentifier) { [weak self] in
+        reactivateTargetIfVordiOwnsFocus(targetBundleIdentifier) { [weak self] in
             guard let self else { return }
 
-            // Guard 1: VoiceFlow itself is foreground (Settings window
-            // focused, etc.). Don't paste into our own UI — could clobber
-            // a SecureField like an API key.
-            if Self.isVoiceFlowForeground() {
-                self.suppressInjection(normalized, reason: "\(AppBrand.name) is frontmost")
+            let focusedTarget = Self.focusedElementPasteTarget()
+
+            // Guard 1: Vordi itself is foreground. This used to suppress
+            // every own-app dictation to avoid clobbering Settings secure
+            // fields, but that also blocked legitimate app inputs like Ask
+            // Memory. Own-app paste now follows denylist semantics too:
+            // suppress secure/non-text focus, attempt paste for normal text
+            // fields and AX-unknown SwiftUI wrappers.
+            if Self.isVordiForeground() {
+                switch focusedTarget {
+                case .confirmedEditableText, .optimistic:
+                    self.injectViaPasteboard(normalized)
+                case .secureText:
+                    self.suppressInjection(normalized, reason: "\(AppBrand.name) secure text field focused")
+                case .confirmedNonText:
+                    self.suppressInjection(normalized, reason: "\(AppBrand.name) is frontmost without a text input")
+                }
                 return
             }
 
@@ -98,7 +110,7 @@ class TextInjector {
             // alternative either (a) blocks legitimate dictation in
             // AX-quirky apps like VS Code or iTerm, or (b) drops the
             // transcript on the floor.
-            if !Self.focusedElementLooksLikeTextInput() {
+            if focusedTarget == .confirmedNonText {
                 self.suppressInjection(normalized, reason: "no text-input element focused")
                 return
             }
@@ -107,11 +119,11 @@ class TextInjector {
         }
     }
 
-    private func reactivateTargetIfVoiceFlowOwnsFocus(
+    private func reactivateTargetIfVordiOwnsFocus(
         _ targetBundleIdentifier: String?,
         completion: @escaping () -> Void
     ) {
-        guard Self.isVoiceFlowForeground(),
+        guard Self.isVordiForeground(),
               let targetBundleIdentifier,
               targetBundleIdentifier != Bundle.main.bundleIdentifier,
               let targetApp = NSRunningApplication.runningApplications(
@@ -130,7 +142,7 @@ class TextInjector {
     // MARK: - Suppressed-injection clipboard preservation
     //
     // When we can't paste the transcript directly (no text input focused,
-    // VoiceFlow foreground, etc.) we have to put the transcript on the
+    // Vordi foreground, etc.) we have to put the transcript on the
     // clipboard so the user can Cmd+V it later. That clobbers whatever
     // the user had — a copied password, an unrelated snippet — and feels
     // disrespectful.
@@ -230,7 +242,21 @@ class TextInjector {
         "AXDisclosureTriangle"
     ]
 
-    private static func focusedElementLooksLikeTextInput() -> Bool {
+    private static let confirmedTextInputRoles: Set<String> = [
+        "AXTextField",
+        "AXTextArea",
+        "AXSearchField",
+        "AXComboBox"
+    ]
+
+    private enum FocusedElementPasteTarget {
+        case confirmedEditableText
+        case secureText
+        case confirmedNonText
+        case optimistic
+    }
+
+    private static func focusedElementPasteTarget() -> FocusedElementPasteTarget {
         let system = AXUIElementCreateSystemWide()
         var focused: AnyObject?
         let result = AXUIElementCopyAttributeValue(
@@ -244,34 +270,45 @@ class TextInjector {
         // user's best chance of getting their transcript anyway.
         guard result == .success, let element = focused else {
             print("AX focus query failed — allowing paste (denylist semantics)")
-            return true
+            return .optimistic
         }
 
+        let axElement = element as! AXUIElement
         var role: AnyObject?
-        AXUIElementCopyAttributeValue(element as! AXUIElement, kAXRoleAttribute as CFString, &role)
+        AXUIElementCopyAttributeValue(axElement, kAXRoleAttribute as CFString, &role)
         guard let roleString = role as? String else {
             // Got a focused element but couldn't read its role. Same logic:
             // unknown ≠ confirmed-bad. Allow.
-            return true
+            return .optimistic
         }
 
         if Self.nonTextInputRoles.contains(roleString) {
             print("Suppressing paste — focused role is \(roleString) (non-text)")
-            return false
+            return .confirmedNonText
         }
 
-        // Anything else — AXTextField, AXTextArea, AXWebArea, AXScrollArea,
-        // AXGroup, AXOutline, AXUnknown, custom Electron roles, you name it
-        // — gets the paste attempt. We'd rather try and fail silently than
+        if Self.confirmedTextInputRoles.contains(roleString) {
+            var subrole: AnyObject?
+            AXUIElementCopyAttributeValue(axElement, kAXSubroleAttribute as CFString, &subrole)
+            if (subrole as? String) == "AXSecureTextField" {
+                print("Focused role is secure text")
+                return .secureText
+            }
+            return .confirmedEditableText
+        }
+
+        // Anything else — AXWebArea, AXScrollArea, AXGroup, AXOutline,
+        // AXUnknown, custom Electron roles, you name it — gets the paste
+        // attempt outside Vordi. We'd rather try and fail silently than
         // refuse to try at all.
-        return true
+        return .optimistic
     }
 
-    /// True when VoiceFlow is the frontmost application. We compare by bundle
+    /// True when Vordi is the frontmost application. We compare by bundle
     /// identifier rather than PID because helper processes (e.g. SwiftUI
     /// previews or XPC) share the same bundle id and should be treated as
     /// "us" for this check.
-    private static func isVoiceFlowForeground() -> Bool {
+    private static func isVordiForeground() -> Bool {
         guard let frontBundleID = NSWorkspace.shared.frontmostApplication?.bundleIdentifier else {
             return false
         }
@@ -289,7 +326,7 @@ class TextInjector {
     }
 
     /// Paste text into whichever app is currently frontmost, bypassing
-    /// VoiceFlow/focused-role guards. Used by explicit action commands after
+    /// Vordi/focused-role guards. Used by explicit action commands after
     /// they have already launched and activated their target app.
     @discardableResult
     static func pasteTextIntoFrontmostApp(

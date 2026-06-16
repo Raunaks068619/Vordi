@@ -38,7 +38,7 @@ final class ContextProvider {
         /// Default OFF — selections often contain code/secrets the user
         /// doesn't want lying around. UI lives in Settings → Privacy.
         static let persistSelectionEnabled = "persist_selection_enabled"
-        /// Whether VoiceFlow captures the frontmost window screenshot and
+        /// Whether Vordi captures the frontmost window screenshot and
         /// sends it to the context-summary model. Default ON for this
         /// experimental build so the FreeFlow-style flow is testable.
         static let screenshotContextEnabled = "screenshot_context_enabled"

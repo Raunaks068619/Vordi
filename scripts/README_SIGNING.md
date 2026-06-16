@@ -1,4 +1,4 @@
-# VoiceFlow Signing & Notarization Guide
+# Vordi Signing & Notarization Guide
 
 This guide walks you from zero → distributing a properly signed + notarized DMG that end users can open without Gatekeeper warnings.
 
@@ -74,7 +74,7 @@ Notarization requires a non-personal password to be safe in shell env vars.
 
 1. Go to https://appleid.apple.com → Sign In
 2. Under **Sign-In and Security** → **App-Specific Passwords**
-3. Click **+** → name it `voiceflow-notarize`
+3. Click **+** → name it `vordi-notarize`
 4. Copy the generated password (looks like `abcd-efgh-ijkl-mnop`)
 
 ---
@@ -94,7 +94,7 @@ You have two options. **Keychain profile is recommended** — it avoids passing 
 ### Option A: Keychain profile (recommended)
 
 ```bash
-xcrun notarytool store-credentials "voiceflow-notarize" \
+xcrun notarytool store-credentials "vordi-notarize" \
   --apple-id "you@example.com" \
   --team-id "YOURTEAMID" \
   --password "abcd-efgh-ijkl-mnop"
@@ -104,7 +104,7 @@ Then export just two env vars in your shell rc file:
 
 ```bash
 export DEVELOPER_ID="Developer ID Application: Your Name (YOURTEAMID)"
-export NOTARIZE_KEYCHAIN_PROFILE="voiceflow-notarize"
+export NOTARIZE_KEYCHAIN_PROFILE="vordi-notarize"
 ```
 
 ### Option B: Plain env vars (less secure)
@@ -136,7 +136,7 @@ The build script will use `DEVELOPER_ID` from env when signing.
 ## Step 7: Build a notarized DMG
 
 ```bash
-cd /path/to/VoiceFlow
+cd /path/to/Vordi
 ./scripts/release_dmg.sh --version v1.0.7
 ```
 
@@ -154,7 +154,7 @@ Output:
 ================================================================
   Build complete
   Mode:     notarized
-  DMG:      dist/VoiceFlow-v1.0.7.dmg
+  DMG:      dist/Vordi-v1.0.7.dmg
   SHA-256:  abc123...
 ================================================================
 READY FOR DISTRIBUTION. End users can download and open directly.
@@ -175,15 +175,15 @@ Upload the DMG anywhere (GitHub Releases, S3, your website). Users can now:
 Your existing cask manifest can now drop the `postflight` hacks:
 
 ```ruby
-cask "voiceflow" do
+cask "vordi" do
   version "1.0.7"
   sha256 "abc123..."
-  url "https://your-url/VoiceFlow-#{version}.dmg"
-  name "VoiceFlow"
+  url "https://your-url/Vordi-#{version}.dmg"
+  name "Vordi"
   desc "Hold-to-dictate voice typing app"
-  homepage "https://github.com/you/VoiceFlow"
+  homepage "https://github.com/you/Vordi"
 
-  app "VoiceFlow.app"
+  app "Vordi.app"
   # Notarized builds don't need postflight xattr or codesign calls.
 end
 ```
@@ -210,7 +210,7 @@ end
 
 ### Notarization is slow (>10 min)
 - Apple's service is occasionally backed up. Retry later.
-- Check status: `xcrun notarytool log <submission-id> --keychain-profile voiceflow-notarize`
+- Check status: `xcrun notarytool log <submission-id> --keychain-profile vordi-notarize`
 
 ---
 

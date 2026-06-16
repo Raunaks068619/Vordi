@@ -10,7 +10,7 @@ final class VoiceNoteStore: ObservableObject {
     @Published private(set) var activeContent: NSAttributedString = NSAttributedString(string: "")
     @Published private(set) var draftTitle: String = ""
 
-    private let queue = DispatchQueue(label: "com.voiceflow.notes", qos: .utility)
+    private let queue = DispatchQueue(label: "com.vordi.notes", qos: .utility)
     private let fileManager = FileManager.default
     private let encoder = JSONEncoder()
     private let decoder = JSONDecoder()
@@ -22,7 +22,7 @@ final class VoiceNoteStore: ObservableObject {
     private var notesDirectory: URL {
         let appSupport = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
         return appSupport
-            .appendingPathComponent("VoiceFlow", isDirectory: true)
+            .appendingPathComponent("Vordi", isDirectory: true)
             .appendingPathComponent("notes", isDirectory: true)
     }
 
@@ -273,6 +273,12 @@ final class VoiceNoteStore: ObservableObject {
         lastSeenRunID = latest.id
         guard !dictationCaptureOwners.isEmpty else { return }
         guard latest.status == .success else { return }
+        if let ownBundleID = Bundle.main.bundleIdentifier,
+           latest.frontmostBundleID == ownBundleID {
+            // The transcript was already pasted into a focused Vordi editor
+            // by TextInjector. Mirroring it here would duplicate Notes input.
+            return
+        }
         appendTranscriptToActiveNote(latest.previewText)
     }
 

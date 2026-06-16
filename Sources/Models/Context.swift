@@ -235,7 +235,7 @@ enum HotkeyIdentifier: String, Codable {
 
 /// Static bundle-ID → surface map. Kept as a plain dict so we can extend
 /// without recompiling, and so the table is greppable when a user reports
-/// "VoiceFlow doesn't detect Zed."
+/// "Vordi doesn't detect Zed."
 enum AppSurfaceCatalog {
     /// Exact bundle-ID matches. Highest priority.
     static let exact: [String: AppSurface] = [
@@ -327,7 +327,7 @@ enum AppSurfaceCatalog {
     }
 
     /// True when this surface routinely takes code/SQL/scripts as input —
-    /// the audience for "voiceflow create" dev-mode features.
+    /// the audience for "vordi create" dev-mode features.
     static func isDeveloperSurface(_ surface: AppSurface) -> Bool {
         switch surface {
         case .ide, .terminal, .database: return true

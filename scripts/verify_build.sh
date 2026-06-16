@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 # ------------------------------------------------------------------------------
-# Verba — Build Verification Script
+# Vordi — Build Verification Script
 # ------------------------------------------------------------------------------
 # Run this after every build (release_dmg.sh, release_dmg_unsigned.sh,
 # build-and-install.sh) to confirm the build artifact won't ship broken.
 #
 # Usage:
-#   scripts/verify_build.sh                    # checks /Applications/Verba.app
+#   scripts/verify_build.sh                    # checks /Applications/Vordi.app
 #   scripts/verify_build.sh path/to/app        # checks custom path
 #
 # Fails loudly if:
@@ -19,14 +19,14 @@
 
 set -euo pipefail
 
-APP_RAW="${1:-/Applications/Verba.app}"
+APP_RAW="${1:-/Applications/Vordi.app}"
 # Resolve to absolute path so defaults / codesign behave consistently.
 if [[ -d "$APP_RAW" ]]; then
   APP="$(cd "$APP_RAW" && pwd)"
 else
   APP="$APP_RAW"
 fi
-EXPECTED_BUNDLE_ID="com.voiceflow.app"
+EXPECTED_BUNDLE_ID="com.vordi.app"
 FAILED=0
 
 if [[ ! -d "$APP" ]]; then

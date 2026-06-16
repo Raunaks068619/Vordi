@@ -129,8 +129,11 @@ final class KnowledgeGraphService: ObservableObject {
     private let chat = MemoryChatService.shared
     private let indexer = IndexerService.shared
     private var cancellables = Set<AnyCancellable>()
-    private static let graphNodeLimit = 90
-    private static let graphEdgeLimit = 180
+    // 150 is the documented ceiling for the O(n²) force simulation at 18–30Hz
+    // (see ForceSimulation perf note). Show as many nodes as possible up to
+    // that so the graph reads "full"; going higher needs a Barnes-Hut rewrite.
+    private static let graphNodeLimit = 150
+    private static let graphEdgeLimit = 300
 
     nonisolated private init() {
         // Wire the Combine subscription + initial reload on the main

@@ -6,8 +6,8 @@ import AppKit
 /// **Routing priorities** (first match wins):
 /// 1. Hotkey identity — `.promptEngineer` always uses PromptEngineerProfile,
 ///    no matter what the transcript says.
-/// 2. Trigger words — "verba create" → DeveloperModeProfile,
-///    "verba prompt" → PromptEngineerProfile, etc.
+/// 2. Trigger words — "vordi create" → DeveloperModeProfile,
+///    "vordi prompt" → PromptEngineerProfile, etc.
 /// 3. Magic word match — registry hit takes precedence over standard cleanup.
 /// 4. System action phrases — "open Claude", "open Claude and type ..."
 /// 5. Surface + dev-mode toggle — IDE/terminal users with dev mode ON get
@@ -50,7 +50,7 @@ final class TransformerRouter {
         /// Master toggle for Dev Mode features (triggers, var recognition,
         /// file tagging). Default ON — the user explicitly opted in by
         /// installing/enabling these features; OFF-by-default means they
-        /// dictate "verba create..." and nothing happens, which feels
+        /// dictate "vordi create..." and nothing happens, which feels
         /// broken.
         static let devModeEnabled = "dev_mode_enabled"
         /// Whether magic-word matching runs. Default ON; no-op when the
@@ -114,11 +114,11 @@ final class TransformerRouter {
         }
 
         // 2. Trigger words. Only when dev mode is enabled — we don't want
-            // a casual mention of "verba create" in a Slack message to
+            // a casual mention of "vordi create" in a Slack message to
         // hijack the transcript when the user hasn't opted in.
         if isDevModeEnabled {
             if TriggerWords.isDevCreate(transcript) {
-                trace.append("Trigger: verba create → DeveloperModeProfile (\(isAgenticModeEnabled ? "agentic" : "single-call"))")
+                trace.append("Trigger: vordi create → DeveloperModeProfile (\(isAgenticModeEnabled ? "agentic" : "single-call"))")
                 if isAgenticModeEnabled {
                     return RouterDecision(
                         profile: AgenticDeveloperModeProfile(llm: llm),
@@ -133,7 +133,7 @@ final class TransformerRouter {
                 )
             }
             if TriggerWords.isPromptEngineer(transcript) {
-                trace.append("Trigger: verba prompt → PromptEngineerProfile")
+                trace.append("Trigger: vordi prompt → PromptEngineerProfile")
                 return RouterDecision(
                     profile: PromptEngineerProfile(llm: llm),
                     trace: trace,
@@ -205,8 +205,13 @@ final class TransformerRouter {
 // MARK: - System Actions
 
 struct SystemAction {
+    enum Destination {
+        case application(URL)
+        case vordiNotes
+    }
+
     let requestedAppName: String
-    let appURL: URL
+    let destination: Destination
     let appDisplayName: String
     let insertionText: String?
 
@@ -274,13 +279,31 @@ struct SystemActionResolver {
 
     func resolve(transcript: String) -> SystemAction? {
         guard let phrase = parser.parse(transcript) else { return nil }
+        if Self.isVordiNotesCommand(phrase.appName) {
+            return SystemAction(
+                requestedAppName: phrase.appName,
+                destination: .vordiNotes,
+                appDisplayName: "\(AppBrand.name) Notes",
+                insertionText: phrase.insertionText
+            )
+        }
         guard let app = appResolver.resolve(spokenName: phrase.appName) else { return nil }
         return SystemAction(
             requestedAppName: phrase.appName,
-            appURL: app.url,
+            destination: .application(app.url),
             appDisplayName: app.displayName,
             insertionText: phrase.insertionText
         )
+    }
+
+    private static func isVordiNotesCommand(_ appName: String) -> Bool {
+        let normalized = InstalledApplicationResolver.normalizeName(appName)
+        return [
+            "vordi notes",
+            "vordi note",
+            "vordi notes",
+            "vordi note"
+        ].contains(normalized)
     }
 }
 
@@ -548,7 +571,7 @@ private struct InstalledApplicationResolver {
         return url.deletingPathExtension().lastPathComponent
     }
 
-    private static func normalizeName(_ value: String) -> String {
+    fileprivate static func normalizeName(_ value: String) -> String {
         let lowercased = value.lowercased()
         let scalars = lowercased.unicodeScalars.map { scalar -> UnicodeScalar in
             CharacterSet.alphanumerics.contains(scalar) ? scalar : UnicodeScalar(" ")
@@ -579,10 +602,30 @@ private enum SystemActionError: LocalizedError {
 final class SystemActionExecutor {
     func execute(_ action: SystemAction, completion: @escaping (Result<String, Error>) -> Void) {
         DispatchQueue.main.async {
+            if case .vordiNotes = action.destination {
+                var userInfo: [String: String] = [:]
+                if let insertionText = action.insertionText,
+                   !insertionText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    userInfo["text"] = insertionText
+                }
+                NotificationCenter.default.post(
+                    name: Notification.Name("Vordi.OpenFloatingNotes"),
+                    object: nil,
+                    userInfo: userInfo
+                )
+                completion(.success(action.completionSummary))
+                return
+            }
+
+            guard case .application(let appURL) = action.destination else {
+                completion(.failure(SystemActionError.launchFailed("Unsupported system action")))
+                return
+            }
+
             let configuration = NSWorkspace.OpenConfiguration()
             configuration.activates = true
 
-            NSWorkspace.shared.openApplication(at: action.appURL, configuration: configuration) { runningApp, error in
+            NSWorkspace.shared.openApplication(at: appURL, configuration: configuration) { runningApp, error in
                 DispatchQueue.main.async {
                     if let error {
                         completion(.failure(SystemActionError.launchFailed(error.localizedDescription)))

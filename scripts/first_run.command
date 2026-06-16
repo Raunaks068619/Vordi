@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 # ------------------------------------------------------------------------------
-# Verba — First Run Helper
+# Vordi — First Run Helper
 # ------------------------------------------------------------------------------
-# Double-click this file ONCE after dragging Verba.app to /Applications.
+# Double-click this file ONCE after dragging the app to /Applications.
 #
 # What it does:
 #   1. Strips Gatekeeper quarantine flag (so unsigned/adhoc app can launch)
 #   2. Resets any stale TCC entries from prior installs
-#   3. Launches Verba
+#   3. Launches Vordi
 #
 # What it DOES NOT do:
 #   - Does NOT re-sign the app. The DMG-shipped app is already signed
@@ -17,19 +17,19 @@
 
 set -euo pipefail
 
-APP="/Applications/Verba.app"
-BUNDLE_ID="com.voiceflow.app"
+APP="/Applications/Vordi.app"
+BUNDLE_ID="com.vordi.app"
 
 if [[ ! -d "$APP" ]]; then
-  echo "❌ Verba.app not found at $APP"
-  echo "   Drag Verba.app into Applications first, then run this again."
+  echo "❌ Vordi.app not found at $APP"
+  echo "   Drag the app into Applications first, then run this again."
   echo ""
   read -n 1 -s -r -p "Press any key to close..."
   exit 1
 fi
 
-echo "==> Quitting any running Verba instance"
-pkill -x Verba 2>/dev/null || true
+echo "==> Quitting any running Vordi instance"
+pkill -x Vordi 2>/dev/null || true
 sleep 1
 
 echo "==> Stripping Gatekeeper quarantine flag"
@@ -50,7 +50,7 @@ tccutil reset ListenEvent "$BUNDLE_ID" 2>/dev/null || true
 tccutil reset SpeechRecognition "$BUNDLE_ID" 2>/dev/null || true
 
 echo ""
-echo "✅ Setup complete. Launching Verba..."
+echo "✅ Setup complete. Launching Vordi..."
 open "$APP"
 
 echo ""

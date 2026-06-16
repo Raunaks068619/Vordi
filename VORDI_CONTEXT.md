@@ -1,4 +1,4 @@
-# Verba — AI Handoff Context
+# Vordi — AI Handoff Context
 
 > Paste this entire file at the start of a new ChatGPT/Claude/Gemini chat.
 > Then ask your question. The assistant will have enough context to be useful
@@ -6,7 +6,7 @@
 
 ---
 
-## 🎯 What is Verba
+## 🎯 What is Vordi
 
 A **macOS-native dictation app** for bilingual (Hindi/English) power users.
 Think Wispr Flow, but open-ended about language and output style.
@@ -43,17 +43,17 @@ Think Wispr Flow, but open-ended about language and output style.
 ## 🗂️ File Layout
 
 ```
-/Users/raunaksingh/Documents/VoiceFlow/
+/Users/raunaksingh/Documents/Vordi/
 ├── Sources/
 │   ├── App/
-│   │   └── VoiceFlowApp.swift        # App entry, hotkey, dispatch
+│   │   └── VordiApp.swift        # App entry, hotkey, dispatch
 │   ├── Views/
 │   │   ├── MainDashboardView.swift   # Main UI (Settings + Run Log tabs)
 │   │   └── SettingsView.swift        # Legacy settings pane
 │   └── Services/
 │       └── WhisperService.swift      # STT + polish + translate pipeline
-├── build_beta_dmg.sh                 # Packages VoiceFlow-Beta.dmg
-└── VoiceFlow-Beta.dmg                # Shareable ad-hoc build
+├── build_beta_dmg.sh                 # Packages Vordi-Beta.dmg
+└── Vordi-Beta.dmg                # Shareable ad-hoc build
 ```
 
 ---
@@ -81,7 +81,7 @@ Runtime choice: OpenAI / LM Studio / Ollama. All use Chat Completions API shape.
 
 ## 🔀 Dispatch Logic (the "smart default")
 
-In `VoiceFlowApp.swift` around line 630:
+In `VordiApp.swift` around line 630:
 
 ```swift
 let userSelectedStyle = TranscriptOutputStyle(rawValue: outputModeRaw) ?? .cleanHinglish
@@ -120,7 +120,7 @@ let transcriptionLanguage = (effectiveStyle == .translateEnglish && language == 
 
 1. **Bengali translation fails silently.** STT detects Bengali fine, but `translateToEnglish()` prompt is Hindi-biased ("most likely Hindi, English, or Hinglish"). Non-Hindi scripts fall through. Fix: generalize the prompt.
 
-2. **No Apple Developer signing.** Ad-hoc means testers hit "Verba is damaged" dialog. Workaround is `xattr -cr /Applications/VoiceFlow.app`. Real fix: $99/yr Dev ID + notarization.
+2. **No Apple Developer signing.** Ad-hoc means testers hit "Vordi is damaged" dialog. Workaround is `xattr -cr /Applications/Vordi.app`. Real fix: $99/yr Dev ID + notarization.
 
 3. **arm64 only.** Intel Macs can't run it.
 
@@ -168,11 +168,11 @@ let transcriptionLanguage = (effectiveStyle == .translateEnglish && language == 
 
 ```bash
 # Build & install
-cd /Users/raunaksingh/Documents/VoiceFlow
+cd /Users/raunaksingh/Documents/Vordi
 ./build.sh                            # swift build + codesign + install to /Applications
 
 # Package beta DMG
-./build_beta_dmg.sh                   # outputs VoiceFlow-Beta.dmg + SHA-256
+./build_beta_dmg.sh                   # outputs Vordi-Beta.dmg + SHA-256
 ```
 
 **Runtime permissions needed on user Mac:**

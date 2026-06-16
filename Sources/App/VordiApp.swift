@@ -6,7 +6,7 @@ import ApplicationServices
 import IOKit.hid
 
 @main
-struct VoiceFlowApp: App {
+struct VordiApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
 
     var body: some Scene {
@@ -148,7 +148,7 @@ final class PermissionService: ObservableObject {
         let micDebug = currentMicrophoneDebugSnapshot()
         if micDebug != lastMicDebugSnapshot {
             lastMicDebugSnapshot = micDebug
-            print("VoiceFlow microphone status: \(micDebug)")
+            print("Vordi microphone status: \(micDebug)")
         }
 
         for pane in newlyGrantedPanes {
@@ -231,7 +231,7 @@ final class PermissionService: ObservableObject {
     }
 
     /// Opens the app's location in Finder so the user can manually drag
-    /// VoiceFlow into the Input Monitoring list — this is the documented
+    /// Vordi into the Input Monitoring list — this is the documented
     /// Apple-blessed escape hatch when the prompt refuses to appear.
     func revealAppInFinder() {
         let url = Bundle.main.bundleURL
@@ -351,7 +351,7 @@ final class PermissionService: ObservableObject {
             return "\(AppBrand.name) is running from an Xcode build folder. Permissions can look mismatched; use a single /Applications install for testing."
         }
 
-        let bundleId = Bundle.main.bundleIdentifier ?? "com.voiceflow.app"
+        let bundleId = Bundle.main.bundleIdentifier ?? "com.vordi.app"
         let runningCount = NSWorkspace.shared.runningApplications.filter { $0.bundleIdentifier == bundleId }.count
         if runningCount > 1 {
             return "Multiple \(AppBrand.name) instances are running. Quit all duplicates and relaunch one copy from /Applications."
@@ -430,45 +430,18 @@ class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
     //
     // The Fn key has two interaction modes:
     //   1. Hold-to-dictate (legacy): press → record, release → transcribe.
-    //   2. Double-tap → hands-free: continuous listening until next Fn
-    //      press OR Escape.
+    //   2. Ctrl+Fn → hands-free: continuous listening until next Fn press
+    //      OR Escape.
     //
-    // Detection happens HERE (not in HotKeyListener) so we can coordinate
-    // with the recording pipeline — specifically, the "phantom" first-tap
-    // recording needs to be discarded when a double-tap promotes to
-    // hands-free, otherwise the user would see a useless transcription
-    // pop in.
+    // Chord detection happens in HotKeyListener, but the state transition
+    // stays here because this object owns the recording pipeline.
     //
     // State transitions:
-    //   .off → (Fn down + recent release was a short tap) → .on (hands-free)
+    //   .off → (Ctrl+Fn chord) → .on (hands-free)
     //   .on  → (Fn down OR Escape) → .off (stop & transcribe normally)
 
     private enum HandsFreeState: Equatable { case off, on }
     private var handsFreeState: HandsFreeState = .off
-    /// Absolute time the current Fn press began. Used to measure the
-    /// duration of the previous press when classifying a new press as
-    /// "second tap of a double-tap."
-    private var lastFnPressAt: TimeInterval = 0
-    /// Absolute time the most recent Fn release happened. The
-    /// double-tap window (~400ms) is measured from this.
-    private var lastFnReleaseAt: TimeInterval = 0
-    /// Duration of the previous Fn hold. Only counts as a "tap" (i.e.
-    /// double-tap eligible) when ≤ `tapMaxDuration`.
-    private var lastFnPressDuration: TimeInterval = 0
-
-    /// Set when the in-flight transcription pipeline should drop its
-    /// result instead of injecting + persisting. Used when the phantom
-    /// recording from the first tap of a double-tap needs to be
-    /// suppressed. Auto-clears in `handleResult`.
-    private var discardNextResult: Bool = false
-
-    /// Max press duration that counts as a "tap" for double-tap purposes.
-    /// Anything longer is a hold and we don't arm hands-free detection.
-    private let tapMaxDuration: TimeInterval = 0.25
-    /// Max time between first release and second press for the pair to
-    /// register as a double-tap. Matches macOS's default double-click
-    /// interval closely enough that the gesture feels native.
-    private let doubleTapWindow: TimeInterval = 0.4
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Regular activation: full app with Dock icon + proper window.
@@ -488,7 +461,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
         textInjector = TextInjector()
         noteStore.observeDictationRuns(from: runStore)
         // Suppression hook: fires after a successful transcript when it
-        // can't be injected directly (VoiceFlow foreground, no text input
+        // can't be injected directly (Vordi foreground, no text input
         // focused, etc.). The transcript is already on the clipboard, so
         // surface this as a clipboard fallback instead of a "no input"
         // transcription failure.
@@ -514,11 +487,14 @@ class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
         hotKeyListener?.onKeyUp = { [weak self] in
             self?.handleHotKeyUp()
         }
+        hotKeyListener?.onHandsFreeToggle = { [weak self] in
+            self?.handleHandsFreeToggle()
+        }
         hotKeyListener?.onEscape = { [weak self] in
             self?.handleEscapeKey()
         }
 
-        // Microphone is essential — request it on launch so VoiceFlow
+        // Microphone is essential — request it on launch so Vordi
         // appears in System Settings > Microphone immediately. This is a
         // single, expected prompt for a voice app. Delayed slightly so the
         // run loop is settled and the system prompt can render. We call
@@ -536,7 +512,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
         // Hot-reload: whenever any required permission flips from denied
         // to granted, re-attempt the hotkey listener start. This removes
         // the "quit and relaunch" step users currently have to do after
-        // manually dragging VoiceFlow into the Input Monitoring list.
+        // manually dragging Vordi into the Input Monitoring list.
         permissionService.onPermissionNewlyGranted = { [weak self] pane in
             print("Restarting hotkey listener after \(pane) grant")
             self?.startHotKeyListener()
@@ -596,12 +572,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
         // names when their buttons are tapped; AppDelegate is the
         // single place that knows how to open windows.
         NotificationCenter.default.addObserver(
-            forName: Notification.Name("VoiceFlow.OpenMainWindow"),
+            forName: Notification.Name("Vordi.OpenMainWindow"),
             object: nil,
             queue: .main
         ) { [weak self] _ in self?.openMainWindow() }
         NotificationCenter.default.addObserver(
-            forName: Notification.Name("VoiceFlow.OpenSettings"),
+            forName: Notification.Name("Vordi.OpenSettings"),
             object: nil,
             queue: .main
         ) { [weak self] _ in self?.openSettings() }
@@ -609,7 +585,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
         // step. We force-open even if the user has already completed
         // onboarding once, so they can re-walk the permissions flow.
         NotificationCenter.default.addObserver(
-            forName: Notification.Name("VoiceFlow.OpenOnboardingPermissions"),
+            forName: Notification.Name("Vordi.OpenOnboardingPermissions"),
             object: nil,
             queue: .main
         ) { [weak self] _ in
@@ -620,24 +596,33 @@ class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
         // tab-select notification on a tiny delay so window ordering
         // settles before SwiftUI observes the tab change.
         NotificationCenter.default.addObserver(
-            forName: Notification.Name("VoiceFlow.OpenRunLog"),
+            forName: Notification.Name("Vordi.OpenRunLog"),
             object: nil,
             queue: .main
         ) { [weak self] _ in
             self?.openMainWindow()
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
                 NotificationCenter.default.post(
-                    name: Notification.Name("VoiceFlow.SelectTab"),
+                    name: Notification.Name("Vordi.SelectTab"),
                     object: nil,
                     userInfo: ["tab": "runLog"]
                 )
             }
         }
+        NotificationCenter.default.addObserver(
+            forName: Notification.Name("Vordi.OpenFloatingNotes"),
+            object: nil,
+            queue: .main
+        ) { [weak self] notification in
+            let text = notification.userInfo?["text"] as? String
+            let noteID = notification.userInfo?["noteID"] as? String
+            self?.openFloatingNotesFromCommand(seedText: text, noteID: noteID)
+        }
         // "Re-run onboarding" — fired from Settings → Setup card. Forces
         // the wizard window open even though has_completed_onboarding is
         // already true, so users can revisit any step they need.
         NotificationCenter.default.addObserver(
-            forName: Notification.Name("VoiceFlow.RestartOnboarding"),
+            forName: Notification.Name("Vordi.RestartOnboarding"),
             object: nil,
             queue: .main
         ) { [weak self] _ in self?.openOnboardingIfNeeded(force: true) }
@@ -674,7 +659,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
         // contract for "transcript is on clipboard, paste now or lose it
         // back to your old content."
         NotificationCenter.default.addObserver(
-            forName: Notification.Name("VoiceFlow.DismissChipWarning"),
+            forName: Notification.Name("Vordi.DismissChipWarning"),
             object: nil,
             queue: .main
         ) { [weak self] _ in
@@ -683,7 +668,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
         }
         // Returning users: stay menu-bar only. Window is reachable via Dock
         // icon click (applicationShouldHandleReopen) or menu bar → Open
-        // VoiceFlow. Matches the behavior of Raycast, Rectangle, Alfred,
+        // Vordi. Matches the behavior of Raycast, Rectangle, Alfred,
         // etc. — no unsolicited window on every launch.
     }
 
@@ -754,7 +739,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
         UserDefaults.standard.set(true, forKey: polishDefaultMigrationKey)
         if let storedPolishBackend = UserDefaults.standard.string(forKey: PolishBackend.userDefaultsKey),
            PolishBackend.legacyGroqModelIds.contains(storedPolishBackend) {
-            print("VoiceFlow: migrating polish_backend_id '\(storedPolishBackend)' → '\(PolishBackend.defaultIdGroq)'")
+            print("Vordi: migrating polish_backend_id '\(storedPolishBackend)' → '\(PolishBackend.defaultIdGroq)'")
             UserDefaults.standard.set(PolishBackend.defaultIdGroq, forKey: PolishBackend.userDefaultsKey)
         }
         if UserDefaults.standard.object(forKey: "noise_gate_threshold") == nil {
@@ -814,7 +799,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
         //     granting Input Monitoring / Accessibility (the system needs
         //     us dead before the new permission takes effect).
         //   - Activity Monitor → Quit.
-        //   - AppleScript: `tell application "VoiceFlow" to quit`.
+        //   - AppleScript: `tell application "Vordi" to quit`.
         //   - shutdown / logout / reboot.
         // All of these are legitimate quits we should honor.
         //
@@ -1012,7 +997,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
             // initial setContentSize so our default is what shows on first
             // launch — `setFrameAutosaveName` only overrides if a saved
             // frame exists for this name in UserDefaults.
-            mainWindow?.setFrameAutosaveName("VoiceFlowMainWindow")
+            mainWindow?.setFrameAutosaveName("VordiMainWindow")
 
             mainWindow?.isReleasedWhenClosed = false
         }
@@ -1030,6 +1015,25 @@ class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
         }
         notesWindow?.show()
     }
+
+    private func openFloatingNotesFromCommand(seedText: String?, noteID: String?) {
+        let trimmedSeedText = seedText?.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        if
+            let noteID,
+            let uuid = UUID(uuidString: noteID),
+            let note = noteStore.notes.first(where: { $0.id == uuid })
+        {
+            noteStore.select(note)
+        } else if trimmedSeedText?.isEmpty == false {
+            noteStore.startDraft()
+        }
+
+        if let trimmedSeedText, !trimmedSeedText.isEmpty {
+            noteStore.appendTranscriptToActiveNote(trimmedSeedText)
+        }
+        openFloatingNotesWindow(hideMainWindow: true)
+    }
     
     /// Open the main window and present the Settings modal.
     ///
@@ -1043,7 +1047,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
         // with the window's first render.
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
             NotificationCenter.default.post(
-                name: Notification.Name("VoiceFlow.SelectTab"),
+                name: Notification.Name("Vordi.SelectTab"),
                 object: nil,
                 userInfo: ["tab": "settings"]
             )
@@ -1141,92 +1145,58 @@ class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
     }
 
     private func handleHotKeyDown() {
-        let now = Date().timeIntervalSinceReferenceDate
-
         // If we're already in hands-free mode, this press is the
         // "exit" gesture. Stop the recording and let it transcribe
         // normally — same path as a manual hold-release.
         if handsFreeState == .on {
-            handsFreeState = .off
-            activeFeedbackSurface()?.setHandsFreeExitedAnimating()
-            if isRecording {
-                isRecording = false
-                stopRecording()
-            }
-            return
-        }
-
-        // Detect double-tap: a second press within `doubleTapWindow` of
-        // the previous release, where the previous press was short
-        // enough to count as a tap (not a hold).
-        //
-        // We're called on the SECOND press. At this moment:
-        //   - The first press's handleHotKeyUp already fired
-        //     stopRecording (transcription pipeline in flight).
-        //   - We mark `discardNextResult` so that in-flight result
-        //     gets dropped instead of injected.
-        //   - We enter hands-free mode and start a fresh recording.
-        let gap = now - lastFnReleaseAt
-        let prevWasTap = lastFnPressDuration > 0 && lastFnPressDuration <= tapMaxDuration
-        if prevWasTap && gap <= doubleTapWindow {
-            print("Fn double-tap detected → entering hands-free mode")
-            handsFreeState = .on
-            discardNextResult = true
-            // Reset bookkeeping so a third tap doesn't re-trigger.
-            lastFnPressDuration = 0
-            lastFnReleaseAt = 0
-
-            // If the previous (phantom) recording is still mid-pipeline,
-            // we just let it finish and discard via `discardNextResult`.
-            // Start a fresh recording for hands-free. The guard on
-            // `isRecording` is for safety — by now AppDelegate has
-            // already set isRecording=false in handleHotKeyUp.
-            if !isRecording {
-                isRecording = true
-                activeFeedbackSurface()?.setHandsFree()
-                startRecording()
-            } else {
-                // Edge: pipeline lingered. Just push the chip into
-                // hands-free state; isRecording is already true.
-                activeFeedbackSurface()?.setHandsFree()
-            }
-            lastFnPressAt = now
+            exitHandsFree(reason: "Fn pressed")
             return
         }
 
         // Normal press path — start hold-record.
-        lastFnPressAt = now
         guard !isRecording else { return }
         isRecording = true
         startRecording()
     }
 
     private func handleHotKeyUp() {
-        let now = Date().timeIntervalSinceReferenceDate
-
         // In hands-free mode, key-up events are no-ops. We exit only
         // on the next key-down or Escape, NOT on release.
         if handsFreeState == .on {
             return
         }
 
-        // Bookkeeping for double-tap detection on the next press.
-        let pressDuration = now - lastFnPressAt
-        lastFnPressDuration = pressDuration
-        lastFnReleaseAt = now
-
         guard isRecording else { return }
         isRecording = false
         stopRecording()
     }
 
+    private func handleHandsFreeToggle() {
+        if handsFreeState == .on {
+            exitHandsFree(reason: "Fn+Control pressed")
+            return
+        }
+
+        print("Fn+Control pressed → entering hands-free mode")
+        handsFreeState = .on
+        activeFeedbackSurface()?.setHandsFree()
+        guard !isRecording else { return }
+        isRecording = true
+        startRecording()
+    }
+
     /// Escape — used to exit hands-free mode without requiring a second
-    /// Fn double-tap. No-op otherwise (the regular Escape key behavior
+    /// Fn press. No-op otherwise (the regular Escape key behavior
     /// in other apps is unaffected because HotKeyListener doesn't
     /// consume the event).
     private func handleEscapeKey() {
         guard handsFreeState == .on else { return }
-        print("Escape pressed → exiting hands-free mode")
+        exitHandsFree(reason: "Escape pressed")
+    }
+
+    private func exitHandsFree(reason: String) {
+        guard handsFreeState == .on else { return }
+        print("\(reason) → exiting hands-free mode")
         handsFreeState = .off
         activeFeedbackSurface()?.setHandsFreeExitedAnimating()
         if isRecording {
@@ -1413,19 +1383,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
                         self.realtimeStream = nil
                         self.realtimeStreamFailed = false
 
-                        // Phantom first-tap of a double-tap. Don't show
-                        // a "no audio" warning — the user knows what they
-                        // did and showing a warning chip here would
-                        // immediately get squashed by the hands-free
-                        // chip state on the very next frame, causing a
-                        // flicker.
-                        if self.discardNextResult {
-                            self.discardNextResult = false
-                            self.pendingContextSummaryTask?.cancel()
-                            self.pendingContextSummaryTask = nil
-                            return
-                        }
-
                         self.pendingContext = nil
                         self.pendingContextSummaryTask?.cancel()
                         self.pendingContextSummaryTask = nil
@@ -1478,27 +1435,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
                 let handleResult: (Result<TranscriptionMetadata, Error>) -> Void = { [weak self] result in
                     DispatchQueue.main.async {
                         guard let self = self else { return }
-
-                        // Hands-free first-tap discard. When the user
-                        // double-tapped Fn, the FIRST tap fired a normal
-                        // record→stop cycle. That phantom recording's
-                        // pipeline is hitting us right now. Drop it on
-                        // the floor — injecting a half-second snippet
-                        // mid-hands-free would be jarring.
-                        //
-                        // NB: we don't tear down the run-log session
-                        // here. fail()'ing the session would clutter
-                        // the run log with discarded phantoms; instead
-                        // we just don't `attachResult` and let the
-                        // session expire naturally without an entry.
-                        if self.discardNextResult {
-                            self.discardNextResult = false
-                            print("Discarding phantom first-tap result (hands-free entered)")
-                            // Don't call hideRecordingFeedback — chip is
-                            // already in .handsFree state, owned by the
-                            // new recording cycle.
-                            return
-                        }
 
                         self.hideRecordingFeedback()
                         switch result {

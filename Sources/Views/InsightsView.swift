@@ -128,7 +128,7 @@ struct InsightsView: View {
 
     private func copyInsightsSummary() {
         let summary = """
-        Verba Insights
+        Vordi Insights
         WPM: \(stats.averageWPM > 0 ? "\(stats.averageWPM)" : "—")
         Runs: \(stats.totalRuns)
         Words: \(stats.totalWords.formatted())

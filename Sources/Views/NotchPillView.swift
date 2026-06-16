@@ -3,6 +3,9 @@ import SwiftUI
 struct NotchPillView: View {
     @ObservedObject var model: NotchPillModel
     @ObservedObject private var runStore = RunStore.shared
+    @ObservedObject private var noteStore = VoiceNoteStore.shared
+    @State private var modeSlideForward = true
+    @State private var memoryCounts: (items: Int, entities: Int)?
 
     private let lanePadding: CGFloat = 10
     private let statusTrailingPadding: CGFloat = 18
@@ -18,8 +21,23 @@ struct NotchPillView: View {
     private let expandedPanelHeight = NotchPillScreenGeometry.expandedPanelHeight
     private let listeningPanelHeight = NotchPillScreenGeometry.listeningPanelHeight
     private let errorPanelHeight = NotchPillScreenGeometry.errorPanelHeight
-    private let morphAnimation = Animation.timingCurve(0.16, 1.0, 0.30, 1.0, duration: 0.20)
-    private let panelContentAnimation = Animation.easeOut(duration: 0.12).delay(0.04)
+    // Single interactive spring drives the whole morph — size, corner radii,
+    // and content together — exactly like the comparison island. No separate
+    // window-frame animation fights it, so corners stay rounded throughout.
+    private var morphAnimation: Animation {
+        NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+            ? .easeOut(duration: 0.16)
+            : .spring(response: 0.50, dampingFraction: 0.82)
+    }
+    private var stateMorphAnimation: Animation {
+        isEnteringListeningFeedback ? listeningFeedbackAnimation : morphAnimation
+    }
+    private var listeningFeedbackAnimation: Animation {
+        NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+            ? .easeOut(duration: 0.10)
+            : .spring(response: 0.22, dampingFraction: 0.86)
+    }
+    private let panelContentAnimation = Animation.easeOut(duration: 0.22).delay(0.06)
 
     private var backgroundSideExpansion: CGFloat {
         NotchPillScreenGeometry.backgroundSideExpansion(
@@ -68,7 +86,7 @@ struct NotchPillView: View {
     private var expandedPanelHeightValue: CGFloat {
         switch model.state {
         case .panelHover:
-            return expandedPanelHeight
+            return model.activePanelMode.panelHeight
         case .panelTranscript:
             return listeningPanelHeight
         case .panelError:
@@ -86,7 +104,8 @@ struct NotchPillView: View {
             Spacer(minLength: 0)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        .animation(morphAnimation, value: model.state)
+        .animation(stateMorphAnimation, value: model.state)
+        .animation(morphAnimation, value: model.activePanelMode)
         .animation(morphAnimation, value: showsInlineTranscript)
     }
 
@@ -155,7 +174,18 @@ struct NotchPillView: View {
         .overlay(alignment: .bottom) {
             glowStrip
         }
+        // Clip the whole surface to the morphing shape so panel content is
+        // revealed by the growing pill instead of floating outside it.
+        .clipShape(notchShape)
         .contentShape(notchShape)
+        .onContinuousHover { phase in
+            switch phase {
+            case .active:
+                model.onHoverChanged?(true)
+            case .ended:
+                model.onHoverChanged?(false)
+            }
+        }
     }
 
     @ViewBuilder
@@ -232,9 +262,117 @@ struct NotchPillView: View {
         VStack(spacing: 0) {
             panelHeader
 
-            latestLogsList
+            Group {
+                switch model.activePanelMode {
+                case .transcriptions:
+                    VStack(spacing: 0) {
+                        latestTranscriptionsList
+                        panelFeatureRow
+                    }
+                case .notes:
+                    notesModeContent
+                case .memory:
+                    memoryModeContent
+                case .stats:
+                    statsModeContent
+                }
+            }
+            // Inset the sliding content so the mode chevrons live in their own
+            // side gutters instead of overlapping the rows.
+            .padding(.horizontal, chevronGutterWidth)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+            .transition(modeSlideTransition)
+        }
+        .clipped()
+        .overlay(modeChevrons)
+        .background(
+            NotchTrackpadSwipeOverlay(enabled: isPanelHoverOpen) { direction in
+                cyclePanelMode(forward: direction == .left)
+            }
+        )
+        .simultaneousGesture(
+            DragGesture(minimumDistance: 20)
+                .onEnded { value in
+                    guard abs(value.translation.width) > abs(value.translation.height) else { return }
+                    cyclePanelMode(forward: value.translation.width < 0)
+                }
+        )
+    }
 
-            panelFeatureRow
+    private var isPanelHoverOpen: Bool {
+        if case .panelHover = model.state { return true }
+        return false
+    }
+
+    private var modeSlideTransition: AnyTransition {
+        .asymmetric(
+            insertion: .move(edge: modeSlideForward ? .trailing : .leading).combined(with: .opacity),
+            removal: .move(edge: modeSlideForward ? .leading : .trailing).combined(with: .opacity)
+        )
+    }
+
+    private func cyclePanelMode(forward: Bool) {
+        guard isPanelHoverOpen else { return }
+        modeSlideForward = forward
+        withAnimation(morphAnimation) {
+            model.activePanelMode = forward ? model.activePanelMode.next : model.activePanelMode.previous
+        }
+    }
+
+    private func selectPanelMode(_ mode: NotchPanelMode) {
+        guard mode != model.activePanelMode else { return }
+        let all = NotchPanelMode.allCases
+        let from = all.firstIndex(of: model.activePanelMode) ?? 0
+        let to = all.firstIndex(of: mode) ?? 0
+        modeSlideForward = to > from
+        withAnimation(morphAnimation) {
+            model.activePanelMode = mode
+        }
+    }
+
+    // Width reserved on each side of the panel for the mode chevrons:
+    // 4pt margin + 18pt button + 4pt gap to the content.
+    private var chevronGutterWidth: CGFloat { 26 }
+
+    private var modeChevrons: some View {
+        HStack {
+            modeChevronButton(forward: false)
+            Spacer(minLength: 0)
+            modeChevronButton(forward: true)
+        }
+        .padding(.horizontal, 4)
+        .padding(.top, 32)
+    }
+
+    private func modeChevronButton(forward: Bool) -> some View {
+        Button {
+            cyclePanelMode(forward: forward)
+        } label: {
+            Image(systemName: forward ? "chevron.right" : "chevron.left")
+                .font(.system(size: 8, weight: .bold))
+                .frame(width: 18, height: 18)
+        }
+        .buttonStyle(NotchPanelCircleButtonStyle())
+        .vfClickableCursor()
+        .help(forward ? "Next" : "Previous")
+    }
+
+    private var modePageDots: some View {
+        HStack(spacing: 4) {
+            ForEach(NotchPanelMode.allCases, id: \.self) { mode in
+                Button {
+                    selectPanelMode(mode)
+                } label: {
+                    Circle()
+                        .fill(NotchPillPalette.mark.opacity(mode == model.activePanelMode ? 0.66 : 0.16))
+                        .frame(width: 4, height: 4)
+                        .padding(2)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .vfClickableCursor()
+                .help(mode.title)
+            }
         }
     }
 
@@ -443,10 +581,15 @@ struct NotchPillView: View {
 
     private var panelHeader: some View {
         HStack(spacing: 8) {
-            Text("Latest logs")
+            Text(model.activePanelMode.title)
                 .font(.system(size: 10, weight: .semibold))
                 .foregroundColor(NotchPillPalette.mark.opacity(0.34))
                 .textCase(.uppercase)
+                .lineLimit(1)
+                .id("panelTitle-\(model.activePanelMode.rawValue)")
+                .transition(.opacity)
+
+            modePageDots
 
             Spacer(minLength: 0)
 
@@ -477,26 +620,26 @@ struct NotchPillView: View {
         .frame(height: 32)
     }
 
-    private var latestLogsList: some View {
+    private var latestTranscriptionsList: some View {
         VStack(spacing: 3) {
             let summaries = Array(runStore.summaries.prefix(3))
             if summaries.isEmpty {
-                emptyLogRow
+                emptyTranscriptionRow
             } else {
                 ForEach(summaries) { summary in
-                    latestLogRow(summary)
+                    latestTranscriptionRow(summary)
                 }
             }
         }
         .padding(.horizontal, 8)
     }
 
-    private var emptyLogRow: some View {
+    private var emptyTranscriptionRow: some View {
         HStack(spacing: 8) {
             VFBrandLogo(size: 15, variant: .dark, cornerRadius: 4)
                 .opacity(0.72)
 
-            Text("No runs yet")
+            Text("No transcriptions yet")
                 .font(.system(size: 11, weight: .regular))
                 .foregroundColor(NotchPillPalette.mark.opacity(0.46))
 
@@ -507,7 +650,7 @@ struct NotchPillView: View {
         .background(NotchPanelRowBackground())
     }
 
-    private func latestLogRow(_ summary: RunSummary) -> some View {
+    private func latestTranscriptionRow(_ summary: RunSummary) -> some View {
         Button {
             openRunLog()
         } label: {
@@ -517,7 +660,7 @@ struct NotchPillView: View {
                     .foregroundColor(color(for: summary.status))
                     .frame(width: 15)
 
-                Text(logPreview(for: summary))
+                Text(transcriptionPreview(for: summary))
                     .font(.system(size: 11, weight: .regular))
                     .foregroundColor(NotchPillPalette.mark.opacity(0.66))
                     .lineLimit(1)
@@ -541,11 +684,203 @@ struct NotchPillView: View {
     private var panelFeatureRow: some View {
         HStack(spacing: 6) {
             featureButton(title: "Memory", icon: "circle.grid.cross", tab: "memory")
+            notesFeatureButton
             featureButton(title: "Magic Words", icon: "wand.and.stars", tab: "magicWords")
-            featureButton(title: "Logs", icon: "list.bullet.rectangle", tab: "runLog")
         }
         .padding(.horizontal, 8)
         .padding(.top, 8)
+    }
+
+    // MARK: - Panel modes
+
+    private var notesModeContent: some View {
+        VStack(spacing: 3) {
+            let notes = Array(noteStore.notes.prefix(3))
+            if notes.isEmpty {
+                emptyModeRow(icon: "note.text", text: "No notes yet")
+            } else {
+                ForEach(notes) { note in
+                    noteRow(note)
+                }
+            }
+
+            Button {
+                openNotes()
+            } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: "plus")
+                        .font(.system(size: 9, weight: .semibold))
+                    Text("New note")
+                        .font(.system(size: 10.5, weight: .medium))
+                    Spacer(minLength: 0)
+                }
+                .padding(.horizontal, 8)
+                .frame(height: 25)
+                .background(NotchPanelRowBackground())
+            }
+            .buttonStyle(.plain)
+            .vfClickableCursor()
+        }
+        .padding(.horizontal, 8)
+    }
+
+    private func noteRow(_ note: VoiceNote) -> some View {
+        Button {
+            openNotes()
+        } label: {
+            HStack(spacing: 8) {
+                Image(systemName: "note.text")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundColor(NotchPillPalette.mark.opacity(0.40))
+                    .frame(width: 15)
+
+                Text(notePreview(for: note))
+                    .font(.system(size: 11, weight: .regular))
+                    .foregroundColor(NotchPillPalette.mark.opacity(0.66))
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+
+                Spacer(minLength: 4)
+
+                Text(relativeTime(for: note.updatedAt))
+                    .font(.system(size: 9, weight: .medium))
+                    .foregroundColor(NotchPillPalette.mark.opacity(0.28))
+                    .lineLimit(1)
+            }
+            .frame(height: 25)
+            .padding(.horizontal, 8)
+            .background(NotchPanelRowBackground())
+        }
+        .buttonStyle(.plain)
+        .vfClickableCursor()
+    }
+
+    private func notePreview(for note: VoiceNote) -> String {
+        let title = note.title.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !title.isEmpty { return title }
+        let text = note.plainText.trimmingCharacters(in: .whitespacesAndNewlines)
+        return text.isEmpty ? "(untitled)" : text
+    }
+
+    private var memoryModeContent: some View {
+        VStack(spacing: 6) {
+            HStack(spacing: 6) {
+                modeStatTile(
+                    value: memoryCounts.map { "\($0.items)" } ?? "—",
+                    label: "Memories"
+                )
+                modeStatTile(
+                    value: memoryCounts.map { "\($0.entities)" } ?? "—",
+                    label: "Entities"
+                )
+            }
+
+            Button {
+                openDashboardTab("memory")
+            } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: "circle.grid.cross")
+                        .font(.system(size: 9, weight: .semibold))
+                    Text("Open knowledge graph")
+                        .font(.system(size: 10.5, weight: .medium))
+                    Spacer(minLength: 0)
+                    Image(systemName: "arrow.right")
+                        .font(.system(size: 8.5, weight: .semibold))
+                        .foregroundColor(NotchPillPalette.mark.opacity(0.30))
+                }
+                .padding(.horizontal, 8)
+                .frame(height: 25)
+                .background(NotchPanelRowBackground())
+            }
+            .buttonStyle(.plain)
+            .vfClickableCursor()
+        }
+        .padding(.horizontal, 8)
+        .padding(.top, 4)
+        .onAppear(perform: loadMemoryCounts)
+    }
+
+    private func loadMemoryCounts() {
+        let items = MemoryStore.shared.itemCount(includeAgentContext: false)
+        let entities = MemoryStore.shared.entityCount()
+        memoryCounts = (items: items, entities: entities)
+    }
+
+    private var statsModeContent: some View {
+        let stats = runStatsSummary
+
+        return HStack(spacing: 6) {
+            modeStatTile(value: "\(stats.today)", label: "Runs today")
+            modeStatTile(value: "\(stats.total)", label: "Total runs")
+            modeStatTile(value: stats.total == 0 ? "—" : "\(stats.successPct)%", label: "Success")
+        }
+        .padding(.horizontal, 8)
+        .padding(.top, 4)
+    }
+
+    private var runStatsSummary: (today: Int, total: Int, successPct: Int) {
+        let summaries = runStore.summaries
+        let today = summaries.filter { Calendar.current.isDateInToday($0.createdAt) }.count
+        let success = summaries.filter { $0.status == .success }.count
+        let pct = summaries.isEmpty
+            ? 0
+            : Int((Double(success) / Double(summaries.count) * 100).rounded())
+        return (today, summaries.count, pct)
+    }
+
+    private func modeStatTile(value: String, label: String) -> some View {
+        VStack(spacing: 3) {
+            Text(value)
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundColor(NotchPillPalette.mark.opacity(0.84))
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+
+            Text(label)
+                .font(.system(size: 9, weight: .medium))
+                .foregroundColor(NotchPillPalette.mark.opacity(0.36))
+                .lineLimit(1)
+        }
+        .frame(maxWidth: .infinity)
+        .frame(height: 48)
+        .background(NotchPanelRowBackground())
+    }
+
+    private func emptyModeRow(icon: String, text: String) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: icon)
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundColor(NotchPillPalette.mark.opacity(0.36))
+                .frame(width: 15)
+
+            Text(text)
+                .font(.system(size: 11, weight: .regular))
+                .foregroundColor(NotchPillPalette.mark.opacity(0.46))
+
+            Spacer(minLength: 0)
+        }
+        .frame(height: 25)
+        .padding(.horizontal, 8)
+        .background(NotchPanelRowBackground())
+    }
+
+    private var notesFeatureButton: some View {
+        Button {
+            openNotes()
+        } label: {
+            VStack(spacing: 4) {
+                Image(systemName: "note.text")
+                    .font(.system(size: 12, weight: .semibold))
+                Text("Notes")
+                    .font(.system(size: 9.5, weight: .medium))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.82)
+            }
+            .frame(maxWidth: .infinity)
+            .frame(height: 37)
+        }
+        .buttonStyle(NotchPanelFeatureButtonStyle())
+        .vfClickableCursor()
     }
 
     private func featureButton(title: String, icon: String, tab: String) -> some View {
@@ -657,6 +992,14 @@ struct NotchPillView: View {
         switch model.state {
         case .idle, .proximity:
             return defaultPillWidth
+        case .panelHover, .panelTranscript, .panelError:
+            return min(
+                canvasWidth,
+                contentDerivedPillWidth(
+                    label: statusLabel,
+                    rightContentWidth: rightContentWidth
+                ) + NotchPillScreenGeometry.openPanelWidthExpansion
+            )
         default:
             return contentDerivedPillWidth(
                 label: statusLabel,
@@ -711,6 +1054,15 @@ struct NotchPillView: View {
         return false
     }
 
+    private var isEnteringListeningFeedback: Bool {
+        switch model.state {
+        case .listening, .panelTranscript:
+            return true
+        default:
+            return false
+        }
+    }
+
     private var inlineTranscriptText: String {
         model.liveTranscript.trimmingCharacters(in: .whitespacesAndNewlines)
     }
@@ -719,7 +1071,7 @@ struct NotchPillView: View {
         if isExternalCompactResting {
             return rowHeight / 2
         }
-        return max(bottomCornerRadius - 4, 0)
+        return max((bottomCornerRadius - 4) * 1.2, 0)
     }
 
     private var bottomCornerRadius: CGFloat {
@@ -887,7 +1239,7 @@ struct NotchPillView: View {
         case .idle where !model.hasAllPermissions,
              .proximity where !model.hasAllPermissions,
              .panelHover where !model.hasAllPermissions:
-            NotificationCenter.default.post(name: Notification.Name("VoiceFlow.OpenOnboardingPermissions"), object: nil)
+            NotificationCenter.default.post(name: Notification.Name("Vordi.OpenOnboardingPermissions"), object: nil)
         case .errorMini(let message):
             routeErrorTap(message)
         case .panelError(let title, _, _):
@@ -899,7 +1251,15 @@ struct NotchPillView: View {
         }
     }
 
-    private func logPreview(for summary: RunSummary) -> String {
+    private func relativeTime(for date: Date) -> String {
+        let seconds = max(0, Int(Date().timeIntervalSince(date)))
+        if seconds < 60 { return "now" }
+        if seconds < 3_600 { return "\(seconds / 60)m" }
+        if seconds < 86_400 { return "\(seconds / 3_600)h" }
+        return "\(seconds / 86_400)d"
+    }
+
+    private func transcriptionPreview(for summary: RunSummary) -> String {
         let text = summary.previewText.trimmingCharacters(in: .whitespacesAndNewlines)
         return text.isEmpty ? "(no transcript)" : text
     }
@@ -926,22 +1286,21 @@ struct NotchPillView: View {
         }
     }
 
-    private func relativeTime(for date: Date) -> String {
-        let seconds = max(0, Int(Date().timeIntervalSince(date)))
-        if seconds < 60 { return "now" }
-        if seconds < 3_600 { return "\(seconds / 60)m" }
-        if seconds < 86_400 { return "\(seconds / 3_600)h" }
-        return "\(seconds / 86_400)d"
+    private func openSettings() {
+        NotificationCenter.default.post(name: Notification.Name("Vordi.OpenSettings"), object: nil)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) {
+            model.state = .idle
+        }
     }
 
-    private func openSettings() {
+    private func openNotes() {
         model.state = .idle
-        NotificationCenter.default.post(name: Notification.Name("VoiceFlow.OpenSettings"), object: nil)
+        NotificationCenter.default.post(name: Notification.Name("Vordi.OpenFloatingNotes"), object: nil)
     }
 
     private func openRunLog() {
         model.state = .idle
-        NotificationCenter.default.post(name: Notification.Name("VoiceFlow.OpenRunLog"), object: nil)
+        NotificationCenter.default.post(name: Notification.Name("Vordi.OpenRunLog"), object: nil)
     }
 
     private func closePanel() {
@@ -963,15 +1322,15 @@ struct NotchPillView: View {
 
     private func openRunLogFromError() {
         model.state = .idle
-        NotificationCenter.default.post(name: Notification.Name("VoiceFlow.OpenRunLog"), object: nil)
+        NotificationCenter.default.post(name: Notification.Name("Vordi.OpenRunLog"), object: nil)
     }
 
     private func openDashboardTab(_ tab: String) {
         model.state = .idle
-        NotificationCenter.default.post(name: Notification.Name("VoiceFlow.OpenMainWindow"), object: nil)
+        NotificationCenter.default.post(name: Notification.Name("Vordi.OpenMainWindow"), object: nil)
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
             NotificationCenter.default.post(
-                name: Notification.Name("VoiceFlow.SelectTab"),
+                name: Notification.Name("Vordi.SelectTab"),
                 object: nil,
                 userInfo: ["tab": tab]
             )
@@ -1025,11 +1384,11 @@ struct NotchPillView: View {
         if lower.contains("clipboard") || lower.contains("copied") {
             model.state = .idle
         } else if lower.contains("permission") || lower.contains("microphone") {
-            NotificationCenter.default.post(name: Notification.Name("VoiceFlow.OpenOnboardingPermissions"), object: nil)
+            NotificationCenter.default.post(name: Notification.Name("Vordi.OpenOnboardingPermissions"), object: nil)
         } else if lower.contains("audio") || lower.contains("input") {
-            NotificationCenter.default.post(name: Notification.Name("VoiceFlow.OpenSettings"), object: nil)
+            NotificationCenter.default.post(name: Notification.Name("Vordi.OpenSettings"), object: nil)
         } else {
-            NotificationCenter.default.post(name: Notification.Name("VoiceFlow.OpenRunLog"), object: nil)
+            NotificationCenter.default.post(name: Notification.Name("Vordi.OpenRunLog"), object: nil)
         }
     }
 }

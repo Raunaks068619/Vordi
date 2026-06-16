@@ -76,7 +76,7 @@ final class GitHubMetadataCache: ObservableObject {
 
     // Public repo — safe to hardcode.
     static let repoOwner = "Raunaks068619"
-    static let repoName = "Verba"
+    static let repoName = "Vordi"
     static let repoHTMLURL = URL(string: "https://github.com/\(repoOwner)/\(repoName)")!
 
     @Published private(set) var starCount: Int?
@@ -141,7 +141,7 @@ final class GitHubMetadataCache: ObservableObject {
         let url = URL(string: "https://api.github.com/repos/\(Self.repoOwner)/\(Self.repoName)")!
         var req = URLRequest(url: url)
         req.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
-        req.setValue("VoiceFlow-macOS", forHTTPHeaderField: "User-Agent")
+        req.setValue("Vordi-macOS", forHTTPHeaderField: "User-Agent")
         do {
             let (data, resp) = try await session.data(for: req)
             guard let http = resp as? HTTPURLResponse, http.statusCode == 200 else { return nil }
@@ -165,7 +165,7 @@ final class GitHubMetadataCache: ObservableObject {
         let firstURL = URL(string: "\(base)?per_page=100")!
         var req = URLRequest(url: firstURL)
         req.setValue("application/vnd.github.v3.star+json", forHTTPHeaderField: "Accept")
-        req.setValue("VoiceFlow-macOS", forHTTPHeaderField: "User-Agent")
+        req.setValue("Vordi-macOS", forHTTPHeaderField: "User-Agent")
         do {
             let (data, resp) = try await session.data(for: req)
             guard let http = resp as? HTTPURLResponse, http.statusCode == 200 else { return nil }
@@ -179,7 +179,7 @@ final class GitHubMetadataCache: ObservableObject {
                lastURL != firstURL {
                 var lastReq = URLRequest(url: lastURL)
                 lastReq.setValue("application/vnd.github.v3.star+json", forHTTPHeaderField: "Accept")
-                lastReq.setValue("VoiceFlow-macOS", forHTTPHeaderField: "User-Agent")
+                lastReq.setValue("Vordi-macOS", forHTTPHeaderField: "User-Agent")
                 let (lastData, lastResp) = try await session.data(for: lastReq)
                 guard let lastHttp = lastResp as? HTTPURLResponse, lastHttp.statusCode == 200 else {
                     return Array(firstPage.suffix(12).reversed())

@@ -64,7 +64,7 @@ struct TransformerInput {
     let style: TranscriptOutputStyle
     /// Mode hint (dictation vs. rewrite) — profiles MAY ignore.
     let mode: TranscriptProcessingMode
-    /// Used to detect & strip trigger prefix words like "voiceflow create".
+    /// Used to detect & strip trigger prefix words like "vordi create".
     /// Profiles often call this on `rawTranscript` before LLM calls.
     var triggerStripped: String {
         TriggerWords.strip(rawTranscript)
@@ -121,7 +121,7 @@ struct TransformerOutput {
 // MARK: - Trigger words
 
 /// Centralized phrase detection. Whisper's transcription of these triggers
-/// is fuzzy ("verba create", "verbal create") — match generously.
+/// is fuzzy ("vordi create", "wordy create") — match generously.
 ///
 /// **Intent**: detect whether a transcript is a command-style invocation
 /// vs. ordinary dictation. False positives steal the user's transcript;
@@ -131,28 +131,22 @@ enum TriggerWords {
     /// Single source of truth for every dev-mode trigger phrase. Order matters:
     /// we strip the LONGEST matching prefix first.
     static let devCreatePrefixes: [String] = [
-        "verba create",
-        "verbal create",
-        "voiceflow create",
-        "voice flow create",
+        "vordi create",
+        "wordy create",
         "wideflow create",
         "wide flow create",
         "vf create",
     ]
 
     static let promptEngineerPrefixes: [String] = [
-        "verba prompt",
-        "verbal prompt",
-        "voiceflow prompt",
-        "voice flow prompt",
+        "vordi prompt",
+        "wordy prompt",
         "vf prompt",
     ]
 
     static let rewritePrefixes: [String] = [
-        "verba rewrite",
-        "verbal rewrite",
-        "voiceflow rewrite",
-        "voice flow rewrite",
+        "vordi rewrite",
+        "wordy rewrite",
         "vf rewrite",
     ]
 
@@ -175,7 +169,7 @@ enum TriggerWords {
     /// Strip the longest matching trigger prefix and return the remainder.
     /// If no trigger matches, returns the input verbatim.
     ///
-    /// e.g. "verba create insert mock rows" → "insert mock rows"
+    /// e.g. "vordi create insert mock rows" → "insert mock rows"
     static func strip(_ transcript: String) -> String {
         let allPrefixes = devCreatePrefixes + promptEngineerPrefixes + rewritePrefixes
         // Sort by length DESC so the longest trigger wins.

@@ -1,7 +1,7 @@
 import Foundation
 import Combine
 
-/// AI-inferred classification of how the user uses VoiceFlow. Drives the
+/// AI-inferred classification of how the user uses Vordi. Drives the
 /// "Your User Type" card on the Insights tab.
 ///
 /// Gating: the card is locked until the user has ≥`minEligibleRuns`
@@ -224,7 +224,7 @@ final class UserTypeClassifier: ObservableObject {
     private var storeURL: URL {
         let appSupport = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
         return appSupport
-            .appendingPathComponent("VoiceFlow", isDirectory: true)
+            .appendingPathComponent("Vordi", isDirectory: true)
             .appendingPathComponent("user_type.json")
     }
 

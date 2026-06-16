@@ -1,0 +1,1003 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Vordi Dynamic Island Replica</title>
+<style>
+*,*::before,*::after{box-sizing:border-box}
+html,body{width:100%;height:100%;margin:0}
+body{
+  overflow:hidden;
+  background:
+    radial-gradient(circle at 97% 45%,oklch(43% .15 235/.42),transparent 12rem),
+    radial-gradient(circle at 14% 82%,oklch(28% .08 266/.24),transparent 16rem),
+    oklch(4.6% .006 260);
+  color:oklch(90% .006 260);
+  font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","SF Pro Text",system-ui,sans-serif;
+  -webkit-font-smoothing:antialiased;
+}
+button{font:inherit}
+:root{
+  --island:oklch(1.2% .004 260);
+  --mark:oklch(86% .006 260);
+  --faint:oklch(100% 0 0/.08);
+  --blue:oklch(64% .22 250);
+  --cyan:oklch(82% .16 210);
+  --violet:oklch(62% .25 300);
+  --magenta:oklch(68% .26 335);
+  --success:oklch(72% .18 150);
+  --warning:oklch(76% .15 72);
+  --row-height:68px;
+  --island-width:496px;
+  --island-height:68px;
+  --radius:23px;
+  --morph:cubic-bezier(.19,1,.22,1);
+  --snap:cubic-bezier(.16,1,.3,1);
+}
+.stage{
+  position:relative;
+  width:100%;
+  height:100%;
+  min-height:430px;
+  overflow:hidden;
+}
+.stage::before{
+  content:"";
+  position:absolute;
+  inset:0;
+  background:
+    linear-gradient(oklch(100% 0 0/.035) 0 1px,transparent 1px 100%),
+    linear-gradient(90deg,oklch(100% 0 0/.025) 0 1px,transparent 1px 100%);
+  background-size:60px 60px;
+  opacity:.18;
+  transform:translateY(68px);
+  pointer-events:none;
+}
+.hover-zone{
+  position:absolute;
+  top:0;
+  left:50%;
+  width:min(820px,100vw);
+  height:420px;
+  transform:translateX(-50%);
+  z-index:10;
+}
+.dynamic-island{
+  position:absolute;
+  top:0;
+  left:50%;
+  width:min(var(--island-width),calc(100vw - 6px));
+  height:var(--island-height);
+  transform:translateX(-50%);
+  background:var(--island);
+  border-radius:0 0 var(--radius) var(--radius);
+  overflow:hidden;
+  z-index:40;
+  box-shadow:
+    0 1px 0 oklch(100% 0 0/.045) inset,
+    0 18px 54px oklch(0% 0 0/.42);
+  transition:
+    width .5s var(--morph),
+    height .5s var(--morph),
+    border-radius .42s var(--morph),
+    box-shadow .32s ease;
+  will-change:width,height;
+}
+.dynamic-island[data-state="listening"]{
+  transition:
+    width .22s var(--snap),
+    height .28s var(--snap),
+    border-radius .18s ease;
+}
+.dynamic-island[data-state="panel"]{
+  --radius:26px;
+}
+.dynamic-island::after{
+  content:"";
+  position:absolute;
+  right:-4px;
+  bottom:-18px;
+  width:156px;
+  height:106px;
+  opacity:.18;
+  filter:blur(18px);
+  background:radial-gradient(circle,var(--blue),transparent 68%);
+  pointer-events:none;
+  transition:opacity .28s ease,background .28s ease,transform .28s ease;
+}
+.dynamic-island[data-state="listening"]::after{
+  opacity:.58;
+  background:radial-gradient(circle,var(--cyan),var(--blue) 44%,transparent 72%);
+}
+.dynamic-island[data-state="thinking"]::after{
+  opacity:.58;
+  background:radial-gradient(circle,var(--magenta),var(--violet) 46%,transparent 74%);
+}
+.dynamic-island[data-state="done"]::after{
+  opacity:.42;
+  background:radial-gradient(circle,var(--success),var(--cyan) 48%,transparent 72%);
+}
+.island-row{
+  position:relative;
+  z-index:2;
+  height:var(--row-height);
+  display:grid;
+  grid-template-columns:minmax(0,1fr) min(162px,24vw) minmax(0,1fr);
+  align-items:center;
+  border-bottom:1px solid transparent;
+  transition:border-color .24s ease;
+}
+.dynamic-island[data-state="panel"] .island-row,
+.dynamic-island[data-state="listening"] .island-row{
+  border-bottom-color:var(--faint);
+}
+.lane{
+  min-width:0;
+  height:100%;
+  display:flex;
+  align-items:center;
+}
+.lane-left{padding-left:20px;gap:15px}
+.lane-right{padding-right:20px;justify-content:flex-end;gap:12px}
+.logo-mark{
+  width:27px;
+  height:20px;
+  display:flex;
+  align-items:center;
+  gap:3px;
+  flex:0 0 auto;
+}
+.logo-mark span{
+  width:3px;
+  border-radius:999px;
+  background:oklch(94% .004 260);
+}
+.logo-mark span:nth-child(1),.logo-mark span:nth-child(5){height:7px}
+.logo-mark span:nth-child(2){height:14px}
+.logo-mark span:nth-child(3){height:20px}
+.logo-mark span:nth-child(4){height:11px}
+.brand-label{
+  min-width:0;
+  font-size:22px;
+  line-height:1;
+  font-weight:650;
+  letter-spacing:-.02em;
+  color:oklch(87% .006 260);
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  transition:opacity .18s ease,transform .24s var(--snap);
+}
+.dynamic-island[data-state="listening"] .brand-label{
+  opacity:0;
+  transform:translateX(-8px);
+}
+.camera-gap{
+  height:100%;
+  pointer-events:none;
+}
+.fn-badge{
+  min-width:38px;
+  height:17px;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  border-radius:6px;
+  color:oklch(68% .006 260);
+  background:oklch(100% 0 0/.08);
+  box-shadow:0 0 0 1px oklch(100% 0 0/.05) inset;
+  font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+  font-size:12px;
+  font-weight:800;
+  letter-spacing:.02em;
+}
+.status-indicator{
+  display:flex;
+  align-items:center;
+  justify-content:flex-end;
+  min-width:42px;
+  height:22px;
+}
+.status-indicator.is-recording{
+  min-width:144px;
+  height:50px;
+  gap:14px;
+}
+.top-close{
+  width:45px;
+  height:45px;
+  border:1px solid oklch(100% 0 0/.08);
+  border-radius:999px;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  color:oklch(66% .006 260);
+  background:oklch(100% 0 0/.075);
+}
+.mic-chip{
+  width:80px;
+  height:48px;
+  border:0;
+  border-radius:23px;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  color:oklch(98% .01 75);
+  background:linear-gradient(180deg,oklch(76% .18 66),oklch(71% .18 55));
+  box-shadow:
+    0 1px 0 oklch(100% 0 0/.30) inset,
+    0 10px 28px oklch(67% .18 58/.26);
+}
+.mic-chip svg{
+  width:27px;
+  height:27px;
+}
+.wave-bars{
+  display:flex;
+  align-items:center;
+  gap:4px;
+  height:18px;
+}
+.wave-bars i{
+  width:3px;
+  border-radius:999px;
+  background:linear-gradient(var(--cyan),var(--blue));
+  box-shadow:0 0 10px oklch(70% .22 240/.55);
+  transform-origin:center;
+  animation:wave .5s ease-in-out infinite alternate;
+}
+.wave-bars i:nth-child(1),.wave-bars i:nth-child(5){height:6px;animation-duration:.48s}
+.wave-bars i:nth-child(2){height:14px;animation-delay:.12s;animation-duration:.6s}
+.wave-bars i:nth-child(3){height:18px;animation-delay:.06s;animation-duration:.52s}
+.wave-bars i:nth-child(4){height:11px;animation-delay:.18s;animation-duration:.58s}
+@keyframes wave{from{transform:scaleY(.25);opacity:.66}to{transform:scaleY(1);opacity:1}}
+.thinking-dots{
+  display:flex;
+  align-items:center;
+  gap:6px;
+  height:18px;
+}
+.thinking-dots i{
+  width:6px;
+  height:6px;
+  border-radius:999px;
+  background:linear-gradient(90deg,var(--violet),var(--magenta));
+  box-shadow:0 0 12px oklch(66% .25 315/.6);
+  animation:think .72s ease-in-out infinite;
+}
+.thinking-dots i:nth-child(2){animation-delay:.16s}
+.thinking-dots i:nth-child(3){animation-delay:.32s}
+@keyframes think{0%,50%,100%{transform:translateY(0);opacity:.38}25%{transform:translateY(-5px);opacity:1}}
+.done-check{
+  width:22px;
+  height:18px;
+  color:var(--success);
+  filter:drop-shadow(0 0 8px oklch(72% .18 150/.55));
+}
+.listening-panel{
+  position:relative;
+  z-index:2;
+  height:0;
+  opacity:0;
+  transform:translateY(-7px);
+  pointer-events:none;
+  overflow:hidden;
+  transition:opacity .18s ease,transform .24s var(--snap);
+}
+.dynamic-island[data-state="listening"] .listening-panel{
+  height:calc(100% - var(--row-height));
+  opacity:1;
+  transform:translateY(0);
+  pointer-events:auto;
+  transition-delay:.04s;
+}
+.listening-main{
+  height:63px;
+  display:flex;
+  align-items:center;
+  padding:0 20px;
+  border-bottom:1px solid var(--faint);
+}
+.listening-title{
+  display:flex;
+  align-items:center;
+  gap:15px;
+  color:var(--blue);
+  font-size:22px;
+  font-weight:760;
+  letter-spacing:-.02em;
+}
+.listen-dot{
+  width:12px;
+  height:12px;
+  border-radius:999px;
+  background:var(--blue);
+  box-shadow:0 0 14px oklch(64% .22 250/.48);
+}
+.listen-meter{
+  margin-left:auto;
+  width:72px;
+  height:28px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:6px;
+  border-radius:18px;
+  background:radial-gradient(circle at 78% 50%,oklch(70% .2 235/.72),transparent 72%);
+  filter:drop-shadow(0 0 22px oklch(64% .22 250/.62));
+}
+.listen-meter i{
+  width:4px;
+  height:8px;
+  border-radius:999px;
+  background:var(--cyan);
+  animation:meterPulse .55s ease-in-out infinite alternate;
+}
+.listen-meter i:nth-child(2){animation-delay:.08s}
+.listen-meter i:nth-child(3){animation-delay:.16s}
+.listen-meter i:nth-child(4){animation-delay:.24s}
+.listen-meter i:nth-child(5){animation-delay:.32s}
+@keyframes meterPulse{
+  from{opacity:.55;transform:scaleY(.72)}
+  to{opacity:1;transform:scaleY(1.25)}
+}
+.listening-foot{
+  height:56px;
+  display:flex;
+  align-items:center;
+  gap:13px;
+  padding:0 20px;
+  color:oklch(42% .006 260);
+  font-size:21px;
+  font-weight:700;
+  letter-spacing:-.02em;
+}
+.listening-foot .fn-badge{
+  min-width:45px;
+  height:27px;
+  font-size:16px;
+  color:oklch(59% .006 260);
+  background:oklch(100% 0 0/.07);
+  box-shadow:0 0 0 1px oklch(100% 0 0/.07) inset;
+}
+.panel{
+  position:relative;
+  z-index:2;
+  height:calc(100% - var(--row-height));
+  opacity:0;
+  transform:translateY(-8px);
+  pointer-events:none;
+  transition:opacity .18s ease,transform .24s var(--snap);
+}
+.dynamic-island[data-state="panel"] .panel{
+  opacity:1;
+  transform:translateY(0);
+  pointer-events:auto;
+  transition-delay:.05s;
+}
+.panel-head{
+  height:62px;
+  display:flex;
+  align-items:flex-start;
+  padding:17px 17px 0 20px;
+}
+.panel-title-wrap{
+  display:flex;
+  align-items:center;
+  gap:20px;
+  min-width:0;
+  padding-top:1px;
+}
+.panel-title{
+  font-size:20px;
+  line-height:1;
+  font-weight:760;
+  letter-spacing:.01em;
+  text-transform:uppercase;
+  color:oklch(52% .006 260);
+  white-space:nowrap;
+}
+.page-dots{
+  display:flex;
+  align-items:center;
+  gap:12px;
+  padding-top:1px;
+}
+.page-dot{
+  width:8px;
+  height:8px;
+  border:0;
+  padding:0;
+  border-radius:999px;
+  background:oklch(72% .006 260/.26);
+  cursor:pointer;
+}
+.page-dot[aria-current="true"]{
+  background:oklch(74% .006 260/.84);
+}
+.panel-actions{
+  margin-left:auto;
+  display:flex;
+  align-items:center;
+  gap:14px;
+  transform:translateY(-10px);
+}
+.icon-btn{
+  width:50px;
+  height:50px;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  border:1px solid oklch(100% 0 0/.085);
+  border-radius:12px;
+  color:oklch(67% .006 260);
+  background:oklch(100% 0 0/.055);
+  cursor:pointer;
+  transition:background .16s ease,color .16s ease,transform .16s ease;
+}
+.icon-btn:hover{
+  background:oklch(100% 0 0/.095);
+  color:oklch(87% .006 260);
+}
+.icon-btn:active{transform:scale(.96)}
+.page-shell{
+  position:relative;
+  height:calc(100% - 62px);
+}
+.arrow-btn{
+  position:absolute;
+  top:50%;
+  width:39px;
+  height:39px;
+  border:1px solid oklch(100% 0 0/.08);
+  border-radius:999px;
+  background:oklch(100% 0 0/.065);
+  color:oklch(70% .006 260);
+  display:grid;
+  place-items:center;
+  cursor:pointer;
+  z-index:5;
+  transform:translateY(-50%);
+  transition:background .16s ease,color .16s ease,transform .16s ease;
+}
+.arrow-btn:hover{background:oklch(100% 0 0/.1);color:oklch(90% .006 260)}
+.arrow-btn:active{transform:translateY(-50%) scale(.95)}
+.arrow-prev{left:1px}
+.arrow-next{right:1px}
+.page-viewport{
+  height:100%;
+  overflow:hidden;
+}
+.page-track{
+  display:flex;
+  width:100%;
+  height:100%;
+  transform:translateX(calc(var(--page-index,0) * -100%));
+  transition:transform .36s cubic-bezier(.2,.92,.18,1);
+}
+.page{
+  flex:0 0 100%;
+  width:100%;
+  min-width:100%;
+  max-width:100%;
+  overflow:hidden;
+  padding:0 78px 10px;
+}
+.rows{
+  display:flex;
+  flex-direction:column;
+  gap:5px;
+}
+.panel-row{
+  width:100%;
+  height:51px;
+  display:flex;
+  align-items:center;
+  gap:17px;
+  padding:0 18px;
+  border:1px solid oklch(100% 0 0/.07);
+  border-radius:11px;
+  background:oklch(100% 0 0/.034);
+  box-shadow:0 0 0 1px oklch(0% 0 0/.22);
+  min-width:0;
+}
+.row-icon{
+  width:25px;
+  min-width:25px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  color:oklch(70% .006 260);
+}
+.row-icon.success{color:var(--success)}
+.row-main{
+  min-width:0;
+  flex:1;
+  color:oklch(68% .006 260);
+  font-size:21px;
+  line-height:1.05;
+  font-weight:690;
+  letter-spacing:-.018em;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+.row-time{
+  font-size:18px;
+  line-height:1;
+  color:oklch(48% .006 260);
+  font-weight:720;
+  white-space:nowrap;
+}
+.feature-grid{
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:11px;
+  padding-top:16px;
+  width:100%;
+}
+.feature-card{
+  height:74px;
+  border:1px solid oklch(100% 0 0/.075);
+  border-radius:11px;
+  background:oklch(100% 0 0/.038);
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  gap:7px;
+  color:oklch(68% .006 260);
+  cursor:pointer;
+}
+.feature-card span{
+  font-size:20px;
+  line-height:1;
+  font-weight:720;
+  letter-spacing:-.02em;
+}
+.new-note{
+  justify-content:flex-start;
+  color:oklch(86% .006 260);
+}
+.new-note .row-main{color:oklch(86% .006 260)}
+.stat-grid{
+  display:grid;
+  gap:11px;
+  width:100%;
+}
+.stat-grid.two{grid-template-columns:repeat(2,minmax(0,1fr))}
+.stat-grid.three{grid-template-columns:repeat(3,minmax(0,1fr))}
+.stat-card{
+  height:96px;
+  display:flex;
+  flex-direction:column;
+  justify-content:center;
+  align-items:center;
+  gap:10px;
+  border:1px solid oklch(100% 0 0/.075);
+  border-radius:11px;
+  background:oklch(100% 0 0/.034);
+}
+.stat-value{
+  font-size:31px;
+  line-height:1;
+  font-weight:760;
+  letter-spacing:-.03em;
+  color:oklch(85% .006 260);
+}
+.stat-label{
+  font-size:18px;
+  line-height:1;
+  color:oklch(45% .006 260);
+  font-weight:720;
+}
+.knowledge-row{
+  margin-top:11px;
+  height:50px;
+}
+.knowledge-row .row-main{
+  color:oklch(84% .006 260);
+  font-size:21px;
+}
+.page[data-page="stats"]{padding-top:4px}
+.page[data-page="memory"]{padding-top:7px}
+.page[data-page="notes"] .rows{padding-top:0}
+.control-rail{
+  position:absolute;
+  left:50%;
+  bottom:22px;
+  transform:translateX(-50%);
+  z-index:70;
+  display:flex;
+  align-items:center;
+  gap:8px;
+  padding:8px;
+  border:1px solid oklch(100% 0 0/.07);
+  border-radius:18px;
+  background:oklch(8% .006 260/.78);
+  backdrop-filter:blur(16px);
+  box-shadow:0 18px 45px oklch(0% 0 0/.38);
+}
+.demo-btn{
+  height:35px;
+  min-width:43px;
+  border:1px solid oklch(100% 0 0/.08);
+  border-radius:11px;
+  padding:0 13px;
+  background:oklch(100% 0 0/.055);
+  color:oklch(77% .006 260);
+  cursor:pointer;
+  font-size:13px;
+  font-weight:680;
+}
+.demo-btn:hover,.demo-btn[aria-pressed="true"]{
+  background:oklch(100% 0 0/.105);
+  color:oklch(92% .006 260);
+}
+.sr-only{
+  position:absolute;
+  width:1px;
+  height:1px;
+  padding:0;
+  margin:-1px;
+  overflow:hidden;
+  clip:rect(0,0,0,0);
+  white-space:nowrap;
+  border:0;
+}
+@media (max-width:720px){
+  :root{--row-height:60px}
+  .lane-left{padding-left:14px;gap:10px}
+  .lane-right{padding-right:14px}
+  .brand-label{font-size:18px}
+  .panel-head{height:58px;padding-left:14px}
+  .panel-title{font-size:15px}
+  .page-dots{gap:8px}
+  .panel-actions{gap:8px}
+  .icon-btn{width:42px;height:42px}
+  .page{padding:0 47px 10px}
+  .panel-row{height:47px;padding:0 12px;gap:10px}
+  .row-main{font-size:16px}
+  .row-time{font-size:14px}
+  .feature-grid{gap:7px}
+  .feature-card span{font-size:15px}
+  .stat-value{font-size:24px}
+  .stat-label{font-size:13px}
+  .control-rail{max-width:calc(100vw - 16px);overflow-x:auto}
+}
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{
+    animation-duration:.001ms!important;
+    animation-iteration-count:1!important;
+    transition-duration:.001ms!important;
+    scroll-behavior:auto!important;
+  }
+}
+</style>
+</head>
+<body>
+<main class="stage">
+  <div class="hover-zone" id="hoverZone" aria-hidden="true"></div>
+
+  <section class="dynamic-island" id="island" data-state="idle" aria-label="Dynamic island demo">
+    <div class="island-row">
+      <div class="lane lane-left">
+        <div class="logo-mark" aria-hidden="true">
+          <span></span><span></span><span></span><span></span><span></span>
+        </div>
+        <div class="brand-label" id="rowLabel">Vordi</div>
+      </div>
+      <div class="camera-gap" aria-hidden="true"></div>
+      <div class="lane lane-right">
+        <div class="status-indicator" id="statusIndicator">
+          <span class="fn-badge">fn</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="listening-panel" aria-live="polite">
+      <div class="listening-main">
+        <div class="listening-title">
+          <span class="listen-dot" aria-hidden="true"></span>
+          <span>Listening</span>
+        </div>
+        <div class="listen-meter" aria-hidden="true">
+          <i></i><i></i><i></i><i></i><i></i>
+        </div>
+      </div>
+      <div class="listening-foot">
+        <span>Release</span>
+        <span class="fn-badge">Fn</span>
+        <span>to send</span>
+      </div>
+    </div>
+
+    <div class="panel" aria-live="polite">
+      <div class="panel-head">
+        <div class="panel-title-wrap">
+          <div class="panel-title" id="panelTitle">Latest transcriptions</div>
+          <div class="page-dots" id="pageDots" aria-label="Panel pages"></div>
+        </div>
+        <div class="panel-actions">
+          <button class="icon-btn" type="button" aria-label="Settings">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M12 15.25a3.25 3.25 0 1 0 0-6.5 3.25 3.25 0 0 0 0 6.5Z" stroke="currentColor" stroke-width="1.8"/>
+              <path d="M19.45 13.2a7.9 7.9 0 0 0 .05-1.2c0-.41-.02-.81-.07-1.2l2.08-1.62-2-3.47-2.45.98a8.8 8.8 0 0 0-2.08-1.2L14.62 2h-4l-.36 3.49a8.8 8.8 0 0 0-2.08 1.2l-2.45-.98-2 3.47 2.08 1.62a8.7 8.7 0 0 0 0 2.4l-2.08 1.62 2 3.47 2.45-.98a8.8 8.8 0 0 0 2.08 1.2l.36 3.49h4l.36-3.49a8.8 8.8 0 0 0 2.08-1.2l2.45.98 2-3.47-2.06-1.62Z" stroke="currentColor" stroke-width="1.55" stroke-linejoin="round"/>
+            </svg>
+          </button>
+          <button class="icon-btn" id="closePanel" type="button" aria-label="Close panel">
+            <svg width="23" height="23" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M6.5 6.5 17.5 17.5M17.5 6.5 6.5 17.5" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <div class="page-shell">
+        <button class="arrow-btn arrow-prev" id="prevPage" type="button" aria-label="Previous page">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="m15 18-6-6 6-6" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
+        <button class="arrow-btn arrow-next" id="nextPage" type="button" aria-label="Next page">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="m9 6 6 6-6 6" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
+
+        <div class="page-viewport">
+          <div class="page-track" id="pageTrack">
+            <section class="page" data-page="transcriptions" aria-label="Latest transcriptions">
+              <div class="rows">
+                <div class="panel-row">
+                  <span class="row-icon success" aria-hidden="true">
+                    <svg width="23" height="23" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm4.7 7.8-5.36 5.36a1 1 0 0 1-1.42 0L7.3 12.54l1.42-1.42 1.91 1.91 4.65-4.65 1.42 1.42Z"/></svg>
+                  </span>
+                  <span class="row-main">The visual component for snippets must look s...</span>
+                  <span class="row-time">3h</span>
+                </div>
+                <div class="panel-row">
+                  <span class="row-icon success" aria-hidden="true">
+                    <svg width="23" height="23" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm4.7 7.8-5.36 5.36a1 1 0 0 1-1.42 0L7.3 12.54l1.42-1.42 1.91 1.91 4.65-4.65 1.42 1.42Z"/></svg>
+                  </span>
+                  <span class="row-main">I would have needed more visuals rather than t...</span>
+                  <span class="row-time">3h</span>
+                </div>
+                <div class="panel-row">
+                  <span class="row-icon success" aria-hidden="true">
+                    <svg width="23" height="23" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm4.7 7.8-5.36 5.36a1 1 0 0 1-1.42 0L7.3 12.54l1.42-1.42 1.91 1.91 4.65-4.65 1.42 1.42Z"/></svg>
+                  </span>
+                  <span class="row-main">This UI isn't what I expected, it doesn't match...</span>
+                  <span class="row-time">3h</span>
+                </div>
+              </div>
+              <div class="feature-grid">
+                <button class="feature-card" type="button">
+                  <svg width="30" height="30" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="5" r="2.4" stroke="currentColor" stroke-width="1.8"/><circle cx="5" cy="12" r="2.4" stroke="currentColor" stroke-width="1.8"/><circle cx="19" cy="12" r="2.4" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="19" r="2.4" stroke="currentColor" stroke-width="1.8"/><path d="M10.2 6.8 6.8 10.2m10.4 0-3.4-3.4m-7 7 3.4 3.4m3.6 0 3.4-3.4" stroke="currentColor" stroke-width="1.5"/></svg>
+                  <span>Memory</span>
+                </button>
+                <button class="feature-card" type="button">
+                  <svg width="29" height="29" viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="4" y="5" width="16" height="14" rx="2" stroke="currentColor" stroke-width="1.8"/><path d="M8 9h8M8 12h8M8 15h5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+                  <span>Notes</span>
+                </button>
+                <button class="feature-card" type="button">
+                  <svg width="29" height="29" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m15 4 1.1 3.1L19 8.2l-2.9 1.1L15 12.4l-1.1-3.1L11 8.2l2.9-1.1L15 4ZM7.5 11l.8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8.8-2.2ZM18.5 14l.6 1.6 1.6.6-1.6.6-.6 1.6-.6-1.6-1.6-.6 1.6-.6.6-1.6Z" fill="currentColor"/></svg>
+                  <span>Magic Words</span>
+                </button>
+              </div>
+            </section>
+
+            <section class="page" data-page="notes" aria-label="Notes">
+              <div class="rows">
+                <div class="panel-row">
+                  <span class="row-icon" aria-hidden="true"><svg width="23" height="23" viewBox="0 0 24 24" fill="none"><rect x="4" y="5" width="16" height="14" rx="2" stroke="currentColor" stroke-width="1.8"/><path d="M8 9h8M8 12h8M8 15h5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg></span>
+                  <span class="row-main">Vordi turns your voice into clean text right wh...</span>
+                  <span class="row-time">3h</span>
+                </div>
+                <div class="panel-row">
+                  <span class="row-icon" aria-hidden="true"><svg width="23" height="23" viewBox="0 0 24 24" fill="none"><rect x="4" y="5" width="16" height="14" rx="2" stroke="currentColor" stroke-width="1.8"/><path d="M8 9h8M8 12h8M8 15h5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg></span>
+                  <span class="row-main">These credentials will be used by any library th...</span>
+                  <span class="row-time">4d</span>
+                </div>
+                <div class="panel-row">
+                  <span class="row-icon" aria-hidden="true"><svg width="23" height="23" viewBox="0 0 24 24" fill="none"><rect x="4" y="5" width="16" height="14" rx="2" stroke="currentColor" stroke-width="1.8"/><path d="M8 9h8M8 12h8M8 15h5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg></span>
+                  <span class="row-main">Win and loss</span>
+                  <span class="row-time">6d</span>
+                </div>
+                <button class="panel-row new-note" type="button">
+                  <span class="row-icon" aria-hidden="true"><svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg></span>
+                  <span class="row-main">New note</span>
+                </button>
+              </div>
+            </section>
+
+            <section class="page" data-page="memory" aria-label="Memory">
+              <div class="stat-grid two">
+                <div class="stat-card">
+                  <div class="stat-value">316</div>
+                  <div class="stat-label">Memories</div>
+                </div>
+                <div class="stat-card">
+                  <div class="stat-value">201</div>
+                  <div class="stat-label">Entities</div>
+                </div>
+              </div>
+              <button class="panel-row knowledge-row" type="button">
+                <span class="row-icon" aria-hidden="true"><svg width="25" height="25" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="5" r="2.4" stroke="currentColor" stroke-width="1.8"/><circle cx="5" cy="12" r="2.4" stroke="currentColor" stroke-width="1.8"/><circle cx="19" cy="12" r="2.4" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="19" r="2.4" stroke="currentColor" stroke-width="1.8"/><path d="M10.2 6.8 6.8 10.2m10.4 0-3.4-3.4m-7 7 3.4 3.4m3.6 0 3.4-3.4" stroke="currentColor" stroke-width="1.5"/></svg></span>
+                <span class="row-main">Open knowledge graph</span>
+                <span class="row-time" aria-hidden="true">-></span>
+              </button>
+            </section>
+
+            <section class="page" data-page="stats" aria-label="Today">
+              <div class="stat-grid three">
+                <div class="stat-card">
+                  <div class="stat-value">5</div>
+                  <div class="stat-label">Runs today</div>
+                </div>
+                <div class="stat-card">
+                  <div class="stat-value">386</div>
+                  <div class="stat-label">Total runs</div>
+                </div>
+                <div class="stat-card">
+                  <div class="stat-value">96%</div>
+                  <div class="stat-label">Success</div>
+                </div>
+              </div>
+            </section>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="control-rail" aria-label="Demo controls">
+    <button class="demo-btn" id="fnFlow" type="button">fn</button>
+    <button class="demo-btn" id="openPanel" type="button">Panel</button>
+    <button class="demo-btn" id="prevControl" type="button" aria-label="Previous panel page">&lt;</button>
+    <button class="demo-btn" id="nextControl" type="button" aria-label="Next panel page">&gt;</button>
+    <button class="demo-btn" id="reset" type="button">Reset</button>
+  </div>
+</main>
+
+<script>
+const island = document.getElementById("island");
+const rowLabel = document.getElementById("rowLabel");
+const statusIndicator = document.getElementById("statusIndicator");
+const pageTrack = document.getElementById("pageTrack");
+const panelTitle = document.getElementById("panelTitle");
+const pageDots = document.getElementById("pageDots");
+const hoverZone = document.getElementById("hoverZone");
+
+const pages = [
+  { key: "transcriptions", title: "Latest transcriptions", height: 390 },
+  { key: "notes", title: "Notes", height: 363 },
+  { key: "memory", title: "Memory", height: 343 },
+  { key: "stats", title: "Today", height: 257 }
+];
+
+const states = {
+  idle: { width: 496, height: 68, label: "Vordi", indicator: "fn" },
+  listening: { width: 840, height: 188, label: "", indicator: "recordingControls" },
+  thinking: { width: 708, height: 68, label: "Thinking", indicator: "dots" },
+  done: { width: 640, height: 68, label: "Done", indicator: "check" }
+};
+
+let pageIndex = 0;
+let flowTimers = [];
+
+function indicatorMarkup(type) {
+  statusIndicator.classList.toggle("is-recording", type === "recordingControls");
+  if (type === "recordingControls") {
+    return '<span class="top-close" aria-hidden="true"><svg width="23" height="23" viewBox="0 0 24 24" fill="none"><path d="M6.5 6.5 17.5 17.5M17.5 6.5 6.5 17.5" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></svg></span><span class="mic-chip" aria-label="Recording"><svg viewBox="0 0 24 24" fill="none"><path d="M12 14.5a4 4 0 0 0 4-4V6a4 4 0 1 0-8 0v4.5a4 4 0 0 0 4 4Z" fill="currentColor"/><path d="M5.75 10.25a6.25 6.25 0 0 0 12.5 0M12 16.6V21m-3.4 0h6.8" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></svg></span>';
+  }
+  if (type === "bars") {
+    return '<div class="wave-bars" aria-label="Listening"><i></i><i></i><i></i><i></i><i></i></div>';
+  }
+  if (type === "dots") {
+    return '<div class="thinking-dots" aria-label="Thinking"><i></i><i></i><i></i></div>';
+  }
+  if (type === "check") {
+    return '<svg class="done-check" viewBox="0 0 24 20" fill="none" aria-label="Done"><path d="M2.5 10.4 8.4 16.3 21.5 3.1" stroke="currentColor" stroke-width="3.1" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  }
+  return '<span class="fn-badge">fn</span>';
+}
+
+function clearFlowTimers() {
+  flowTimers.forEach(clearTimeout);
+  flowTimers = [];
+}
+
+function setSizing(width, height) {
+  island.style.setProperty("--island-width", `${width}px`);
+  island.style.setProperty("--island-height", `${height}px`);
+}
+
+function setState(name) {
+  clearFlowTimers();
+  const state = states[name];
+  island.dataset.state = name;
+  rowLabel.textContent = state.label;
+  statusIndicator.innerHTML = indicatorMarkup(state.indicator);
+  setSizing(state.width, state.height);
+  document.getElementById("openPanel").setAttribute("aria-pressed", "false");
+}
+
+function openPanel(targetIndex = pageIndex) {
+  clearFlowTimers();
+  pageIndex = ((targetIndex % pages.length) + pages.length) % pages.length;
+  const page = pages[pageIndex];
+  island.dataset.state = "panel";
+  rowLabel.textContent = "Vordi";
+  statusIndicator.innerHTML = indicatorMarkup("fn");
+  setSizing(780, page.height);
+  panelTitle.textContent = page.title;
+  pageTrack.style.setProperty("--page-index", pageIndex);
+  updateDots();
+  document.getElementById("openPanel").setAttribute("aria-pressed", "true");
+}
+
+function changePage(delta) {
+  openPanel(pageIndex + delta);
+}
+
+function updateDots() {
+  pageDots.innerHTML = pages.map((page, index) => (
+    `<button class="page-dot" type="button" aria-label="${page.title}" aria-current="${index === pageIndex ? "true" : "false"}" data-index="${index}"></button>`
+  )).join("");
+}
+
+function runFnFlow() {
+  clearFlowTimers();
+  setState("listening");
+  flowTimers.push(setTimeout(() => {
+    const state = states.thinking;
+    island.dataset.state = "thinking";
+    rowLabel.textContent = state.label;
+    statusIndicator.innerHTML = indicatorMarkup(state.indicator);
+    setSizing(state.width, state.height);
+  }, 1150));
+  flowTimers.push(setTimeout(() => {
+    const state = states.done;
+    island.dataset.state = "done";
+    rowLabel.textContent = state.label;
+    statusIndicator.innerHTML = indicatorMarkup(state.indicator);
+    setSizing(state.width, state.height);
+  }, 2250));
+  flowTimers.push(setTimeout(() => {
+    setState("idle");
+  }, 4050));
+}
+
+document.getElementById("fnFlow").addEventListener("click", runFnFlow);
+document.getElementById("openPanel").addEventListener("click", () => openPanel(pageIndex));
+document.getElementById("prevControl").addEventListener("click", () => changePage(-1));
+document.getElementById("nextControl").addEventListener("click", () => changePage(1));
+document.getElementById("reset").addEventListener("click", () => setState("idle"));
+document.getElementById("prevPage").addEventListener("click", () => changePage(-1));
+document.getElementById("nextPage").addEventListener("click", () => changePage(1));
+document.getElementById("closePanel").addEventListener("click", () => setState("idle"));
+
+pageDots.addEventListener("click", event => {
+  const button = event.target.closest(".page-dot");
+  if (!button) return;
+  openPanel(Number(button.dataset.index));
+});
+
+hoverZone.addEventListener("pointerenter", () => {
+  if (island.dataset.state === "idle") openPanel(pageIndex);
+});
+
+window.addEventListener("keydown", event => {
+  if (event.key === "f" || event.key === "F") runFnFlow();
+  if (event.key === "Escape") setState("idle");
+  if (event.key === "ArrowRight") changePage(1);
+  if (event.key === "ArrowLeft") changePage(-1);
+});
+
+updateDots();
+setState("idle");
+</script>
+</body>
+</html>

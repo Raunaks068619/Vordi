@@ -662,7 +662,7 @@ private struct OnboardingFeaturesStep: View {
         VStack(alignment: .leading, spacing: Theme.Space.xl) {
             OnboardingStepHeader(
                 eyebrow: "Page 1",
-                title: "Everything Verba gives you.",
+                title: "Everything Vordi gives you.",
                 copy: "This is the product surface you are setting up. The next pages only collect the pieces required to make these features work on macOS."
             )
 
@@ -725,7 +725,7 @@ private struct OnboardingPermissionsStep: View {
             OnboardingStepHeader(
                 eyebrow: "Page 2",
                 title: "Grant only what macOS requires.",
-                copy: "Verba needs microphone, typing, hotkey detection, and screen context permissions. Each tile shows the current system state."
+                copy: "Vordi needs microphone, typing, hotkey detection, and screen context permissions. Each tile shows the current system state."
             )
 
             if let warning = permissionService.environmentWarning {
